@@ -1,0 +1,9 @@
+{
+  "name": "cloak-labs/cloakwp-plugin",
+  "description": "Adds NextJS specific utilities to the CloakWP Plugin.",
+  "type": "wordpress-plugin",
+  "version": "1.0.0",
+  "require": {
+    "composer/installers": "^2.2"
+  }
+}
