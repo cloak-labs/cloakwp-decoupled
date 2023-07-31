@@ -13,15 +13,15 @@ Transform WordPress into a headless CMS.
 
 == Description ==
 
-CloakWP is a suite of open-source tools that makes it incredibly easy and fast to build high-quality headless WordPress websites. Unlike traditional WordPress, you get to build your front-end using the latest and greatest JavaScript frameworks, such as NextJS, and benefit from the vastly better developer experience, productivity, site performance, and ultimately business results for you and/or your clients.
+CloakWP is a suite of open-source tools that makes it incredibly easy and fast to build high-quality headless WordPress websites. Unlike traditional WordPress, you get to build your front-end using the latest and greatest JavaScript frameworks, such as Next.js, and benefit from the vastly better developer experience, productivity, site performance, and ultimately business results for you and/or your clients.
 
 And unlike most existing headless WordPress solutions, you don't have to sacrifice the benefits of the traditional "coupled" approach, such as the Gutenberg editor, post preview mode, ACF block previews within the editor, the front-end admin toolbar, and more. AND you don't have to maintain all of the underlying headless infrastructure yourself; we've extracted the infrastructure into a maintainable, version-controlled suite of software tools that you can easily upgrade as we release updates over time, which includes:
 
 - CloakWP Plugin (what you're looking at right now)
-- CloakWP NPM Package (installed on your decoupled front-end)
-- CloakWP Theme (super lightweight headless-friendly theme)
-- Optional: CloakWP Child Theme (get a jump-start on your content modelling)
-- Optional: CloakWP Project Starter (CLI tool coming soon) -- scaffold a production-ready CloakWP project that works out-of-the-box, including a modern WordPress backend using the popular Bedrock boilerplate, Docker for local development, and Composer for dependency management, complete with a fully-integrated NextJS front-end.
+- CloakWP.js (NPM package for your decoupled front-end)
+- CloakWP Base Theme (super lightweight headless-friendly theme)
+- Optional: CloakWP Bedrock (a production-ready WordPress boilerplate for CloakWP projects, extending the popular Bedrock boilerplate, including Spinup Local WP (simple Dockerized WordPress for local development), Composer for dependency management, and a collection of best-practice plugins pre-installed)
+- Optional: CloakWP Inception (an integrated WP child theme + Next.js frontend to jump-start your headless projects)
 
 Headless architecture is the future, but WordPress isn't built for it out-of-the-box. CloakWP is the answer. It's simply the best way to build modern WordPress websites.
 

@@ -1,8 +1,8 @@
 {
   "name": "cloak-labs/cloakwp-plugin",
-  "description": "Adds NextJS specific utilities to the CloakWP Plugin.",
+  "description": "Transform WordPress into a headless CMS.",
   "type": "wordpress-plugin",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "require": {
     "composer/installers": "^2.2"
   }

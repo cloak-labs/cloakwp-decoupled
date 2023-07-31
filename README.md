@@ -1,36 +1,63 @@
-# CloakWP Wordpress Plugin
-This WordPress plugin is designed to integrate a WordPress backend with a decoupled NextJS frontend -- it's part of a larger ecosystem of open-source tools designed to make Headless WordPress development simple & easy; it has a required "sister" [NPM package](https://github.com/cloak-labs/cloakwp) to be installed on your Next front-end, and is intended to be used alongside the [HeadlessWP WordPress Plugin](https://github.com/cloak-labs/headless-wp-plugin), which extends the WordPress REST API to be more headless-friendly (eg. adds Gutenberg blocks data and Yoast SEO data to the REST API, expands ACF data in the REST API, extends JWT expiration dates, etc.).
+# CloakWP WordPress Plugin
+CloakWP is a suite of open-source tools that makes it incredibly easy and fast to build high-quality headless WordPress websites. Unlike traditional WordPress, you get to build your front-end using the latest and greatest JavaScript frameworks, such as Next.js, and benefit from the vastly better developer experience, productivity, site performance, and ultimately business results for you and/or your clients.
 
-## Features
-- Integrates post and page previews with NextJS frontend
-- Integrates logging in and out of WordPress with NextJS frontend (so you can conditionally display the CloakWP AdminBar provided by the front-end NPM package)
-- Integrates on-demand Incremental Static Regeneration (ISR) functionality with NextJS frontend. As posts/pages are edited and saved in WordPress, regeneration is triggered immediately (as opposed to waiting for the next regeneration interval) and for that particular frontend page only (as opposed to triggering a full sitewide build process). You get all the benefits of a fully static site, without the frustration of waiting for your saved changes to take effect.
-- Uses Code as Configuration approach; all config for this plugin is done through defining PHP constants, no configuration data is saved to the database. This allows you to version-control your config and easily define different options per environment (particularly useful for those using a modern WordPress development approach, such as our [WP Backend Starter](https://github.com/cloak-labs/headless-wordpress-backend-starter)).
-- Adds a CloakWP menu item to the backend for viewing state of config variables
+And unlike most existing headless WordPress solutions, you don't have to sacrifice the benefits of the traditional "coupled" approach, such as the Gutenberg editor, post preview mode, ACF block previews within the editor, the front-end admin toolbar, and more. AND you don't have to maintain all of the underlying headless infrastructure yourself (trust us, it's a lot); we've extracted the infrastructure into a maintainable, version-controlled suite of software tools that you can easily upgrade as we release updates over time. These tools include:
 
-## CloakWP NPM Package
-- [npm](https://www.npmjs.com/package/cloakwp)
-- [github](https://github.com/cloak-labs/cloakwp)
+- CloakWP Plugin (what you're looking at right now)
+- [CloakWP.js](https://github.com/cloak-labs/cloakwp-js) (NPM package for your decoupled front-end that communicates with this plugin, provides a Gutenberg block rendering framework for React, and so much more)
+- [CloakWP Base Theme](https://github.com/cloak-labs/cloakwp-base-theme) (basic headless-friendly WordPress theme)
+- Optional: [CloakWP Bedrock](https://github.com/cloak-labs/cloakwp-bedrock) (a free production-ready headless WordPress boilerplate for CloakWP projects, extending the popular Bedrock boilerplate, including Spinup Local WP (simple Dockerized WordPress for local development), Composer for dependency management, and a collection of best-practice headless plugins pre-installed)
+- Optional: [CloakWP Inception](https://github.com/cloak-labs/cloakwp-inception-nextjs) (a free, integrated WP child theme + Next.js frontend to jump-start your headless projects)
 
-## Dependencies
-- [HeadlessWP WordPress Plugin](https://github.com/cloak-labs/headless-wp-plugin)
+Headless architecture is the future, but WordPress isn't built for it out-of-the-box. CloakWP is the answer. It's simply the best way to build modern WordPress websites.
+
+## Plugin Features
+As mentioned above, the CloakWP plugin is just one piece of the puzzle. It provides the following features:
+
+- Rewrites WordPress URLs to your decoupled front-end URLs
+- Integrates post preview mode with your decoupled front-end
+- Improves/extends the WordPress REST API to be more feature-complete and headless-friendly, including:
+  - Converts & exposes Gutenberg Blocks data as JSON (read more about mapping Gutenberg blocks to your own React components from your decoupled front-end using the block rendering framework in [CloakWP.js](https://github.com/cloak-labs/cloakwp-js))
+  - Extends default post/page routes to include the full data for the post's featured image, taxonomies, ACF relation fields, complete URL path, and more -- solving many headless-specific issues and preventing the need for multiple API requests just to retrieve a single post's data
+  - Provides a custom `/wp-json/wp/v2/frontpage` route to selectively retrieve the page set as the "Homepage" in "WP Admin" > "Settings" > "Reading"
+  - Provides a custom `/wp-json/cloakwp/menus/{menu_slug}` route to make it easier to retrieve WordPress menu data
+- Enables on-demand Incremental Static Regeneration (ISR) of your decoupled front-end; i.e. when you save changes to a WP post, the plugin triggers an immediate rebuild of that particular static page on your decoupled front-end so that the changes are viewable within a couple seconds -- enabling a blazing-fast website thanks to static site generation, but without the usual downside of having to wait minutes/hours for content changes to take effect (that's right, server-side rendering no longer has any advantages over static site generation, for 99% of content/marketing sites)
+- Hides wp-admin pages that are irrelevant in a headless context
+- Keeps your authentication status in sync with your decoupled front-end (eg. enabling you to only render the CloakWP.js `AdminBar` component for logged-in users)
+- Adds custom ACF fields, `ThemeColorPicker` and `Alignment`, for users who follow our recommended approach to ACF field registration (i.e. using [ExtendedACF](https://github.com/vinkla/extended-acf)'s object-oriented PHP)
 
 ## Installation
-1. Install the latest release of `cloakwp.zip` on your WordPress site (or install via Composer, pointing at the latest GitHub release -- our recommended approach)
-2. Add the following constants to your `wp-config.php` to configure the plugin
-```php
-/* 
-Define your CloakWP Plugin settings here
-*/
-
-# Main Settings
-define('CLOAKWP_FRONTEND_URL', 'https://example.com');
-define('CLOAKWP_PREVIEW_SECRET', '1234_CUSTOMIZE_ME');
-define('CLOAKWP_ENABLE_DEV_MODE', TRUE);
-
-# API Route
-define('CLOAKWP_API_BASE_PATH', 'custom'); // defaults to "cloakwp", must match your CloakWP dynamic API route folder name
-
+If you're not using [CloakWP Bedrock](https://github.com/cloak-labs/cloakwp-bedrock), which pre-installs the CloakWP Plugin for you, you can install the plugin via Composer by running:
+```bash
+composer require cloak-labs/cloakwp-plugin
 ```
-3. Install & configure the [CloakWP NPM package](https://www.npmjs.com/package/cloakwp) on your NextJS front-end
-4. Profit
+
+Not using Composer? First, strongly consider using Composer. Otherwise, download the plugin's GitHub repo and upload it to WordPress as a .zip
+
+## Configuration
+
+We have made a concerted effort across all CloakWP tooling to embrace "code as configuration". This is why you don't see a configurable plugin settings page in wp-admin; instead, you define PHP constants and use filter and action hooks to configure, extend, and override things.
+
+Why? Unlike saving config in the database via a UI, config defined via code ensures your local dev environment is the source of truth, and enables you to push/merge config changes up to production rather than pulling it down via an arduous database merging methodology, or worse, having to manually redo your config changes in production. It keeps things clean, version-controlled, re-usable, automate-able, etc.
+
+### PHP Constants
+Add the following required constant declarations to your `wp-config.php` file, or your .env files if using the CloakWP Bedrock starter or your own implementation of Bedrock:
+
+```php
+# Required
+define('CLOAKWP_FRONTEND_URL', 'https://example.com'); // decoupled frontend URL
+define('CLOAKWP_PREVIEW_SECRET', '1234_CUSTOMIZE_ME'); // secure secret key
+
+# Optional
+# define('CLOAKWP_API_BASE_PATH', 'custom-route'); // defaults to "cloakwp"; must match your front-end's dynamic API route folder name where you import the CloakWP.js `ApiRouter`
+# define('CLOAKWP_PREVIEW_BLOCK_PATHNAME', '/custom-route'); // defaults to "/preview-block"; must match your front-end's page route where you import the CloakWP.js `BlockPreviewPage`
+```
+
+### Hooks
+Our goal in the near-future is to release a version of this plugin that provides all kinds of filter/action hooks to extend/override certain functionalities; for now, you just get the PHP Constants above.
+
+## Frequently Asked Questions
+
+### Is there a premium version of the plugin?
+
+CloakWP's entire suite of tools is completely free and open-source, and we intend to keep it that way. We will eventually look to build complementary paid products/services in order to make this a sustainable project over the long-term, but we will always maintain an open-source-first ideaology, especially for the core infrastructure tooling such as those listed above.
