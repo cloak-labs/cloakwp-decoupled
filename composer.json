@@ -3,6 +3,9 @@
   "description": "Transform WordPress into a headless CMS.",
   "type": "wordpress-plugin",
   "version": "1.0.1",
+  "license": "MIT",
+  "minimum-stability": "stable",
+  "prefer-stable": true,
   "require": {
     "composer/installers": "^2.2"
   }
