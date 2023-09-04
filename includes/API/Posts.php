@@ -27,6 +27,7 @@ use CloakWP\Utils;
 
 class Posts
 {
+  private $block_transformer;
 
   public function __construct()
   {
@@ -70,7 +71,7 @@ class Posts
       $types,
       'has_blocks',
       [
-        'get_callback'    => array($this, 'has_blocks_get_callback'),
+        'get_callback'    => array($this, 'has_blocks'),
         'update_callback' => null,
         'schema'          => [
           'description' => __('Has blocks.', 'cloakwp'),
@@ -83,9 +84,9 @@ class Posts
 
     register_rest_field(
       $types,
-      'blocksData',
+      'blocks_data',
       [
-        'get_callback'    => array($this, 'blocks_get_callback'),
+        'get_callback'    => array($this, 'get_blocks'),
         'update_callback' => null,
         'schema'          => [
           'description' => __('Blocks.', 'cloakwp'),
@@ -105,7 +106,7 @@ class Posts
    *
    * @return bool
    */
-  public function has_blocks_get_callback(array $object)
+  public function has_blocks(array $object)
   {
     if (isset($object['content']['raw'])) {
       return has_blocks($object['content']['raw']);
@@ -126,18 +127,18 @@ class Posts
    *
    * @return array
    */
-  public function blocks_get_callback(array $object)
+  public function get_blocks(array $object)
   {
     $id = !empty($object['wp_id']) ? $object['wp_id'] : $object['id'];
     if (isset($object['content']['raw'])) {
-      return BlockTransformer::get_blocks($object['content']['raw'], $id);
+      return $this->block_transformer->get_blocks($object['content']['raw'], $id);
     }
     $post   = get_post($id);
     $output = [];
     if (!$post) {
       return $output;
     }
-    return BlockTransformer::get_blocks($post->post_content, $post->ID);
+    return $this->block_transformer->get_blocks($post->post_content, $post->ID);
   }
 
   /**
@@ -179,6 +180,57 @@ class Posts
         'schema'          => null,
       )
     );
+
+    foreach ($all_post_types as $post_type) {
+      add_filter("rest_prepare_{$post_type}", array($this, 'clean_post_rest_responses'), 10, 3);
+    }
+  }
+
+  /**
+   * When hooked into the 'rest_prepare_{$post_type}' filter, this function cleans up the 
+   * REST API response for that post type, removing fields that are usually unused by 
+   * decoupled frontends; need to be careful about removing things that are used by WordPress.
+   * 
+   * @return WP_REST_Response|WP_Error
+   */
+  public function clean_post_rest_responses($response, $post, $context)
+  {
+    // First check if the REST response is an error:
+    if (is_wp_error($response)) {
+      return $response;
+    }
+    
+    $original_data = $response->data;
+    $modified_data = $response->data;
+    $modified_data['author'] = Utils::get_pretty_author($original_data['author']);
+
+    /* 
+      Remove unnecessary fields from the response.
+      Note: the 'content' field is not usually useful when doing headless the "right" way, but it's
+            required by Gutenberg in order to properly show/preview blocks in the editor, so leave it.
+     */
+    unset(
+      $modified_data['date_gmt'],
+      $modified_data['modified_gmt'],
+      $modified_data['featured_media'],
+      $modified_data['comment_status'],
+      $modified_data['ping_status'],
+      $modified_data['guid'],
+      $modified_data['post_author'], // replaced by new 'author' field above
+    );
+
+    // Remove footnotes if it's empty:
+    if($modified_data['meta']['footnotes'] == "") unset($modified_data['meta']);
+    
+    // Remove some unnecessary nesting:
+    $modified_data['title'] = $modified_data['title']['rendered'];
+    $modified_data['excerpt'] = $modified_data['excerpt']['rendered'];
+
+    // Apply a filter to the final modified data so users can customize further (eg. they can remove more fields, and/or add back in some that we removed above)
+    $final_data = apply_filters('cloakwp/rest/posts/response_format', $modified_data, $original_data);
+
+    $response->data = $final_data;
+    return $response;
   }
 
   /**
@@ -234,20 +286,20 @@ class Posts
   public function get_post_taxonomies($object)
   {
     $post_id = !empty($object['wp_id']) ? $object['wp_id'] : $object['id'];
-  
+
     // Get the post type associated with the post ID
     $post_type = get_post_type($post_id);
-  
+
     // Get all taxonomies attached to the post
     $taxonomies = get_object_taxonomies($post_type);
     $taxonomies_data = array();
-  
+
     // Iterate through each taxonomy
     foreach ($taxonomies as $taxonomy) {
       // Get the terms for the current taxonomy
       $terms = wp_get_post_terms($post_id, $taxonomy);
       $terms_data = array();
-  
+
       // Iterate through each term
       foreach ($terms as $term) {
         // Build the term data array
@@ -256,24 +308,23 @@ class Posts
           'slug' => $term->slug,
           'id' => $term->term_id,
         );
-  
+
         // Add the term data to the terms array
         $terms_data[] = $term_data;
       }
-  
+
       // Add the taxonomy slug to its own object
       $taxonomies_data[$taxonomy]['slug'] = $taxonomy;
-  
+
       // Add the terms data to the taxonomies data array
       $taxonomies_data[$taxonomy]['terms'] = $terms_data;
     }
-  
+
     return $taxonomies_data;
   }
 
-
   /**
-   * Add blocksData to post revisions API responses
+   * Add blocks_data to post revisions API responses
    * 
    * @return WP_REST_Response|WP_Error
    */
@@ -282,7 +333,7 @@ class Posts
     $data = $response->get_data();
 
     $data['hasBlocks'] = has_blocks($post);
-    $data['blocksData'] = BlockTransformer::get_blocks($post->post_content, $post->ID);
+    $data['blocks_data'] = $this->block_transformer->get_blocks($post->post_content, $post->ID);
 
     // TODO: still need to confirm the below works -- do featured image URLs properly show up in revision REST responses?
     $data['featured_image'] = $this->get_featured_image_urls(array('id' => $post->ID));
@@ -298,9 +349,11 @@ class Posts
    */
   private function bootstrap()
   {
+    $this->block_transformer = new BlockTransformer();
     add_action('rest_api_init', array($this, 'add_blocks_to_rest_responses'));
     add_action('rest_api_init', array($this, 'modify_all_post_rest_responses'));
 
+    // add_filter('rest_prepare_post', array($this, 'clean_post_rest_responses'), 10, 3);
     /**
      * Note: revisions are not considered a "post type", so the register_rest_field method 
      * of adding block data to its REST response will not work. This is why we have a separate 
