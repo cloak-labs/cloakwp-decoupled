@@ -8,6 +8,7 @@ use CloakWP\Admin;
 use CloakWP\API\BlockTransformer;
 use CloakWP\API\Frontpage;
 use CloakWP\API\Menus;
+use CloakWP\API\Options;
 use CloakWP\API\Posts;
 use CloakWP\API\Widgets;
 use CloakWP\Frontend\Auth;
@@ -96,6 +97,7 @@ class CloakWP
     new Posts();
     new Widgets();
     new Menus();
+    new Options();
     new Frontpage();
     new BlockTransformer();
     new ISR();
