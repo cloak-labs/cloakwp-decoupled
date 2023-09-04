@@ -7,12 +7,25 @@ jQuery(document).ready(function ($) {
       adjustIframeHeight(iframe);
     });
 
-    MutationObserver = window.MutationObserver || window.WebKitMutationObserver;    
+    MutationObserver = window.MutationObserver || window.WebKitMutationObserver;
+
+    /* 
+      Watch the Gutenberg editor for newly added ACF blocks
+    */
+    const editorObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        console.log('Editor mutation: ', mutation)
+        if (mutation.type === 'childList' && mutation.target.classList.contains('acf-block-component') && mutation.addedNodes.length > 0) {
+          // user added a new block, so we re-run observeACFBlocks to include it in mutation observations
+          observeACFBlocks()
+        }
+      });
+    });
 
     /* 
       When an ACF Block's DOM subtree changes (i.e. when it switches to preview mode), 
       we run some custom JS to set the height of the preview Iframe to its inner contents
-      */
+    */
     const acfBlocksObserver = new MutationObserver((mutations) => {
       mutations.forEach((mutation) => {
         if (mutation.type === 'childList' && mutation.target.classList.contains('acf-block-component') && mutation.addedNodes.length > 0) {
@@ -24,17 +37,27 @@ jQuery(document).ready(function ($) {
       });
     });
 
-    const acfBlocks = document.querySelectorAll('.acf-block-component')
-
-    // we watch each ACF Block separately because observe() expects a single Node, not a NodeList
-    acfBlocks.forEach(acfBlock => {
-      acfBlocksObserver.observe(acfBlock, {
-        childList: true,
-        subtree: true
-      });
+    const gutenbergEditorCntr = document.querySelector('.is-root-container.wp-block-post-content')
+    editorObserver.observe(gutenbergEditorCntr, {
+      childList: true,
+      subtree: true
     });
+
+    observeACFBlocks() // run on initial page load
+
+    function observeACFBlocks () {
+      const acfBlocks = document.querySelectorAll('.acf-block-component')
+  
+      // we watch each ACF Block separately because observe() expects a single Node, not a NodeList
+      acfBlocks.forEach(acfBlock => {
+        acfBlocksObserver.observe(acfBlock, {
+          childList: true,
+          subtree: true
+        });
+      });
+    }
       
-    function adjustIframeHeight(iframe) {
+    function adjustIframeHeight (iframe) {
       console.log('adjust iframe')
 
       // Add a message event listener to receive messages from the <iframe> element
