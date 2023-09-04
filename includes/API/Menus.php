@@ -105,12 +105,23 @@ class Menus
     $formatted_items = array();
 
     foreach ($menu_items as $item) {
+      $type = $item->object;
+      $url = $item->url;
+
+      if ($type != 'custom') { // format internal links:
+        // chop off domain name so we're left with a relative path
+        $url = str_replace(CLOAKWP_FRONTEND_URL, "", $url);
+
+        // Remove trailing backslash:
+        // $url = rtrim($url, '/');
+      }
+
       $formatted_items[] = array(
         'id' => $item->ID,
         'title' => $item->title,
-        'url' => $item->url,
+        'url' => $url,
         'target' => $item->target,
-        'link_type' => $item->object,
+        'link_type' => $type,
         'menu_item_parent' => $item->menu_item_parent,
         'menu_order' => $item->menu_order,
       );
