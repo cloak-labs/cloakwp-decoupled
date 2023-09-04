@@ -25,3 +25,11 @@
 .wp-block:not(.is-selected) .cloakwp-block-preview-ctnr:hover .cloakwp-block-selector {
   display: block;
 }
+
+/* Hide scrollbars on ACF Block preview iframes */
+.block-preview-iframe {
+  overflow: hidden;
+}
+.block-preview-iframe::-webkit-scrollbar {  
+  display: none;
+}
