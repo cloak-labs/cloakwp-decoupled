@@ -25,7 +25,7 @@ namespace CloakWP\API;
 
 class Widgets
 {
-  private $block_transformer;
+  private $blockTransformer;
 
   public function __construct()
   {
@@ -125,7 +125,7 @@ class Widgets
 
     $instance = $this->get_widget( $object );
 
-    return $this->block_transformer->get_blocks( $instance['content'] );
+    return $this->blockTransformer->get_blocks( $instance['content'] );
   }
 
 
@@ -138,7 +138,7 @@ class Widgets
    */
   private function bootstrap()
   {
-    $this->block_transformer = new BlockTransformer();
+    $this->blockTransformer = new BlockTransformer();
     add_action('rest_api_init', array($this, 'add_blocks_to_widget_rest_responses'));
   }
 }
