@@ -3,6 +3,8 @@
 namespace CloakWP\API;
 
 use CloakWP\Utils;
+use WP_Error;
+use WP_REST_Response;
 
 /**
  * Fired during plugin activation
@@ -27,7 +29,7 @@ use CloakWP\Utils;
 
 class Posts
 {
-  private $block_transformer;
+  private $blockTransformer;
 
   public function __construct()
   {
@@ -131,14 +133,14 @@ class Posts
   {
     $id = !empty($object['wp_id']) ? $object['wp_id'] : $object['id'];
     if (isset($object['content']['raw'])) {
-      return $this->block_transformer->get_blocks($object['content']['raw'], $id);
+      return $this->blockTransformer->get_blocks($object['content']['raw'], $id);
     }
     $post   = get_post($id);
     $output = [];
     if (!$post) {
       return $output;
     }
-    return $this->block_transformer->get_blocks($post->post_content, $post->ID);
+    return $this->blockTransformer->get_blocks($post->post_content, $post->ID);
   }
 
   /**
@@ -149,6 +151,8 @@ class Posts
   public function modify_all_post_rest_responses()
   {
     $all_post_types = get_post_types(['public' => true], 'names');
+    // $all_post_types = get_post_types([], 'names');
+    // $all_post_types["revision"] = "revision"; // add in revision post types (which are private)
 
     // Add custom 'featured_image' field in all post type REST API responses, which adds src URLs to the medium and large versions of the image rather than just the image ID (default behavior)
     register_rest_field(
@@ -193,13 +197,13 @@ class Posts
    * 
    * @return WP_REST_Response|WP_Error
    */
-  public function clean_post_rest_responses($response, $post, $context)
+  public function clean_post_rest_responses(WP_REST_Response|WP_Error $response, $post, $context)
   {
     // First check if the REST response is an error:
     if (is_wp_error($response)) {
       return $response;
     }
-    
+
     $original_data = $response->data;
     $modified_data = $response->data;
     $modified_data['author'] = Utils::get_pretty_author($original_data['author']);
@@ -220,11 +224,11 @@ class Posts
     );
 
     // Remove footnotes if it's empty:
-    if($modified_data['meta']['footnotes'] == "") unset($modified_data['meta']);
-    
+    if ($modified_data['meta']['footnotes'] == "") unset($modified_data['meta']);
+
     // Remove some unnecessary nesting:
-    $modified_data['title'] = $modified_data['title']['rendered'];
-    $modified_data['excerpt'] = $modified_data['excerpt']['rendered'];
+    if (isset($modified_data['title']['rendered'])) $modified_data['title'] = $modified_data['title']['rendered'];
+    if (isset($modified_data['excerpt']['rendered'])) $modified_data['excerpt'] = $modified_data['excerpt']['rendered'];
 
     // Apply a filter to the final modified data so users can customize further (eg. they can remove more fields, and/or add back in some that we removed above)
     $final_data = apply_filters('cloakwp/rest/posts/response_format', $modified_data, $original_data);
@@ -333,11 +337,13 @@ class Posts
     $data = $response->get_data();
 
     $data['hasBlocks'] = has_blocks($post);
-    $data['blocks_data'] = $this->block_transformer->get_blocks($post->post_content, $post->ID);
+    $data['pathname'] = Utils::get_post_pathname($post->ID);
+    $data['blocks_data'] = $this->blockTransformer->get_blocks($post->post_content, $post->ID);
 
     // TODO: still need to confirm the below works -- do featured image URLs properly show up in revision REST responses?
     $data['featured_image'] = $this->get_featured_image_urls(array('id' => $post->ID));
 
+    // TODO: do we need to manually get and include static ACF fields?
 
     return rest_ensure_response($data);
   }
@@ -349,7 +355,7 @@ class Posts
    */
   private function bootstrap()
   {
-    $this->block_transformer = new BlockTransformer();
+    $this->blockTransformer = new BlockTransformer();
     add_action('rest_api_init', array($this, 'add_blocks_to_rest_responses'));
     add_action('rest_api_init', array($this, 'modify_all_post_rest_responses'));
 
