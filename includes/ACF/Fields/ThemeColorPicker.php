@@ -5,7 +5,7 @@ namespace CloakWP\ACF\Fields;
 use CloakWP\Utils;
 use Extended\ACF\Fields\RadioButton;
 
-// Note: this field requires custom CSS which CloakWP\Admin\HeadlessAdmin::injectThemeColorPickerCss() handles by dynamically generating and inlining CSS into wp-admin <head>
+// Note: this field requires custom CSS which CloakWP::injectThemeColorPickerCss() handles by dynamically generating and inlining CSS into wp-admin <head>
 class ThemeColorPicker extends RadioButton
 {
   // we override inherited `make` in order to set default colors when include() isn't called/specified
@@ -38,11 +38,11 @@ class ThemeColorPicker extends RadioButton
     // if there are colors in the $color_palette array
     if (!empty($color_palette)) {
       $noFilterColors = empty($filterColors);
-      
+
       // loop over each color and create option
       foreach ($color_palette as $color) {
         $includeCondition = $exclude ? !in_array($color['slug'], $filterColors) : in_array($color['slug'], $filterColors);
-        
+
         // filter colors based on whether they've been included or excluded
         if ($noFilterColors || $includeCondition) {
           $final_colors[$color['slug']] = $color['name'];
@@ -58,5 +58,4 @@ class ThemeColorPicker extends RadioButton
     $this->settings['choices'] = $final_colors;
     $this->settings['wrapper']['class'] = 'cloakwp-theme-color-picker';
   }
-
 }
