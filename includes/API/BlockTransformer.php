@@ -53,7 +53,7 @@ class BlockTransformer
 
     foreach ($blocks as $block) {
       $this->acf_fields = []; // reset
-      $block_data = $this->convert_block_to_object($block, $post_id);
+      $block_data = $this->convertBlockToObject($block, $post_id);
       if ($block_data) {
         $output[] = $block_data;
       }
@@ -70,7 +70,7 @@ class BlockTransformer
    *
    * @return array|false
    */
-  public function convert_block_to_object(array $block, $post_id = 0)
+  public function convertBlockToObject(array $block, $post_id = 0)
   {
     if (!$block['blockName']) {
       return false;
@@ -137,7 +137,7 @@ class BlockTransformer
       $inner_blocks = $block['innerBlocks'];
       $formatted_block['innerBlocks'] = [];
       foreach ($inner_blocks as $_block) {
-        $formatted_block['innerBlocks'][] = $this->convert_block_to_object($_block, $post_id);
+        $formatted_block['innerBlocks'][] = $this->convertBlockToObject($_block, $post_id);
       }
     }
 
@@ -168,6 +168,7 @@ class BlockTransformer
   private function transform_acf_fields($fields)
   {
     // $this->acf_fields = $fields; return; // uncomment this and visit a post REST API endpoint when you want to see the shape of the original, non-transformed ACF data that we're working with
+    $parent_fields_found = [];
 
     foreach ($fields as $key => $value) { // loop through fields in 'data' (ACF fields)
       if (str_starts_with($key, '_') && str_starts_with($value, 'field_')) { // pick out the fields that have the ACF field names 
@@ -225,7 +226,8 @@ class BlockTransformer
                 unset($related_post->{$p});
               }
 
-              $related_posts[] = $related_post;
+              if ($type == 'post_object') $related_posts = $related_post;
+              else $related_posts[] = $related_post;
             }
             $field_value = $related_posts;
           } else {
@@ -241,15 +243,23 @@ class BlockTransformer
         if ($type == 'image') {
           $image_id = $field_value;
           $img_src = wp_get_attachment_image_src($image_id, 'full');
+          $isSrcValid = is_array($img_src);
           $alt_tag = get_post_meta($image_id, '_wp_attachment_image_alt', true);
           $field_value = array(
             'id' => $image_id,
-            'src' => $img_src[0],
+            'src' => $isSrcValid ? $img_src[0] : $img_src,
             'alt' => $alt_tag,
-            'width' => $img_src[1],
-            'height' => $img_src[2],
-            'is_resized' => $img_src[3],
+            'width' => $isSrcValid ? $img_src[1] : $img_src,
+            'height' => $isSrcValid ? $img_src[2] : $img_src,
+            'is_resized' => $isSrcValid ? $img_src[3] : $img_src,
           );
+        }
+
+        if ($type == 'true_false') {
+          $field_value = [
+            "0" => false,
+            "1" => true
+          ][$field_value];
         }
 
         $acf_field_object['value'] = $field_value; // finally, insert the value of the field for the current page/post into the ACF field object --> now we have all the info we need about each ACF field within one object
@@ -260,12 +270,12 @@ class BlockTransformer
           formats as top-level fields; eg. an image field that is a repeater sub_field still gets the 
           special treatment that you see a few lines up ^^
         */
-        $is_top_level_field = str_starts_with($acf_field_object['parent'], 'group_');
-        if ($type == 'repeater' || $type == 'group') {
+        if ($type == 'repeater' || $type == 'group' || $type == 'flexible_content') {
           /* 
             repeaters and groups are not done processing, so we set them to their full ACF field
             Objects at this point; they will eventually get processed and set to their final values.
           */
+          $is_top_level_field = str_starts_with($acf_field_object['parent'], 'group_');
           if ($is_top_level_field) {
             /* 
               if the repeater/group has a "parent" value of "group_*", it means it's a top-level field 
@@ -289,65 +299,107 @@ class BlockTransformer
         }
       }
     } // END looping through the Block's ACF fields
-        
+
     // we wait until all fields have been processed above, and if any repeaters or groups were found in the process, now we clean up how their subfields get formatted in the API response:
     foreach ($parent_fields_found as $parent) { // note: $parent == a full ACF field object
       $this->transform_acf_parent_field($parent);
     }
   }
-  
+
 
   /** Special handling for formatting Repeater/Group fields:
-    * 
-    * eg. default data structure for repeaters (obviously not very useful):
-    *  {
-    *    cards: 2, // indicates the # of rows in repeater (don't ask me why)
-    *    cards_0_sub_field_1: 'value 1 for repeater row #1',
-    *    cards_0_sub_field_2: 'value 2 for repeater row #1',
-    *    cards_1_sub_field_1: 'value 1 for repeater row #2',
-    *    cards_1_sub_field_2: 'value 2 for repeater row #2',
-    *    ...
-    *  }
-    * 
-    *  ... will get transformed into:
-    *  {
-    *    cards: [
-    *      { 
-    *        sub_field_1: 'value 1 for repeater row #1',
-    *        sub_field_2: 'value 2 for repeater row #1',
-    *      },
-    *      { 
-    *        sub_field_1: 'value 1 for repeater row #2',
-    *        sub_field_2: 'value 2 for repeater row #2',
-    *      },
-    *    ]
-    *  }
-    */
+   * 
+   * eg. default data structure for repeaters (obviously not very useful):
+   *  {
+   *    cards: 2, // indicates the # of rows in repeater (don't ask me why)
+   *    cards_0_sub_field_1: 'value 1 for repeater row #1',
+   *    cards_0_sub_field_2: 'value 2 for repeater row #1',
+   *    cards_1_sub_field_1: 'value 1 for repeater row #2',
+   *    cards_1_sub_field_2: 'value 2 for repeater row #2',
+   *    ...
+   *  }
+   * 
+   *  ... will get transformed into:
+   *  {
+   *    cards: [
+   *      { 
+   *        sub_field_1: 'value 1 for repeater row #1',
+   *        sub_field_2: 'value 2 for repeater row #1',
+   *      },
+   *      { 
+   *        sub_field_1: 'value 1 for repeater row #2',
+   *        sub_field_2: 'value 2 for repeater row #2',
+   *      },
+   *    ]
+   *  }
+   */
   private function transform_acf_parent_field($parent_field_obj, $grandparent_field_name = '')
   {
     // return $this->acf_fields; // uncomment to test the default data response format for repeater/group fields
+    $og_parent_value = $parent_field_obj['value'];
     $final_parent_value = [];
     $field_name = $parent_field_obj['name'];
-    $field_type = $parent_field_obj['type']; // 'repeater' or 'group'
+    $field_type = $parent_field_obj['type']; // 'repeater' or 'group' or 'flexible_content'
+    $is_inner_blocks = $parent_field_obj['is_inner_blocks'] ?? false; // it's a CloakWP InnerBlocks field, an extension of the Flexible Content field type
+
+    $num_sub_groups = 1;
+    if ($field_type == 'repeater') $num_sub_groups = $og_parent_value ?? 0; // for repeaters, og_parent_value == the number (integer) of repeater blocks
+    else if ($field_type == 'flexible_content') $num_sub_groups = is_array($og_parent_value) ? count($og_parent_value) : 0; // for flexible_content fields, og_parent_value == an array of the layout names used by that instance, in correct order
     
-    $num_sub_groups = $field_type == 'repeater' ? $parent_field_obj['value'] ?? 0 : 1;
+    $sub_fields = [];
+    if (isset($parent_field_obj['sub_fields'])) $sub_fields = $parent_field_obj['sub_fields'];
+
+    $prefix_base = $grandparent_field_name . $field_name . '_';
+    $sub_field_prefix = $prefix_base;
+    
     $count = 0;
     while ($count < $num_sub_groups) { // loop through repeater's blocks
-      $sub_field_prefix = $grandparent_field_name . $field_name . '_';
-      if ($field_type == 'repeater') $sub_field_prefix .= $count . '_';
-      $final_parent_value[] = $this->transform_acf_sub_fields($parent_field_obj['sub_fields'], $sub_field_prefix);
+      if ($field_type == 'repeater' || $field_type == 'flexible_content') $sub_field_prefix = $prefix_base . $count . '_';
+
+      if ($field_type == 'flexible_content') {
+        $layouts = $parent_field_obj['layouts'];
+        if (is_array($layouts)) {
+          $result = array_filter($layouts, function ($layout) use ($og_parent_value, $count) {
+            return $layout['name'] == $og_parent_value[$count];
+          });
+
+          if (!empty($result)) {
+            $result = reset($result);
+            $sub_fields = $result['sub_fields'];
+          }
+        }
+      }
+
+      $formatted_sub_fields = $this->transform_acf_sub_fields($sub_fields, $sub_field_prefix);
+
+      if ($field_type == 'flexible_content') {        
+        $formatted_sub_fields = [
+          'name' => $og_parent_value[$count], // layout name
+          'data' => $formatted_sub_fields
+        ];
+
+        if ($is_inner_blocks) {
+          $formatted_sub_fields['type'] = 'acf';
+          $formatted_sub_fields = apply_filters('cloakwp/rest/blocks/response_format', $formatted_sub_fields, null);
+        }
+      }
+
+      if ($field_type == 'group') {
+        $final_parent_value = $formatted_sub_fields;
+      } else {
+        $final_parent_value[] = $formatted_sub_fields;
+      }
       $count++;
     }
-
-    if ($field_type == 'group') $final_parent_value = $final_parent_value[0];
 
     $filter_variation_values = array(
       'type' => $field_type,
       'name' => $field_name,
       'blockName' => $this->current_block_name,
     );
+
     $final_value = apply_filters('cloakwp/rest/blocks/acf_response_format', $final_parent_value, $parent_field_obj, $filter_variation_values);
-    
+
     if ($grandparent_field_name) { // nested repeaters/groups (recursion) return early --> their final_value will get added to its parent repeater/group
       return $final_value;
     }
@@ -365,19 +417,17 @@ class BlockTransformer
       if (!$sub_field_name) continue; // skips over and excludes ACF "message" fields from API response
 
       $field_type = $sub_field['type'];
-      $is_nested_repeater = $field_type == 'repeater';
-      $is_nested_group = $field_type == 'group';
-
       $sub_field_api_default_name = $sub_field_prefix . $sub_field_name; // this string is the field key for the current sub_field in the default Block API Response (before transformation occurs)
 
-      if ($is_nested_repeater) {
+      if ($field_type == 'repeater') {
         $nestedRepeater = $this->acf_fields[$sub_field_api_default_name]; // note: $nestedRepeater is different than $sub_field because its 'value' property was set by us earlier, whereas $sub_field['value'] == null --> this 'value' is required to make the repeater while loop work properly
         $sub_field_value = $this->transform_acf_parent_field($nestedRepeater, $sub_field_prefix);
-      } else if ($is_nested_group) {
+      } else if ($field_type == 'group' || $field_type == 'flexible_content') {
         $sub_field_value = $this->transform_acf_parent_field($sub_field, $sub_field_prefix);
       } else {
         $sub_field_value = $this->acf_fields[$sub_field_api_default_name];
       }
+
       $final_group[$sub_field_name] = $sub_field_value;
       unset($this->acf_fields[$sub_field_api_default_name]); // remove sub_field from top-level, as we're nesting it within its parent value
     }
