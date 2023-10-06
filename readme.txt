@@ -53,7 +53,7 @@ It's recommended to add these to your `wp-config.php` file, or your .env files i
 ```php
 # Required
 define('CLOAKWP_FRONTEND_URL', 'https://example.com');
-define('CLOAKWP_PREVIEW_SECRET', '1234_CUSTOMIZE_ME');
+define('CLOAKWP_AUTH_SECRET', '1234_CUSTOMIZE_ME');
 
 # Optional
 define('CLOAKWP_API_BASE_PATH', 'custom-route'); // defaults to "cloakwp"; must match your front-end's dynamic API route folder name where you import the CloakWP `ApiRouter`

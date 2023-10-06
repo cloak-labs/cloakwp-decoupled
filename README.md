@@ -46,7 +46,7 @@ Add the following required constant declarations to your `wp-config.php` file, o
 ```php
 # Required
 define('CLOAKWP_FRONTEND_URL', 'https://example.com'); // decoupled frontend URL
-define('CLOAKWP_PREVIEW_SECRET', '1234_CUSTOMIZE_ME'); // secure secret key
+define('CLOAKWP_AUTH_SECRET', '1234_CUSTOMIZE_ME'); // secure secret key
 
 # Optional
 # define('CLOAKWP_API_BASE_PATH', 'custom-route'); // defaults to "cloakwp"; must match your front-end's dynamic API route folder name where you import the CloakWP.js `ApiRouter`
