@@ -3,10 +3,25 @@
   "description": "Transform WordPress into a headless CMS.",
   "type": "wordpress-plugin",
   "version": "1.0.1",
-  "license": "MIT",
-  "minimum-stability": "stable",
-  "prefer-stable": true,
+  "license": "LGPL-3.0-only",
   "require": {
-    "composer/installers": "^2.2"
-  }
+    "composer/installers": "^2.2",
+    "snicco/better-wp-api": "^1.9",
+    "tburry/pquery": "^1.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "CloakWP\\": "includes"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "allow-plugins": {
+      "composer/installers": true
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
 }

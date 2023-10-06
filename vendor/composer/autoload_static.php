@@ -7,23 +7,56 @@ namespace Composer\Autoload;
 class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
 {
     public static $prefixLengthsPsr4 = array (
+        'S' => 
+        array (
+            'Snicco\\Component\\BetterWPAPI\\' => 29,
+        ),
         'C' => 
         array (
             'Composer\\Installers\\' => 20,
+            'CloakWP\\' => 8,
         ),
     );
 
     public static $prefixDirsPsr4 = array (
+        'Snicco\\Component\\BetterWPAPI\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/snicco/better-wp-api/src',
+        ),
         'Composer\\Installers\\' => 
         array (
             0 => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers',
         ),
+        'CloakWP\\' => 
+        array (
+            0 => __DIR__ . '/../..' . '/includes',
+        ),
     );
 
     public static $classMap = array (
+        'CloakWP\\ACF\\Block' => __DIR__ . '/../..' . '/includes/ACF/Block.php',
+        'CloakWP\\ACF\\FieldGroup' => __DIR__ . '/../..' . '/includes/ACF/FieldGroup.php',
+        'CloakWP\\ACF\\Fields\\Alignment' => __DIR__ . '/../..' . '/includes/ACF/Fields/Alignment.php',
+        'CloakWP\\ACF\\Fields\\InnerBlocks' => __DIR__ . '/../..' . '/includes/ACF/Fields/InnerBlocks.php',
+        'CloakWP\\ACF\\Fields\\PostTypeSelect' => __DIR__ . '/../..' . '/includes/ACF/Fields/PostTypeSelect.php',
+        'CloakWP\\ACF\\Fields\\ThemeColorPicker' => __DIR__ . '/../..' . '/includes/ACF/Fields/ThemeColorPicker.php',
+        'CloakWP\\API\\BlockTransformer' => __DIR__ . '/../..' . '/includes/API/BlockTransformer.php',
+        'CloakWP\\API\\Frontpage' => __DIR__ . '/../..' . '/includes/API/Frontpage.php',
+        'CloakWP\\API\\Menus' => __DIR__ . '/../..' . '/includes/API/Menus.php',
+        'CloakWP\\API\\Options' => __DIR__ . '/../..' . '/includes/API/Options.php',
+        'CloakWP\\API\\Posts' => __DIR__ . '/../..' . '/includes/API/Posts.php',
+        'CloakWP\\API\\Widgets' => __DIR__ . '/../..' . '/includes/API/Widgets.php',
+        'CloakWP\\Admin\\Admin' => __DIR__ . '/../..' . '/includes/Admin/Admin.php',
+        'CloakWP\\Admin\\HeadlessAdmin' => __DIR__ . '/../..' . '/includes/Admin/HeadlessAdmin.php',
+        'CloakWP\\CloakWP' => __DIR__ . '/../..' . '/includes/CloakWP.php',
+        'CloakWP\\Content\\PostType' => __DIR__ . '/../..' . '/includes/Content/PostType.php',
+        'CloakWP\\Frontend' => __DIR__ . '/../..' . '/includes/Frontend.php',
+        'CloakWP\\General\\PluginActivator' => __DIR__ . '/../..' . '/includes/General/PluginActivator.php',
+        'CloakWP\\General\\PluginDeactivator' => __DIR__ . '/../..' . '/includes/General/PluginDeactivator.php',
+        'CloakWP\\Utils' => __DIR__ . '/../..' . '/includes/Utils.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'Composer\\Installers\\AglInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AglInstaller.php',
-        'Composer\\Installers\\AimeosInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AimeosInstaller.php',
+        'Composer\\Installers\\AkauntingInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AkauntingInstaller.php',
         'Composer\\Installers\\AnnotateCmsInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AnnotateCmsInstaller.php',
         'Composer\\Installers\\AsgardInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AsgardInstaller.php',
         'Composer\\Installers\\AttogramInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AttogramInstaller.php',
@@ -37,7 +70,6 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'Composer\\Installers\\CockpitInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/CockpitInstaller.php',
         'Composer\\Installers\\CodeIgniterInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/CodeIgniterInstaller.php',
         'Composer\\Installers\\Concrete5Installer' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/Concrete5Installer.php',
-        'Composer\\Installers\\CraftInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/CraftInstaller.php',
         'Composer\\Installers\\CroogoInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/CroogoInstaller.php',
         'Composer\\Installers\\DecibelInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/DecibelInstaller.php',
         'Composer\\Installers\\DframeInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/DframeInstaller.php',
@@ -55,9 +87,7 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'Composer\\Installers\\ImageCMSInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/ImageCMSInstaller.php',
         'Composer\\Installers\\Installer' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/Installer.php',
         'Composer\\Installers\\ItopInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/ItopInstaller.php',
-        'Composer\\Installers\\JoomlaInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/JoomlaInstaller.php',
         'Composer\\Installers\\KanboardInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/KanboardInstaller.php',
-        'Composer\\Installers\\KirbyInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/KirbyInstaller.php',
         'Composer\\Installers\\KnownInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/KnownInstaller.php',
         'Composer\\Installers\\KodiCMSInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/KodiCMSInstaller.php',
         'Composer\\Installers\\KohanaInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/KohanaInstaller.php',
@@ -71,6 +101,7 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'Composer\\Installers\\MajimaInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/MajimaInstaller.php',
         'Composer\\Installers\\MakoInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/MakoInstaller.php',
         'Composer\\Installers\\MantisBTInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/MantisBTInstaller.php',
+        'Composer\\Installers\\MatomoInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/MatomoInstaller.php',
         'Composer\\Installers\\MauticInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/MauticInstaller.php',
         'Composer\\Installers\\MayaInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/MayaInstaller.php',
         'Composer\\Installers\\MediaWikiInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/MediaWikiInstaller.php',
@@ -83,9 +114,9 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'Composer\\Installers\\OsclassInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/OsclassInstaller.php',
         'Composer\\Installers\\OxidInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/OxidInstaller.php',
         'Composer\\Installers\\PPIInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/PPIInstaller.php',
+        'Composer\\Installers\\PantheonInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/PantheonInstaller.php',
         'Composer\\Installers\\PhiftyInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/PhiftyInstaller.php',
         'Composer\\Installers\\PhpBBInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/PhpBBInstaller.php',
-        'Composer\\Installers\\PimcoreInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/PimcoreInstaller.php',
         'Composer\\Installers\\PiwikInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/PiwikInstaller.php',
         'Composer\\Installers\\PlentymarketsInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/PlentymarketsInstaller.php',
         'Composer\\Installers\\Plugin' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/Plugin.php',
@@ -106,9 +137,6 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'Composer\\Installers\\StarbugInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/StarbugInstaller.php',
         'Composer\\Installers\\SyDESInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/SyDESInstaller.php',
         'Composer\\Installers\\SyliusInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/SyliusInstaller.php',
-        'Composer\\Installers\\Symfony1Installer' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/Symfony1Installer.php',
-        'Composer\\Installers\\TYPO3CmsInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/TYPO3CmsInstaller.php',
-        'Composer\\Installers\\TYPO3FlowInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/TYPO3FlowInstaller.php',
         'Composer\\Installers\\TaoInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/TaoInstaller.php',
         'Composer\\Installers\\TastyIgniterInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/TastyIgniterInstaller.php',
         'Composer\\Installers\\TheliaInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/TheliaInstaller.php',
@@ -123,6 +151,7 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'Composer\\Installers\\YawikInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/YawikInstaller.php',
         'Composer\\Installers\\ZendInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/ZendInstaller.php',
         'Composer\\Installers\\ZikulaInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/ZikulaInstaller.php',
+        'Snicco\\Component\\BetterWPAPI\\BetterWPAPI' => __DIR__ . '/..' . '/snicco/better-wp-api/src/BetterWPAPI.php',
         'pQuery' => __DIR__ . '/..' . '/tburry/pquery/pQuery.php',
         'pQuery\\AspEmbeddedNode' => __DIR__ . '/..' . '/tburry/pquery/gan_node_html.php',
         'pQuery\\CSSQueryTokenizer' => __DIR__ . '/..' . '/tburry/pquery/gan_selector_html.php',
