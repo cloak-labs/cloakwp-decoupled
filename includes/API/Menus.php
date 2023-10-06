@@ -37,12 +37,14 @@ class Menus
     register_rest_route('cloakwp', '/menus', array(
       'methods' => 'GET',
       'callback' => array($this, 'handle_all_menus_request'),
+      'permission_callback' => '__return_true'
     ));
 
     // Register menu endpoint
     register_rest_route('cloakwp', '/menus/(?P<menu_slug>[a-zA-Z0-9-]+)', array(
       'methods' => 'GET',
       'callback' => array($this, 'handle_single_menu_request'),
+      'permission_callback' => '__return_true'
     ));
   }
 
@@ -56,7 +58,9 @@ class Menus
       return new \WP_Error('menus_not_found', 'Zero menus exist.', array('status' => 404));
     }
 
-    return $this->get_menu_data($menus);
+    $data = $this->get_menu_data($menus);
+
+    return rest_ensure_response($data);
   }
 
   // Callback function to retrieve a particular menu's data
@@ -71,7 +75,8 @@ class Menus
       return new \WP_Error('menu_not_found', 'Menu not found.', array('status' => 404));
     }
 
-    return $this->get_menu_data($menu)[0];
+    $data = $this->get_menu_data($menu)[0];
+    return rest_ensure_response($data);
   }
 
   // helper function used by both menu endpoints to retrieve and format menu data

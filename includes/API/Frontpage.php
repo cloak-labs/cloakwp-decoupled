@@ -40,7 +40,8 @@ class Frontpage
   {
     register_rest_route('wp/v2', '/frontpage', array(
         'methods'  => 'GET',
-        'callback' => array( $this, 'get_frontpage' )
+        'callback' => array( $this, 'get_frontpage' ),
+        'permission_callback' => '__return_true'
       )
     );
   }

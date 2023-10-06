@@ -37,12 +37,14 @@ class Options
     register_rest_route('cloakwp', '/options', array(
       'methods' => 'GET',
       'callback' => array($this, 'handle_all_options_request'),
+      'permission_callback' => '__return_true'
     ));
 
     // Register option endpoint
     register_rest_route('cloakwp', '/options/(?P<option_slug>[a-zA-Z0-9-]+)', array(
       'methods' => 'GET',
       'callback' => array($this, 'handle_single_option_request'),
+      'permission_callback' => '__return_true'
     ));
   }
 
@@ -56,7 +58,7 @@ class Options
       return new \WP_Error('options_not_found', 'Zero options exist.', array('status' => 404));
     }
 
-    return $options;
+    return rest_ensure_response($options);
   }
 
   // Callback function to retrieve a particular option's data
@@ -72,7 +74,7 @@ class Options
     // }
 
     // return $this->get_option_data($option)[0];
-    return 'TODO: return single option';
+    return rest_ensure_response('TODO: return single option');
   }
 
   /**
