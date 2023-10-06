@@ -24,23 +24,6 @@ class Utils
     }
   }
 
-  public static function acfBlockWrapper($blockLabel, $fields)
-  {
-    if (class_exists('Extended\ACF\Fields\Accordion')) {
-      return [
-        Accordion::make($blockLabel)
-          ->open()
-          ->multiExpand(), // Allow accordion to remain open when other accordions are opened.
-        ...$fields,
-        Accordion::make('Endpoint')
-          ->endpoint()
-          ->multiExpand(),
-      ];
-    } else {
-      throw new \Exception('The Extended ACF composer package does not appear to be installed.');
-    }
-  }
-
   /* 
     A function that returns the given post's full URL pathname, eg. `/blog/post-slug`
   */
@@ -79,7 +62,7 @@ class Utils
       if ($blockName) {
         // custom block color palette
         if (isset($settings['blocks'][$blockName]['color']['palette'])) {
-          $color_palette = $settings['blocks']['acf/acf-separator']['color']['palette'];
+          $color_palette = $settings['blocks'][$blockName]['color']['palette'];
         }
       } elseif (isset($settings['color']['palette']['theme'])) {
         // full theme color palette
@@ -170,5 +153,23 @@ class Utils
     } else {
       add_action($hook, $apply_hook_variations, 10, 10);
     }
+  }
+
+  /* 
+    Given an array of objects, where those objects might have arrays 
+    of objects themselves, this function recursively traverses the array, 
+    checks for arrays or objects, and clones the objects using `clone` to
+    ensure a complete deep copy; useful to remove object references so you
+    don't modify your original objects. Taken from: https://stackoverflow.com/a/6418989/8297151
+  */
+  public static function array_deep_copy($arr)
+  {
+    $newArray = array();
+    foreach($arr as $key => $value) {
+        if(is_array($value)) $newArray[$key] = self::array_deep_copy($value);
+        else if(is_object($value)) $newArray[$key] = clone $value;
+        else $newArray[$key] = $value;
+    }
+    return $newArray;
   }
 }
