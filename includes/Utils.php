@@ -47,6 +47,33 @@ class Utils
     ) : null;
   }
 
+  /**
+   * Returns an array of the names of all public post types.
+   */
+  public static function get_public_post_types(): array
+  {
+    return get_post_types(['public' => true], 'names');
+  }
+
+  /**
+   * Returns an array of the names of all post types that have the Gutenberg Editor enabled.
+   */
+  public static function get_post_types_with_editor(): array
+  {
+    $post_types = get_post_types(['show_in_rest' => true], 'names');
+    $post_types = array_values($post_types);
+
+
+    if (!function_exists('use_block_editor_for_post_type')) {
+      require_once ABSPATH . 'wp-admin/includes/post.php';
+    }
+    $post_types   = array_filter($post_types, 'use_block_editor_for_post_type');
+    $post_types[] = 'wp_navigation';
+    $post_types   = array_filter($post_types, 'post_type_exists');
+
+    return $post_types;
+  }
+
 
   /*  
     A function that returns the theme.json color palette -- optionally pass in a block name to return that particular block's color palette
@@ -165,10 +192,10 @@ class Utils
   public static function array_deep_copy($arr)
   {
     $newArray = array();
-    foreach($arr as $key => $value) {
-        if(is_array($value)) $newArray[$key] = self::array_deep_copy($value);
-        else if(is_object($value)) $newArray[$key] = clone $value;
-        else $newArray[$key] = $value;
+    foreach ($arr as $key => $value) {
+      if (is_array($value)) $newArray[$key] = self::array_deep_copy($value);
+      else if (is_object($value)) $newArray[$key] = clone $value;
+      else $newArray[$key] = $value;
     }
     return $newArray;
   }
