@@ -12,11 +12,18 @@ class PostType
   protected array $settings = [];
   protected array $labels = [];
   protected array|null $fieldGroups = null;
+  protected array|null $virtualFields = null;
 
   /**
-   * @var callable|null $onSaveCallback
+   * @var callable|null $beforeChangeCallback
    */
-  protected $onSaveCallback;
+  protected $beforeChangeCallback;
+
+  /**
+   * @var callable|null $afterReadCallback
+   */
+  protected $afterReadCallback;
+
   /**
    * @var callable|null $apiResponseCallback
    */
@@ -496,16 +503,45 @@ class PostType
   }
 
   /**
-   * Run some code whenever a post of this type is saved.
+   * Run some code before a post of this type is saved, either to trigger a 
+   * side-effect or to transform the post data before saving it in the database.
    */
-  public function onSave(callable $callback): static
+  public function beforeChange(callable $callback): static
   {
-    $this->onSaveCallback = $callback;
+    $this->beforeChangeCallback = $callback;
     return $this;
   }
-  
+
   /**
-   * Customize the REST API response for posts of this type.
+   * Run some code after a post of this type is fetched from the database, either to 
+   * trigger a side-effect or to transform the post data before returning it -- will 
+   * transform the result of PHP fetching functions such as `get_posts` and `WP_Query`,
+   * as well as REST API responses for this post type -- providing a simple, single 
+   * abstraction around both.
+   */
+  public function afterRead(callable $callback): static
+  {
+    $this->afterReadCallback = $callback;
+    return $this;
+  }
+
+  /**
+   * Attach some extra "virtual" fields to all post response objects for this post type.
+   * A "virtual" field's value isn't stored in the database -- it's computed at runtime
+   * for every post request. For example, you may have two fields on an "invoice" post
+   * type, "hours" and "hourly_rate"; instead of saving the invoice "total" in the 
+   * database, you could create a virtual field called "total" like so:
+   *    virtualFields([ "total" => fn ($post) => $post["hours"] * $post["hourly_rate"] ]) 
+   */
+  public function virtualFields(array $fields): static
+  {
+    $this->virtualFields = $fields;
+    return $this;
+  }
+
+  /**
+   * Customize the REST API response for posts of this type. Provide a callback
+   * that receives the default response as an argument and returns your modified response.
    */
   public function apiResponse(callable $filterCallback): static
   {
@@ -519,7 +555,7 @@ class PostType
    */
   public function register()
   {
-    add_action( 'init', function() {    
+    add_action('init', function () {
       register_extended_post_type($this->slug, $this->settings, $this->labels);
     });
 
@@ -533,19 +569,61 @@ class PostType
       }
     }
 
-    if ($this->onSaveCallback) {
-      $callback = $this->onSaveCallback;
+    if ($this->beforeChangeCallback) {
+      $callback = $this->beforeChangeCallback;
       add_action("save_post_$this->slug", function ($post_id, $post, $update) use ($callback) {
         if (wp_is_post_autosave($post_id)) {
           return;
         }
-    
+
         if (!$update) { // if new object
           return;
         }
-        
+
         $callback($post_id, $post, $update);
       }, 10, 3);
+    }
+
+    // if ($this->afterReadCallback) {
+    //   $callback = $this->afterReadCallback;
+    //   add_filter("the_posts", function ($posts, $query) use ($callback) {
+    //     if ($query->query_vars['post_type'] != $this->slug) return $posts;
+    //     if (!is_array($posts) || !count($posts)) return $posts;
+
+    //     return $callback($posts, $query);
+    //   }, 20, 2);
+    // }
+
+    if ($this->virtualFields) {
+      register_virtual_fields($this->slug, $this->virtualFields);
+
+      // add_filter("the_posts", function ($posts, $query) {
+      //   if ($query->query_vars['post_type'] != $this->slug) return $posts;
+      //   if (!is_array($posts) || !count($posts)) return $posts;
+
+      //   return array_map(function ($post) {
+      //     foreach ($this->virtualFields as $name => $value) {
+      //       $post->{$name} = is_callable($value) ? $value($post) : $value;
+      //     }
+      //     return $post;
+      //   }, $posts);
+      // }, 20, 2);
+
+      // add_action('rest_api_init', function () {
+      //   foreach ($this->virtualFields as $name => $value) {
+      //     register_rest_field(
+      //       $this->slug,
+      //       $name,
+      //       array(
+      //         'get_callback'    => function ($object) use ($value) {
+      //           return is_callable($value) ? $value($object) : $value;
+      //         },
+      //         'update_callback' => null,
+      //         'schema'          => null,
+      //       )
+      //     );
+      //   }
+      // }, 1);
     }
 
     if ($this->apiResponseCallback) {
@@ -560,6 +638,5 @@ class PostType
         return $callback($response, $post, $context);
       }, 50, 3);
     }
-
   }
 }
