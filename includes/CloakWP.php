@@ -5,15 +5,18 @@ namespace CloakWP;
 use CloakWP\Admin\Admin;
 use CloakWP\Admin\Enqueue\Script;
 use CloakWP\Admin\Enqueue\Stylesheet;
-use CloakWP\API\BlockTransformer;
-use CloakWP\API\Frontpage;
-use CloakWP\API\Menus;
-use CloakWP\API\Options;
-use CloakWP\API\Posts;
-use CloakWP\API\Widgets;
+use CloakWP\VirtualFields\VirtualField;
 use CloakWP\Utils;
+
+use CloakWP\API\BlockTransformer;
+use CloakWP\API\FrontpageEndpoint;
+use CloakWP\API\MenusEndpoint;
+use CloakWP\API\OptionsEndpoint;
+
 use InvalidArgumentException;
 use WP_Block_Type_Registry;
+use WP_Error;
+use WP_REST_Response;
 
 class CloakWP extends Admin
 {
@@ -21,6 +24,11 @@ class CloakWP extends Admin
    * Stores the CloakWP Singleton instance.
    */
   private static $instance;
+
+  /**
+   * Stores an instance of the BlockTransformer class.
+   */
+  private BlockTransformer $blockTransformer;
 
   /**
    * Stores one or more decoupled Frontend instances, defined by plugin user.
@@ -57,15 +65,8 @@ class CloakWP extends Admin
     } else {
       $this->version = '0.6.0';
     }
+
     $this->plugin_name = 'cloakwp';
-
-    new Posts();
-    new Widgets();
-    new Menus();
-    new Options();
-    new Frontpage();
-    new BlockTransformer();
-
     $this->setLocale();
     $this->bootstrap();
   }
@@ -78,6 +79,14 @@ class CloakWP extends Admin
    */
   private function bootstrap()
   {
+    $this->blockTransformer = new BlockTransformer();
+
+    // Register CloakWP custom REST API endpoints:
+    MenusEndpoint::register();
+    FrontpageEndpoint::register();
+    OptionsEndpoint::register();
+
+    // Enqueue CloakWP custom CSS/JS assets:
     $this->enqueueAssets([
       Stylesheet::make("{$this->plugin_name}_admin_styles")
         ->src(dirname(plugin_dir_url(__FILE__)) . '/assets/css/admin-styles.css')
@@ -96,6 +105,8 @@ class CloakWP extends Admin
     // for now, enable all wp-admin customizations by default:
     $this
       ->replaceFrontendLinks()
+      ->registerHeadlessVirtualFields()
+      ->cleanRestResponses()
       ->makeAcfRestFormatStandard()
       ->modifyJwtIssuer()
       ->extendJwtExpiryDate()
@@ -125,6 +136,155 @@ class CloakWP extends Admin
     }
     return self::$instance;
   }
+
+  /**
+   * Registers the post virtual fields that are necessary for CloakWP.js to work.
+   */
+  public function registerHeadlessVirtualFields(): static
+  {
+    $allPostTypes = Utils::get_public_post_types();
+    $gutenbergPostTypes = Utils::get_post_types_with_editor();
+
+    // add the generic headless-related virtual fields to ALL public post types:
+    register_virtual_fields($allPostTypes, [
+      VirtualField::make('pathname')
+        ->value(fn ($post) => Utils::get_post_pathname($post->ID)),
+      VirtualField::make('featured_image')
+        ->value(function ($post) {
+          $post_id = is_array($post) ? $post['id'] : $post->ID;
+          $image_id = get_post_thumbnail_id($post_id);
+
+          $result = [];
+          $sizes = apply_filters('cloakwp/virtual_fields/featured_image/sizes', ['medium', 'large', 'full'], $post, $image_id);
+
+          foreach ($sizes as $size) {
+            $img = wp_get_attachment_image_src($image_id, $size);
+            $url = is_array($img) ? $img['0'] : false;
+            $result[$size] = $url;
+          }
+
+          return $result;
+        }),
+      VirtualField::make('taxonomies')
+        ->value(function ($post) {
+          $post_id = is_array($post) ? $post['id'] : $post->ID;
+
+          // Get the post type associated with the post ID
+          $post_type = get_post_type($post_id);
+
+          // Get all taxonomies attached to the post type
+          $taxonomies = get_object_taxonomies($post_type);
+          $taxonomies_data = array();
+
+          // Iterate through each taxonomy
+          foreach ($taxonomies as $taxonomy) {
+            // Get the terms for the current taxonomy
+            $terms = wp_get_post_terms($post_id, $taxonomy);
+            $terms_data = array();
+
+            // Iterate through each term
+            foreach ($terms as $term) {
+              // Build the term data array
+              $term_data = array(
+                'name' => $term->name,
+                'slug' => $term->slug,
+                'id' => $term->term_id,
+              );
+
+              // Add the term data to the terms array
+              $terms_data[] = $term_data;
+            }
+
+            // Add the taxonomy slug to its own object
+            $taxonomies_data[$taxonomy]['slug'] = $taxonomy;
+
+            // Add the terms data to the taxonomies data array
+            $taxonomies_data[$taxonomy]['terms'] = $terms_data;
+          }
+
+          return $taxonomies_data;
+        })
+    ]);
+
+    if (!$gutenbergPostTypes) return $this;
+
+    // add the Gutenberg-related virtual fields to all post types that utilize Gutenberg
+    register_virtual_fields($gutenbergPostTypes, [
+      VirtualField::make('blocks_data')
+        ->value(function ($post) {
+          $post_id = is_array($post) ? $post['id'] : $post->ID;
+          if (is_array($post) && isset($post['content']['raw'])) {
+            return $this->blockTransformer->get_blocks($post['content']['raw'], $post_id);
+          }
+
+          $post = get_post($post_id);
+          if (!$post) return [];
+
+          return $this->blockTransformer->get_blocks($post->post_content, $post->ID);
+        })
+        ->excludeFrom(['core'])
+    ]);
+
+
+    return $this;
+  }
+
+  /**
+   * When hooked into the 'rest_prepare_{$post_type}' filter, this function cleans up the 
+   * REST API response for that post type, removing fields that are usually unused by decoupled
+   * frontends; need to be careful about removing things that are used by WordPress internally.
+   */
+  public function cleanRestResponses(): static
+  {
+    $cleanFn = function (WP_REST_Response|WP_Error $response, $post, $context) {
+      // First check if the REST response is an error:
+      if (is_wp_error($response)) {
+        return $response;
+      }
+
+      $original_data = $response->data;
+      $modified_data = $response->data;
+      $modified_data['author'] = Utils::get_pretty_author($original_data['author']);
+
+      /* 
+          Remove unnecessary fields from the response.
+          Note: the 'content' field is not usually useful when doing headless the "right" way, but it's
+                required by Gutenberg in order to properly show/preview blocks in the editor, so leave it.
+        */
+      unset(
+        $modified_data['date_gmt'],
+        $modified_data['modified_gmt'],
+        $modified_data['featured_media'],
+        $modified_data['comment_status'],
+        $modified_data['ping_status'],
+        $modified_data['guid'],
+        $modified_data['post_author'], // replaced by new 'author' field above
+      );
+
+      // Remove footnotes if it's empty:
+      if ($modified_data['meta']['footnotes'] == "") unset($modified_data['meta']);
+
+      // Remove some unnecessary nesting:
+      if (isset($modified_data['title']['rendered'])) $modified_data['title'] = $modified_data['title']['rendered'];
+      if (isset($modified_data['excerpt']['rendered'])) $modified_data['excerpt'] = $modified_data['excerpt']['rendered'];
+
+      // Apply a filter to the final modified data so users can customize further (eg. they can remove more fields, and/or add back in some that we removed above)
+      $final_data = apply_filters('cloakwp/rest/posts/response_format', $modified_data, $original_data);
+
+      $response->data = $final_data;
+      return $response;
+    };
+
+    $allPostTypes = Utils::get_public_post_types();
+    $allPostTypes[] = 'revision'; // make sure "revisions" responses also get cleaned in same way
+
+    foreach ($allPostTypes as $postType) {
+      add_filter("rest_prepare_{$postType}", $cleanFn, 50, 3);
+    }
+
+    return $this;
+  }
+
 
   /**
    * Modifies all wp-admin frontend links (eg. 'View Post') to point to decoupled frontend URL
