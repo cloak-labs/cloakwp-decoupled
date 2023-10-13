@@ -3,53 +3,39 @@
 namespace CloakWP\API;
 
 /**
- * Fired during plugin activation
- *
- * @link       https://https://github.com/cloak-labs
- * @since      0.7.0
- *
- * @package    CloakWP
- * @subpackage CloakWP/includes
+ * This class adds a "/menus" endpoint to the WordPress REST API to enable headless projects to easily retrieve WP menus
  */
-
-/**
- * Fired during plugin activation.
- *
- * This class adds a "menus" endpoint to the WordPress REST API to enable headless projects to easily retrieve WP menus
- *
- * @since      0.7.0
- * @package    CloakWP
- * @subpackage CloakWP/includes
- * @author     Cloak Labs 
- */
-
-class Menus
+class MenusEndpoint
 {
+  protected static bool $isRegistered = false;
 
-  public function __construct()
+  public static function register()
   {
-    $this->bootstrap();
-  }
+    if (!self::$isRegistered) {
+      $self = new self(); // Create an instance of the class
 
-  public function register_routes()
-  {
-    // Register menus endpoint
-    register_rest_route('cloakwp', '/menus', array(
-      'methods' => 'GET',
-      'callback' => array($this, 'handle_all_menus_request'),
-      'permission_callback' => '__return_true'
-    ));
+      add_action('rest_api_init', function () use ($self) {
+        // Register menus endpoint
+        register_rest_route('cloakwp', '/menus', array(
+          'methods' => 'GET',
+          'callback' => array($self, 'handle_all_menus_request'),
+          'permission_callback' => '__return_true'
+        ));
 
-    // Register menu endpoint
-    register_rest_route('cloakwp', '/menus/(?P<menu_slug>[a-zA-Z0-9-]+)', array(
-      'methods' => 'GET',
-      'callback' => array($this, 'handle_single_menu_request'),
-      'permission_callback' => '__return_true'
-    ));
+        // Register menu endpoint
+        register_rest_route('cloakwp', '/menus/(?P<menu_slug>[a-zA-Z0-9-]+)', array(
+          'methods' => 'GET',
+          'callback' => array($self, 'handle_single_menu_request'),
+          'permission_callback' => '__return_true'
+        ));
+      });
+
+      self::$isRegistered = true;
+    }
   }
 
   // Callback function to retrieve all menus
-  function handle_all_menus_request($request)
+  public function handle_all_menus_request($request)
   {
     // Get all menus
     $menus = wp_get_nav_menus();
@@ -115,7 +101,7 @@ class Menus
 
       if ($type != 'custom') { // format internal links:
         // chop off domain name so we're left with a relative path
-        $url = str_replace(CLOAKWP_FRONTEND_URL, "", $url);
+        $url = str_replace(MY_FRONTEND_URL, "", $url);
 
         // Remove trailing backslash:
         // $url = rtrim($url, '/');
@@ -133,16 +119,5 @@ class Menus
     }
 
     return $formatted_items;
-  }
-
-  /**
-   * Bootstrap filters and actions.
-   *
-   * @return void
-   */
-  private function bootstrap()
-  {
-    // Add custom endpoint for menus
-    add_action('rest_api_init', array($this, 'register_routes'));
   }
 }
