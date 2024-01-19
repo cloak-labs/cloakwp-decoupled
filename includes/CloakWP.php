@@ -3,7 +3,6 @@
 namespace CloakWP;
 
 use CloakWP\Admin\Admin;
-use CloakWP\Admin\Enqueue\Script;
 use CloakWP\Admin\Enqueue\Stylesheet;
 use CloakWP\VirtualFields\VirtualField;
 use CloakWP\Utils;
@@ -89,16 +88,11 @@ class CloakWP extends Admin
     // Enqueue CloakWP custom CSS/JS assets:
     $this->enqueueAssets([
       Stylesheet::make("{$this->plugin_name}_admin_styles")
-        ->src(dirname(plugin_dir_url(__FILE__)) . '/assets/css/admin-styles.css')
+        ->src(dirname(plugin_dir_url(__FILE__)) . '/assets/css/admin.css')
         ->version($this->version),
       Stylesheet::make("{$this->plugin_name}_gutenberg_styles")
         ->hook('enqueue_block_editor_assets')
-        ->src(dirname(plugin_dir_url(__FILE__)) . '/assets/css/gutenberg-styles.css')
-        ->version($this->version),
-      Script::make("{$this->plugin_name}_acf_block_iframe_preview_script")
-        ->hook('enqueue_block_editor_assets')
-        ->src(dirname(plugin_dir_url(__FILE__)) . '/assets/js/acf-block-iframe-preview.js')
-        ->deps(array('jquery'))
+        ->src(dirname(plugin_dir_url(__FILE__)) . '/assets/css/editor.css')
         ->version($this->version)
     ]);
 
@@ -106,6 +100,7 @@ class CloakWP extends Admin
     $this
       ->replaceFrontendLinks()
       ->registerHeadlessVirtualFields()
+      ->registerAuthEndpoint()
       ->cleanRestResponses()
       ->makeAcfRestFormatStandard()
       ->modifyJwtIssuer()
@@ -118,11 +113,12 @@ class CloakWP extends Admin
       ->addXdebugInfoPage()
       ->addConfigDisplayPage()
       ->removeAdminToolbarOptions()
-      ->enableOldMenuEditor()
-      ->removeAdminPages()
+      ->enableLegacyMenuEditor()
+      ->removeIrrelevantAdminPages()
       ->deprioritizeYoastSeoMetabox()
-      ->defineThemeSupport()
-      ->enableCors();
+      ->applyRecommendedThemeSupports()
+      ->enableCors()
+      ->cleanAdminNotices();
   }
 
 
@@ -142,89 +138,92 @@ class CloakWP extends Admin
    */
   public function registerHeadlessVirtualFields(): static
   {
-    $allPostTypes = Utils::get_public_post_types();
-    $gutenbergPostTypes = Utils::get_post_types_with_editor();
+    add_action("init", function () {
+      $customPostTypes = Utils::get_custom_post_types();
+      $publicPostTypes = Utils::get_public_post_types();
+      $allPostTypes = array_merge($customPostTypes, $publicPostTypes);
+      $gutenbergPostTypes = Utils::get_post_types_with_editor();
+  
+      // add the `pathname` virtual field to all PUBLIC posts (i.e. all posts that map to a front-end page):
+      register_virtual_fields($publicPostTypes, [
+        VirtualField::make('pathname')
+          ->value(fn ($post) => Utils::get_post_pathname(is_array($post) ? $post['id'] : $post->ID))
+      ]);
 
-    // add the generic headless-related virtual fields to ALL public post types:
-    register_virtual_fields($allPostTypes, [
-      VirtualField::make('pathname')
-        ->value(fn ($post) => Utils::get_post_pathname($post->ID)),
-      VirtualField::make('featured_image')
-        ->value(function ($post) {
-          $post_id = is_array($post) ? $post['id'] : $post->ID;
-          $image_id = get_post_thumbnail_id($post_id);
-
-          $result = [];
-          $sizes = apply_filters('cloakwp/virtual_fields/featured_image/sizes', ['medium', 'large', 'full'], $post, $image_id);
-
-          foreach ($sizes as $size) {
-            $img = wp_get_attachment_image_src($image_id, $size);
-            $url = is_array($img) ? $img['0'] : false;
-            $result[$size] = $url;
-          }
-
-          return $result;
-        }),
-      VirtualField::make('taxonomies')
-        ->value(function ($post) {
-          $post_id = is_array($post) ? $post['id'] : $post->ID;
-
-          // Get the post type associated with the post ID
-          $post_type = get_post_type($post_id);
-
-          // Get all taxonomies attached to the post type
-          $taxonomies = get_object_taxonomies($post_type);
-          $taxonomies_data = array();
-
-          // Iterate through each taxonomy
-          foreach ($taxonomies as $taxonomy) {
-            // Get the terms for the current taxonomy
-            $terms = wp_get_post_terms($post_id, $taxonomy);
-            $terms_data = array();
-
-            // Iterate through each term
-            foreach ($terms as $term) {
-              // Build the term data array
-              $term_data = array(
-                'name' => $term->name,
-                'slug' => $term->slug,
-                'id' => $term->term_id,
-              );
-
-              // Add the term data to the terms array
-              $terms_data[] = $term_data;
+      // add `featured_image` and `taxonomies` virtual fields to all CPTs + public built-in post types:
+      register_virtual_fields($allPostTypes, [
+        VirtualField::make('featured_image')
+          ->value(function ($post) {
+            $post_id = is_array($post) ? $post['id'] : $post->ID;
+            $image_id = get_post_thumbnail_id($post_id);
+            
+            $result = [];
+            $sizes = apply_filters('cloakwp/virtual_fields/featured_image/sizes', ['medium', 'large', 'full'], $post, $image_id);
+            
+            foreach ($sizes as $size) {
+              $img = wp_get_attachment_image_src($image_id, $size);
+              $url = is_array($img) ? $img['0'] : false;
+              $result[$size] = $url;
             }
 
-            // Add the taxonomy slug to its own object
-            $taxonomies_data[$taxonomy]['slug'] = $taxonomy;
-
-            // Add the terms data to the taxonomies data array
-            $taxonomies_data[$taxonomy]['terms'] = $terms_data;
-          }
-
-          return $taxonomies_data;
-        })
-    ]);
-
-    if (!$gutenbergPostTypes) return $this;
-
-    // add the Gutenberg-related virtual fields to all post types that utilize Gutenberg
-    register_virtual_fields($gutenbergPostTypes, [
-      VirtualField::make('blocks_data')
-        ->value(function ($post) {
-          $post_id = is_array($post) ? $post['id'] : $post->ID;
-          if (is_array($post) && isset($post['content']['raw'])) {
-            return $this->blockTransformer->get_blocks($post['content']['raw'], $post_id);
-          }
-
-          $post = get_post($post_id);
-          if (!$post) return [];
-
-          return $this->blockTransformer->get_blocks($post->post_content, $post->ID);
-        })
-        ->excludeFrom(['core'])
-    ]);
-
+            $alt_desc = get_post_meta($image_id, '_wp_attachment_image_alt', true);
+            $result['alt'] = $alt_desc;
+  
+            return $result;
+          }),
+        VirtualField::make('author')
+          ->value(function ($post) {
+            $authorId = is_array($post) ? $post['author'] : $post->post_author;
+            return Utils::get_pretty_author($authorId);
+          }),
+        VirtualField::make('taxonomies')
+          ->value(function (\WP_Post $post) {  
+            // Get all taxonomies attached to the post type
+            $taxonomies = get_object_taxonomies($post->post_type);
+            $taxonomies_data = array();
+  
+            // Iterate through each taxonomy
+            foreach ($taxonomies as $taxonomy) {
+              // Get the terms for the current taxonomy
+              $terms = wp_get_post_terms($post->ID, $taxonomy);
+              $terms_data = array();
+  
+              // Iterate through each term
+              foreach ($terms as $term) {
+                // Build the term data array
+                $term_data = array(
+                  'name' => $term->name,
+                  'slug' => $term->slug,
+                  'id' => $term->term_id,
+                );
+  
+                // Add the term data to the terms array
+                $terms_data[] = $term_data;
+              }
+  
+              // Add the taxonomy slug to its own object
+              $taxonomies_data[$taxonomy]['slug'] = $taxonomy;
+  
+              // Add the terms data to the taxonomies data array
+              $taxonomies_data[$taxonomy]['terms'] = $terms_data;
+            }
+  
+            return $taxonomies_data;
+          })
+      ]);
+    
+      // add the Gutenberg-related virtual fields to all post types that utilize Gutenberg
+      if ($gutenbergPostTypes) {
+        register_virtual_fields($gutenbergPostTypes, [
+          VirtualField::make('blocks_data')
+            ->value(function ($post) {
+              if (!$post) return [];
+              return $this->blockTransformer->getBlocksFromPost($post);
+            })
+            ->excludeFrom(['core'])
+        ]);
+      }
+    }, 99);
 
     return $this;
   }
@@ -244,7 +243,7 @@ class CloakWP extends Admin
 
       $original_data = $response->data;
       $modified_data = $response->data;
-      $modified_data['author'] = Utils::get_pretty_author($original_data['author']);
+      // $modified_data['author'] = Utils::get_pretty_author($original_data['post_author']);
 
       /* 
           Remove unnecessary fields from the response.
@@ -258,11 +257,14 @@ class CloakWP extends Admin
         $modified_data['comment_status'],
         $modified_data['ping_status'],
         $modified_data['guid'],
-        $modified_data['post_author'], // replaced by new 'author' field above
+        // Remove categories & tags in favour of "taxonomies" virtual field added in registerHeadlessVirtualFields() method:
+        $modified_data['categories'],
+        $modified_data['tags'],
+        // $modified_data['post_author'], // replaced by new 'author' field above
       );
 
       // Remove footnotes if it's empty:
-      if ($modified_data['meta']['footnotes'] == "") unset($modified_data['meta']);
+      if (isset($modified_data['meta']) && $modified_data['meta']['footnotes'] == "") unset($modified_data['meta']);
 
       // Remove some unnecessary nesting:
       if (isset($modified_data['title']['rendered'])) $modified_data['title'] = $modified_data['title']['rendered'];
@@ -275,10 +277,10 @@ class CloakWP extends Admin
       return $response;
     };
 
-    $allPostTypes = Utils::get_public_post_types();
-    $allPostTypes[] = 'revision'; // make sure "revisions" responses also get cleaned in same way
+    $publicPostTypes = Utils::get_public_post_types();
+    $publicPostTypes[] = 'revision'; // make sure "revisions" responses also get cleaned in same way
 
-    foreach ($allPostTypes as $postType) {
+    foreach ($publicPostTypes as $postType) {
       add_filter("rest_prepare_{$postType}", $cleanFn, 50, 3);
     }
 
@@ -296,7 +298,7 @@ class CloakWP extends Admin
     add_filter('post_type_link', array($this, 'convertToDecoupledUrl'), 10, 2);
 
     // Override the href for the site name & view site links in the wp-admin top toolbar, and open links in new tab:
-    add_action('admin_bar_menu', function ($wp_admin_bar) {
+    add_action('admin_bar_menu', function (\WP_Admin_Bar $wp_admin_bar) {
       // Get references to the 'view-site' and 'site-name' nodes to modify.
       $view_site_node = $wp_admin_bar->get_node('view-site');
       $site_name_node = $wp_admin_bar->get_node('site-name');
@@ -455,7 +457,7 @@ class CloakWP extends Admin
   {
     $message = '<h2>No Xdebug enabled</h2>';
     if (function_exists('xdebug_info')) {
-      /** @phan-ignore-next-line */
+      /** @disregard */
       xdebug_info();
     } else {
       echo $message;
@@ -543,7 +545,7 @@ class CloakWP extends Admin
   /**
    * This is required in order for WP Admin > Appearance > Menus page to be visible for new Block themes. 
    */
-  public function enableOldMenuEditor(): static
+  public function enableLegacyMenuEditor(): static
   {
     add_action('init', function () {
       register_nav_menus(
@@ -609,7 +611,7 @@ class CloakWP extends Admin
     Remove "Comments" from wp-admin sidebar for all roles.
     Remove "Tools", "Dashboard", and "Yoast SEO" for non-admins
   */
-  public function removeAdminPages(): static
+  public function removeIrrelevantAdminPages(): static
   {
     add_action('admin_menu', function () {
       remove_menu_page('edit-comments.php');
@@ -701,9 +703,30 @@ class CloakWP extends Admin
 
 
   /**
+   * Hides certain wp-admin notices created by plugins that aren't relevant for headless use-case
+   */
+  private function cleanAdminNotices(): static
+  {
+    // hide Bedrock warning about search engine indexing:
+    add_filter('roots/bedrock/disallow_indexing_admin_notice', '__return_false');
+
+    // disable WP core, plugin, and theme update notices (because we manage these via Composer not wp-admin):
+    $updateFilters = ['pre_site_transient_update_core', 'pre_site_transient_update_plugins', 'pre_site_transient_update_themes'];
+    foreach ($updateFilters as $filter) {
+      add_filter($filter, function () {
+        global $wp_version;
+        return (object) array('last_checked' => time(), 'version_checked' => $wp_version);
+      });
+    }
+
+    return $this;
+  }
+
+
+  /**
    * Remove and add certain theme support
    */
-  private function defineThemeSupport(): static
+  private function applyRecommendedThemeSupports(): static
   {
     // We use the after_setup_theme hook with a priority of 11 to load after the parent theme, which will fire on the default priority of 10
     add_action('after_setup_theme', function () {
@@ -762,12 +785,15 @@ class CloakWP extends Admin
   }
 
   /**
-   * Provide an array of Block class instances, defining all your custom ACF Blocks + associated fields.
+   * Provide an array of CloakWP\ACF\Block class instances, defining all your custom ACF Blocks + associated fields.
+   * While Block classes can register themselves, the benefit of registering through the CloakWP class as an
+   * intermediary is that it (1) provides a smart file-based registration system which is arguably simpler/nicer,
+   * and (2) automatically enables CloakWP's decoupled iframe preview feature for each block.  
    */
   public function blocks(string|array $blocks): static
   {
+    // Handle case where user provides a file directory string pointing at where their Block instances live (rather than a direct array of Block instances)
     if (is_string($blocks)) {
-      // user provided a directory of blocks rather than an array
       if (file_exists($blocks) && is_dir($blocks)) {
         // Get a list of all subdirectories in the root directory
         $subdirectories = glob($blocks . '/*', GLOB_ONLYDIR);
@@ -790,26 +816,35 @@ class CloakWP extends Admin
       }
     }
 
-    $formatted_blocks = [];
-
     foreach ($blocks as $block) {
-      if (!is_object($block) || !method_exists($block, 'get')) continue; // invalid block
+      if (!is_object($block) || !method_exists($block, 'getFieldGroupSettings')) continue; // invalid block
 
-      $blockSettings = $block->get();
+      // Make each ACF block use CloakWP's iframe preview render template
+      $block->args([
+        'render_callback' => array($this, 'renderIframePreview') // idea here is to remove/abstract the need for dev to specify { ... "renderCallback": "function_name" ... } in block.json
+      ]);
 
-      $formatted_blocks[] = $blockSettings;
+      if (!$block->emptyFieldsMessage) $block->emptyFieldsMessage('This block has no fields/controls. Simply drop it wherever you wish to display it.');
+      
+      // now register each block
+      $block->register();
     }
 
-    $this->blocks = array_merge($this->blocks, $formatted_blocks); // todo: might need a custom merge method here to handle duplicates?
+    $this->blocks = array_merge($this->blocks, $blocks); // todo: might need a custom merge method here to handle duplicates?
 
     return $this;
+  }
+
+  public static function renderIframePreview($block, $content, $is_preview, $post_id, $wp_block, $context)
+  {
+    include(Utils::cloakwp_plugin_path() . '/block-preview.php');
   }
 
   /**
    * Define which core blocks to include. Any that aren't defined will be excluded from use in Gutenberg.
    * You can also specify post type rules, so that certain blocks are only allowed on certain post types. 
    */
-  public function coreBlocks(array|bool $blocksToInclude): static
+  public function enabledCoreBlocks(array|bool $blocksToInclude): static
   {
     add_filter('allowed_block_types_all', function ($allowed_block_types, $editor_context) use ($blocksToInclude) {
       return $this->getAllowedBlocks($allowed_block_types, $editor_context, $blocksToInclude);
@@ -822,10 +857,6 @@ class CloakWP extends Admin
   {
     $registeredBlockTypes = WP_Block_Type_Registry::get_instance()->get_all_registered();
     $registeredBlockTypeKeys = array_keys($registeredBlockTypes);
-
-    // Utils::write_log('=====> ALL allowed_block_types:');
-    // Utils::write_log($registeredBlockTypeKeys);
-    // Utils::write_log($editor_context);
 
     $currentPostType = $editor_context->post->post_type;
     $finalAllowedBlocks = array_filter($registeredBlockTypeKeys, fn ($b) => str_starts_with($b, 'acf/')); // start with only ACF blocks, then we'll add user-provided blocks to this list
@@ -889,27 +920,60 @@ class CloakWP extends Admin
    * and this method will return that currently active frontend. All wp-admin links referencing 
    * the frontend will point to the "active" frontend's URL.
    */
-  public function getActiveFrontend()
+  public function getActiveFrontend(): Frontend | null
   {
     // TODO: in future, need to build a "frontend switcher" as described above, and return the currently selected frontend here
     if (is_array($this->frontends)) return $this->frontends[0];
     return null;
   }
 
+  /**
+   * registerAuthEndpoint creates a REST Endpoint that our frontend can ping to determine if the
+   * current site visitor is logged in to WP. The `cloakwp` NPM package provides a helper for properly
+   * passing cookies to determine the auth status.
+   */
+  public function registerAuthEndpoint(): static
+  {
+    add_action('rest_api_init', function () {
+      register_rest_route('jwt-auth/v1', '/is-logged-in', array(
+        'methods' => 'GET',
+        'callback' => function () {
+          $isLoggedIn = false;
+          if ($_COOKIE && is_array($_COOKIE)) {
+            if (array_key_exists(LOGGED_IN_COOKIE, $_COOKIE))
+              $isLoggedIn = true;
+          }
+          return rest_ensure_response($isLoggedIn);
+        },
+        'permission_callback' => function ($request) {
+          /*
+            if JWT is passed as header, is_user_logged_in() should return true, otherwise false;
+            but for some reason this only works if the route namespace is 'jwt-auth/v1'.
+            TODO: look into making this work on routes with custom namespaces -- might need to fork the JWT Auth WP plugin
+          */
+          return is_user_logged_in();
+        }
+      ));
+    });
+
+    return $this;
+  }
+
+
   /* 
-    We purposely separate blocks() from init() in order for the 'Blocks' field type to be able 
+    We purposely separate blocks() from init() in order for the 'InnerBlocks' field type to be able 
     to pull in blocks classes defined by blocks() before they get processed/registered by init()
   */
-  public function init(): void
-  {
-    add_action('acf/init', function () {
-      // register all ACF Blocks (using Extended ACF package):
-      $blocks = Utils::array_deep_copy($this->blocks); // Copy $this->blocks to another variable to prevent modifying the original value of $this->blocks (fixes bugs related to InnerBlocks field)
-      foreach ($blocks as $block) {
-        register_extended_field_group($block);
-      }
-    });
-  }
+  // public function init(): void
+  // {
+  //   add_action('acf/init', function () {
+  //     // register all ACF Blocks (using Extended ACF package):
+  //     $blocks = Utils::array_deep_copy($this->blocks); // Copy $this->blocks to another variable to prevent modifying the original value of $this->blocks (fixes bugs related to InnerBlocks field)
+  //     foreach ($blocks as $block) {
+  //       register_extended_field_group($block);
+  //     }
+  //   });
+  // }
 
 
   /**

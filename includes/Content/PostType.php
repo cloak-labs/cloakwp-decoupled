@@ -15,9 +15,9 @@ class PostType
   protected array|null $virtualFields = null;
 
   /**
-   * @var callable|null $beforeChangeCallback
+   * @var callable|null $afterChangeCallback
    */
-  protected $beforeChangeCallback;
+  protected $afterChangeCallback;
 
   /**
    * @var callable|null $afterReadCallback
@@ -223,7 +223,7 @@ class PostType
    * $show_ui, and $show_in_nav_menus are inherited from $public, each does not rely on this 
    * relationship and controls a very specific intention. Default false.
    */
-  public function public(bool $isPublic): static
+  public function public (bool $isPublic): static
   {
     $this->settings['public'] = $isPublic;
     return $this;
@@ -506,9 +506,9 @@ class PostType
    * Run some code before a post of this type is saved, either to trigger a 
    * side-effect or to transform the post data before saving it in the database.
    */
-  public function beforeChange(callable $callback): static
+  public function afterChange(callable $callback): static
   {
-    $this->beforeChangeCallback = $callback;
+    $this->afterChangeCallback = $callback;
     return $this;
   }
 
@@ -569,8 +569,8 @@ class PostType
       }
     }
 
-    if ($this->beforeChangeCallback) {
-      $callback = $this->beforeChangeCallback;
+    if ($this->afterChangeCallback) {
+      $callback = $this->afterChangeCallback;
       add_action("save_post_$this->slug", function ($post_id, $post, $update) use ($callback) {
         if (wp_is_post_autosave($post_id)) {
           return;
@@ -596,34 +596,6 @@ class PostType
 
     if ($this->virtualFields) {
       register_virtual_fields($this->slug, $this->virtualFields);
-
-      // add_filter("the_posts", function ($posts, $query) {
-      //   if ($query->query_vars['post_type'] != $this->slug) return $posts;
-      //   if (!is_array($posts) || !count($posts)) return $posts;
-
-      //   return array_map(function ($post) {
-      //     foreach ($this->virtualFields as $name => $value) {
-      //       $post->{$name} = is_callable($value) ? $value($post) : $value;
-      //     }
-      //     return $post;
-      //   }, $posts);
-      // }, 20, 2);
-
-      // add_action('rest_api_init', function () {
-      //   foreach ($this->virtualFields as $name => $value) {
-      //     register_rest_field(
-      //       $this->slug,
-      //       $name,
-      //       array(
-      //         'get_callback'    => function ($object) use ($value) {
-      //           return is_callable($value) ? $value($object) : $value;
-      //         },
-      //         'update_callback' => null,
-      //         'schema'          => null,
-      //       )
-      //     );
-      //   }
-      // }, 1);
     }
 
     if ($this->apiResponseCallback) {

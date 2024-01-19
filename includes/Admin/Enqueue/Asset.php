@@ -74,14 +74,13 @@ abstract class Asset
     $this->settings['ver'] = $ver;
     return $this;
   }
-  
+
   public function enqueue()
   {
     add_action($this->enqueueHook, function () {
       $args = array_values($this->settings);
       if (is_callable($this->enqueueFunction)) {
         call_user_func($this->enqueueFunction, ...$args);
-        // wp_enqueue_style(...$args);
       } else {
         throw new InvalidArgumentException("The 'enqueueFunction' property for this Asset child class is not a valid function. Assign a value such as 'wp_enqueue_script'.");
       }

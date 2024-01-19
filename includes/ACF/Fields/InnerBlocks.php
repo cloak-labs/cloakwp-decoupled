@@ -2,6 +2,7 @@
 
 namespace CloakWP\ACF\Fields;
 
+use CloakWP\ACF\BlockRegistry;
 use CloakWP\CloakWP;
 use Extended\ACF\Fields\Accordion;
 use Extended\ACF\Fields\FlexibleContent;
@@ -38,23 +39,25 @@ class InnerBlocks extends FlexibleContent
     return $this;
   }
 
-  private function createLayoutsFromBlocks($parentKey, array $includedBlocks = [], array $excludedBlocks = []): array
+  private function createLayoutsFromBlocks($parentKey): array
   {
-    $blocks = CloakWP::getInstance()->getBlocks();
+    $blocks = BlockRegistry::getInstance()->getBlocks();
+    // $blocks = CloakWP::getInstance()->getBlocks();
     $final_layouts = [];
 
     // if there are blocks in the $blocks array
     if (!empty($blocks)) {
       // loop over each block and create option
       foreach ($blocks as $block) {
-        $included = empty($includedBlocks) || in_array($block['name'], $includedBlocks);
+        $settings = $block->getFieldGroupSettings();
+        $included = empty($this->includes) || in_array($settings['name'], $this->includes);
 
-        $is_block_same_as_parent = $parentKey == $block['key']; // we don't allow nesting a block within itself
-        $excluded = in_array($block['name'], $excludedBlocks) || $is_block_same_as_parent;
-        
+        $is_block_same_as_parent = $parentKey == $settings['key']; // we don't allow nesting a block within itself
+        $excluded = in_array($settings['name'], $this->excludes) || $is_block_same_as_parent;
+
         // filter blocks based on whether they've been included or excluded
         if ($included && !$excluded) {
-          $fields = $block['fields'];
+          $fields = $settings['fields'];
           if (is_array($fields)) {
             $count = -1; // Initialize the index
             // exclude 'Blocks' fields from Layouts to avoid infinite loop/recursion
@@ -70,9 +73,9 @@ class InnerBlocks extends FlexibleContent
               return true;
             });
           }
-          
+
           // Make a Flexible Content "layout" using each block's fields
-          $final_layouts[] = Layout::make($block['title'], $block['name'])
+          $final_layouts[] = Layout::make($settings['title'], $settings['name'])
             ->layout('block')
             ->fields($fields);
         }
@@ -84,9 +87,10 @@ class InnerBlocks extends FlexibleContent
 
   private function setLayouts($parentKey)
   {
-    $final_layouts = $this->createLayoutsFromBlocks($parentKey, $this->includes, $this->excludes);
-    
-    if (!empty($final_layouts)) $this->settings['layouts'] = $final_layouts;
+    $final_layouts = $this->createLayoutsFromBlocks($parentKey);
+
+    if (!empty($final_layouts))
+      $this->settings['layouts'] = $final_layouts;
   }
 
   /** @internal */
@@ -103,11 +107,11 @@ class InnerBlocks extends FlexibleContent
 
     if (isset($this->settings['conditional_logic'])) {
       $this->settings['conditional_logic'] = array_map(
-        fn ($rules) => $rules->get($parentKey),
+        fn($rules) => $rules->get($parentKey),
         $this->settings['conditional_logic']
       );
     }
-    
+
     if (isset($this->settings['layouts'])) {
 
       $array_of_layout_objects = array_filter($this->settings['layouts'], function ($layout) {
@@ -118,12 +122,12 @@ class InnerBlocks extends FlexibleContent
       });
 
       $this->settings['layouts'] = array_map(
-        function ($layout) use($key) {
+        function ($layout) use ($key) {
           return $layout->get($key);
         },
         $array_of_layout_objects
       );
-      
+
     }
 
     // COMMENTED OUT BECAUSE THESE ARE IRRELEVANT TO InnerBlocks FIELDS:

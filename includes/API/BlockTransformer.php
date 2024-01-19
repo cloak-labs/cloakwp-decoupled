@@ -46,14 +46,16 @@ class BlockTransformer
    *
    * @return array
    */
-  public function get_blocks($content, $post_id = 0)
+  public function getBlocksFromPost(int|\WP_Post|array $post)
   {
+    $postObj = Utils::get_wp_post_object($post);
+    $content = $postObj->post_content;
     $output = [];
     $blocks = parse_blocks($content);
 
     foreach ($blocks as $block) {
       $this->acf_fields = []; // reset
-      $block_data = $this->convertBlockToObject($block, $post_id);
+      $block_data = $this->convertBlockToObject($block, $postObj->id);
       if ($block_data) {
         $output[] = $block_data;
       }
@@ -88,11 +90,11 @@ class BlockTransformer
 
       if ($supports && isset($supports['anchor']) && $supports['anchor']) {
         $attributes['anchor'] = [
-          'type'      => 'string',
-          'source'    => 'attribute',
+          'type' => 'string',
+          'source' => 'attribute',
           'attribute' => 'id',
-          'selector'  => '*',
-          'default'   => '',
+          'selector' => '*',
+          'default' => '',
         ];
       }
 
@@ -113,7 +115,8 @@ class BlockTransformer
           if (($block_type == 'core' || ($block_type == 'acf' && !$enable_acf_block_transform)) && !isset($attrs[$key])) {
             // Regular attribute handling:
             $attr_value = $this->get_attribute($attribute, $raw_block_object->inner_html, $post_id);
-            if ($attr_value) $attrs[$key] = $attr_value;
+            if ($attr_value)
+              $attrs[$key] = $attr_value;
           }
         }
       }
@@ -130,7 +133,8 @@ class BlockTransformer
     );
 
     // Add ACF fields under 'data' property
-    if ($this->acf_fields) $formatted_block['data'] = $this->acf_fields;
+    if ($this->acf_fields)
+      $formatted_block['data'] = $this->acf_fields;
 
     // Add 'innerBlocks' if they exist
     if (!empty($block['innerBlocks'])) {
@@ -178,8 +182,10 @@ class BlockTransformer
         $field_value = $fields[$field_name];
 
         // When no field object is found, set as empty array to suppress notices
-        if (!$acf_field_object) $acf_field_object = [];
-        if (!isset($acf_field_object['type'])) $acf_field_object['type'] = '';
+        if (!$acf_field_object)
+          $acf_field_object = [];
+        if (!isset($acf_field_object['type']))
+          $acf_field_object['type'] = '';
         $type = $acf_field_object['type'];
 
         /* 
@@ -191,16 +197,20 @@ class BlockTransformer
         if ($is_relational_field) {
           if ($field_value) {
             $related_posts = [];
-            if (!is_array($field_value)) $field_value = array($field_value); // convert to array if it isn't already
+            if (!is_array($field_value))
+              $field_value = array($field_value); // convert to array if it isn't already
 
             // loop through array of related page/post IDs and retrieve their full data
-            foreach ($field_value as $related_post_id) {
-              $related_post = get_post($related_post_id);
+            foreach ($field_value as $related_post) {
+              $related_post = get_post($related_post);
+              Utils::write_log('Relationship post id:');
+              Utils::write_log($related_post->ID);
+
               $related_post->author = Utils::get_pretty_author($related_post->post_author); // replace default 'post_author' (ID) with basic 'author' object
-              $related_post->pathname = Utils::get_post_pathname($related_post_id); // front-end route for post
-              $related_post->featured_image = get_the_post_thumbnail_url($related_post_id, 'full');
-              $related_post->acf = get_fields($related_post_id);
-              $related_post->id = $related_post_id;
+              $related_post->pathname = Utils::get_post_pathname($related_post->ID); // front-end route for post
+              $related_post->featured_image = get_the_post_thumbnail_url($related_post->ID, 'full');
+              $related_post->acf = get_fields($related_post->ID);
+              $related_post->id = $related_post->ID;
 
               // We remove a bunch of fields that are usually useless -- user can add any of these (and more) back by using the 'cloakwp/rest/blocks/acf_response_format/type=relationship' filter hook
               $properties_to_remove = [
@@ -226,8 +236,10 @@ class BlockTransformer
                 unset($related_post->{$p});
               }
 
-              if ($type == 'post_object') $related_posts = $related_post;
-              else $related_posts[] = $related_post;
+              if ($type == 'post_object')
+                $related_posts = $related_post;
+              else
+                $related_posts[] = $related_post;
             }
             $field_value = $related_posts;
           } else {
@@ -255,6 +267,9 @@ class BlockTransformer
           );
         }
 
+        /* 
+          Convert true_false field values from 1/0 to true/false
+        */
         if ($type == 'true_false') {
           $field_value = [
             "0" => false,
@@ -297,6 +312,9 @@ class BlockTransformer
           $final_value = apply_filters('cloakwp/rest/blocks/acf_response_format', $field_value, $acf_field_object, $filter_variation_values);
           $this->acf_fields[$field_name] = $final_value;
         }
+      } else {
+        // if we end up here, we have to assume the field is formatted correctly by default, so we simply add it to the block's final ACF data response:
+        $this->acf_fields[$key] = $value;
       }
     } // END looping through the Block's ACF fields
 
@@ -343,18 +361,22 @@ class BlockTransformer
     $is_inner_blocks = $parent_field_obj['is_inner_blocks'] ?? false; // it's a CloakWP InnerBlocks field, an extension of the Flexible Content field type
 
     $num_sub_groups = 1;
-    if ($field_type == 'repeater') $num_sub_groups = $og_parent_value ?? 0; // for repeaters, og_parent_value == the number (integer) of repeater blocks
-    else if ($field_type == 'flexible_content') $num_sub_groups = is_array($og_parent_value) ? count($og_parent_value) : 0; // for flexible_content fields, og_parent_value == an array of the layout names used by that instance, in correct order
-    
+    if ($field_type == 'repeater')
+      $num_sub_groups = $og_parent_value ?? 0; // for repeaters, og_parent_value == the number (integer) of repeater blocks
+    else if ($field_type == 'flexible_content')
+      $num_sub_groups = is_array($og_parent_value) ? count($og_parent_value) : 0; // for flexible_content fields, og_parent_value == an array of the layout names used by that instance, in correct order
+
     $sub_fields = [];
-    if (isset($parent_field_obj['sub_fields'])) $sub_fields = $parent_field_obj['sub_fields'];
+    if (isset($parent_field_obj['sub_fields']))
+      $sub_fields = $parent_field_obj['sub_fields'];
 
     $prefix_base = $grandparent_field_name . $field_name . '_';
     $sub_field_prefix = $prefix_base;
-    
+
     $count = 0;
     while ($count < $num_sub_groups) { // loop through repeater's blocks
-      if ($field_type == 'repeater' || $field_type == 'flexible_content') $sub_field_prefix = $prefix_base . $count . '_';
+      if ($field_type == 'repeater' || $field_type == 'flexible_content')
+        $sub_field_prefix = $prefix_base . $count . '_';
 
       if ($field_type == 'flexible_content') {
         $layouts = $parent_field_obj['layouts'];
@@ -372,7 +394,7 @@ class BlockTransformer
 
       $formatted_sub_fields = $this->transform_acf_sub_fields($sub_fields, $sub_field_prefix);
 
-      if ($field_type == 'flexible_content') {        
+      if ($field_type == 'flexible_content') {
         $formatted_sub_fields = [
           'name' => $og_parent_value[$count], // layout name
           'data' => $formatted_sub_fields
@@ -411,10 +433,20 @@ class BlockTransformer
   // Special handling for formatting Repeater/Group sub_fields:
   private function transform_acf_sub_fields($sub_fields, $sub_field_prefix)
   {
+
+    // TODO: figure out why infinite loop with repeater field is happening
+
     $final_group = [];
+    $current_field = 0;
+    $LIMIT = 1000; // limit to 1000 sub_fields to prevent infinite loops (rare case)
     foreach ($sub_fields as $sub_field) { // loop through repeater sub fields
+      $current_field++;
+      if ($current_field == $LIMIT)
+        break;
+
       $sub_field_name = $sub_field['name'];
-      if (!$sub_field_name) continue; // skips over and excludes ACF "message" fields from API response
+      if (!$sub_field_name)
+        continue; // skips over and excludes ACF "message" fields from API response
 
       $field_type = $sub_field['type'];
       $sub_field_api_default_name = $sub_field_prefix . $sub_field_name; // this string is the field key for the current sub_field in the default Block API Response (before transformation occurs)
@@ -425,6 +457,7 @@ class BlockTransformer
       } else if ($field_type == 'group' || $field_type == 'flexible_content') {
         $sub_field_value = $this->transform_acf_parent_field($sub_field, $sub_field_prefix);
       } else {
+        // if (!isset($this->acf_fields[$sub_field_api_default_name])) break; // prevent 
         $sub_field_value = $this->acf_fields[$sub_field_api_default_name];
       }
 
@@ -457,7 +490,7 @@ class BlockTransformer
         } elseif ('text' === $attribute['source']) {
           $value = $dom->query($attribute['selector'])->text();
         } elseif ('query' === $attribute['source'] && isset($attribute['query'])) {
-          $nodes   = $dom->query($attribute['selector'])->getIterator();
+          $nodes = $dom->query($attribute['selector'])->getIterator();
           $counter = 0;
           foreach ($nodes as $node) {
             foreach ($attribute['query'] as $key => $current_attribute) {
@@ -470,7 +503,7 @@ class BlockTransformer
           }
         }
       } else {
-        $dom  = pQuery::parseStr(trim($html));
+        $dom = pQuery::parseStr(trim($html));
         $node = $dom->query();
         if ('attribute' === $attribute['source']) {
           $current_value = $node->attr($attribute['attribute']);

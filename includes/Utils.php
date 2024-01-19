@@ -2,7 +2,6 @@
 
 namespace CloakWP;
 
-use Extended\ACF\Fields\Accordion;
 use WP_Theme_JSON_Resolver;
 
 class Utils
@@ -24,6 +23,36 @@ class Utils
     }
   }
 
+  /**
+   * A thin wrapper around the built-in `get_post` function; only difference is
+   * that it accepts an associative array post (assumes it has an `id` property),
+   * and always returns the post as a WP_Post instance. Useful for throwing in
+   * a post of multiple format and knowing you'll get it back in WP_Post format.
+   */
+  public static function get_wp_post_object(int|\WP_Post|array $input): \WP_Post|null
+  {
+    // If input is an integer, assume it's a post ID
+    if (is_int($input)) {
+      return get_post($input);
+    }
+
+    // If input is a WP_Post object, return it as is
+    if (is_a($input, 'WP_Post')) {
+      return $input;
+    }
+
+    // If input is an array, try to get the post by ID
+    if (is_array($input)) {
+      $post_id = $input['id'] ?? null;
+      if ($post_id) {
+        return get_post($post_id);
+      }
+    }
+
+    // If none of the above, return null
+    return null;
+  }
+
   /* 
     A function that returns the given post's full URL pathname, eg. `/blog/post-slug`
   */
@@ -38,13 +67,60 @@ class Utils
   */
   public static function get_pretty_author($id)
   {
-    if (!$id) return null;
+    if (!$id || is_bool($id) || (!is_numeric($id) && !is_string($id)))
+      return null;
+
     $author = get_user_by('ID', $id);
+    $user_meta = get_metadata('user', $author->ID);
+    $desired_meta = apply_filters('cloakwp/author_format/included_meta', [], $user_meta);
+
+    $final_meta = [];
+    $acf = [];
+    if ($user_meta) {
+      foreach ($user_meta as $key => $value) {
+        $is_acf_field = isset($user_meta["_$key"]);
+        $is_acf_key = str_starts_with($key, "_") && isset($user_meta[substr($key, 1)]);
+        // If an ACF reference exists for this value, add it to the $acf array.
+        if ($is_acf_field) {
+          $acf_obj = get_field_object($key, 'user_' . $author->ID);
+          $acf[$key] = $acf_obj['value'];
+        } else if (!$is_acf_key && ($desired_meta === true || in_array($key, $desired_meta))) {
+          $final_meta[$key] = $value[0];
+        }
+      }
+    }
+
     return $author ? array(
       'id' => $author->ID,
       'slug' => $author->user_nicename,
-      'display_name' => $author->display_name
+      'display_name' => $author->display_name,
+      'meta' => $final_meta,
+      'acf' => $acf,
     ) : null;
+  }
+
+  /**
+   * Returns an array of the names of all custom post types (excludes builtins).
+   */
+  public static function get_custom_post_types(array $excluded = []): array
+  {
+    $cpts = get_post_types(['_builtin' => false], 'names');
+
+    if (!$cpts)
+      return [];
+
+    $excluded_types = array_merge(
+      array('acf-field-group', 'acf-field', 'acf-taxonomy', 'acf-post-type', 'acf-ui-options-page'),
+      $excluded
+    );
+
+    foreach ($excluded_types as $exclude) {
+      if (isset($cpts[$exclude])) {
+        unset($cpts[$exclude]);
+      }
+    }
+
+    return $cpts;
   }
 
   /**
@@ -67,9 +143,9 @@ class Utils
     if (!function_exists('use_block_editor_for_post_type')) {
       require_once ABSPATH . 'wp-admin/includes/post.php';
     }
-    $post_types   = array_filter($post_types, 'use_block_editor_for_post_type');
+    $post_types = array_filter($post_types, 'use_block_editor_for_post_type');
     $post_types[] = 'wp_navigation';
-    $post_types   = array_filter($post_types, 'post_type_exists');
+    $post_types = array_filter($post_types, 'post_type_exists');
 
     return $post_types;
   }
@@ -193,9 +269,12 @@ class Utils
   {
     $newArray = array();
     foreach ($arr as $key => $value) {
-      if (is_array($value)) $newArray[$key] = self::array_deep_copy($value);
-      else if (is_object($value)) $newArray[$key] = clone $value;
-      else $newArray[$key] = $value;
+      if (is_array($value))
+        $newArray[$key] = self::array_deep_copy($value);
+      else if (is_object($value))
+        $newArray[$key] = clone $value;
+      else
+        $newArray[$key] = $value;
     }
     return $newArray;
   }

@@ -21,7 +21,7 @@ class Frontend
       'blockPreviewPath' => 'preview-block',
       'authSecret' => '',
       'deployments' => [],
-      'separateApiRouteUrl' => null,
+      'apiRouteUrl' => null,
     ];
   }
 
@@ -40,9 +40,12 @@ class Frontend
    */
   private function removeWrappingSlashes(string $url)
   {
-    if (empty($url)) return $url;
-    if (substr($url, -1) === "/") $url = substr($url, 0, -1); // remove trailing slash
-    if (substr($url, 0, 1) === "/") $url = substr($url, 1); // remove forward slash
+    if (empty($url))
+      return $url;
+    if (substr($url, -1) === "/")
+      $url = substr($url, 0, -1); // remove trailing slash
+    if (substr($url, 0, 1) === "/")
+      $url = substr($url, 1); // remove forward slash
     return $url;
   }
 
@@ -74,7 +77,8 @@ class Frontend
   {
     $formattedUrls = [];
     foreach ($urls as $url) {
-      if (!is_string($url)) continue;
+      if (!is_string($url))
+        continue;
       $formattedUrls[] = $this->removeWrappingSlashes($url);
     }
 
@@ -105,7 +109,8 @@ class Frontend
       $urlsToRevalidate = [$this->url, ...$this->settings['deployments']];
 
       foreach ($urlsToRevalidate as $url) {
-        if (!is_string($url)) continue; // invalid deployment url
+        if (!is_string($url))
+          continue; // invalid deployment url
 
         try {
           wp_remote_get("$url/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/revalidate/?pathname=$path&secret={$this->settings['authSecret']}");
@@ -165,6 +170,7 @@ class Frontend
   public function getPostPreviewUrl($post)
   {
     $revisionId = '';
+    $postId = '';
 
     if ($post instanceof WP_Post) {
       // $post is a WP_Post object
@@ -173,11 +179,12 @@ class Frontend
     } else if (is_string($post)) {
       // $post is a preview URL string (unknown why it can change -- probably a WP version thing)
       $query_string = parse_url($post, PHP_URL_QUERY);
-      parse_str($query_string, $params);
-      $postId = $params['preview_id'];
-      if (!$postId) {
-        $postId = get_the_ID();
+      if ($query_string) {
+        parse_str($query_string, $params);
+        $postId = $params['preview_id'];
       }
+      if (!$postId)
+        $postId = get_the_ID();
       $path = Utils::get_post_pathname($postId);
       // $revisionId = $post->ID; // the ID of the post revision, not the master post
     } else {
@@ -200,9 +207,9 @@ class Frontend
     }
   }
 
-  public function separateApiRouteUrl(callable|string $url): static
+  public function apiRouteUrl(callable|string $url): static
   {
-    $this->settings['separateApiRouteUrl'] = is_callable($url) ? $url() : $url;
+    $this->settings['apiRouteUrl'] = is_callable($url) ? $url() : $url;
     return $this;
   }
 
@@ -219,7 +226,8 @@ class Frontend
   public function getSettings(string $setting = null)
   {
     if ($setting) {
-      if (isset($this->settings[$setting])) return $this->settings[$setting];
+      if (isset($this->settings[$setting]))
+        return $this->settings[$setting];
       return null;
     }
 
