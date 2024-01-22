@@ -742,28 +742,35 @@ class CloakWP extends Admin
   /**
    * Provide an array of PostType class instances, defining your Custom Post Types and their configurations.
    */
-  public function postTypes(string|array $postTypes): static
+  public function postTypes(string|array $postTypesOrPath): static
   {
-    if (is_string($postTypes)) {
+    $postTypes = [];
+    if (is_string($postTypesOrPath)) {
       // user provided a directory of post types rather than an array
-      if (file_exists($postTypes) && is_dir($postTypes)) {
-        // Get a list of all subdirectories in the root directory
-        $subdirectories = glob($postTypes . '/*', GLOB_ONLYDIR);
+      if (file_exists($postTypesOrPath) && is_dir($postTypesOrPath)) {
+        // Scan the directory and get file names
+        $files = scandir($postTypesOrPath);
 
-        $postTypes = [];
-        foreach ($subdirectories as $subdirectory) {
-          // TODO: grab PostType from each file and register it
+        // Loop through the file array
+        foreach ($files as $file) {
+            // Skip '.' and '..'
+            if ($file === '.' || $file === '..') continue;
+
+            $postObject = require $postTypesOrPath . '/' . $file;
+            if ($postObject && is_object($postObject)) $postTypes[] = $postObject;
         }
       } else {
         throw new InvalidArgumentException("You provided a string argument, which postTypes() expects to be a directory path, but the directory does not exist.");
       }
+    } else {
+      $postTypes = $postTypesOrPath;
     }
 
     $validPostTypes = [];
 
     // validate & register each post type
     foreach ($postTypes as $postType) {
-      if (!is_object($postType) || !method_exists($postType, 'register')) continue; // invalid block
+      if (!is_object($postType) || !method_exists($postType, 'register')) continue; // invalid post type
 
       $validPostTypes[] = $postType;
       $postType->register();
@@ -785,20 +792,30 @@ class CloakWP extends Admin
   }
 
   /**
-   * Provide an array of CloakWP\ACF\Block class instances, defining all your custom ACF Blocks + associated fields.
-   * While Block classes can register themselves, the benefit of registering through the CloakWP class as an
-   * intermediary is that it (1) provides a smart file-based registration system which is arguably simpler/nicer,
-   * and (2) automatically enables CloakWP's decoupled iframe preview feature for each block.  
+   * Either provide an array of CloakWP\ACF\Block class instances, or a string pointing to the directory where your
+   * CloakWP\ACF\Block class instances live; if the latter, your directory structure is expected to follow this:
+   *   {blocks-directory-name}/
+   *     -- {block-name}/
+   *       -- block.json
+   *       -- block.php
+   *     -- {block-name}/
+   *       -- block.json
+   *       -- block.php
+   *     ...
+   * 
+   * While Block classes can register themselves, the benefit of registering through the CloakWP class as an intermediary 
+   * is that it (1) provides a smart file-based registration system which is arguably cleaner/nicer, and (2) automatically 
+   * enables CloakWP's decoupled iframe preview feature for each block, among other sensible defaults.
    */
-  public function blocks(string|array $blocks): static
+  public function blocks(string|array $blocksOrPath): static
   {
+    $blocks = [];
     // Handle case where user provides a file directory string pointing at where their Block instances live (rather than a direct array of Block instances)
-    if (is_string($blocks)) {
-      if (file_exists($blocks) && is_dir($blocks)) {
+    if (is_string($blocksOrPath)) {
+      if (file_exists($blocksOrPath) && is_dir($blocksOrPath)) {
         // Get a list of all subdirectories in the root directory
-        $subdirectories = glob($blocks . '/*', GLOB_ONLYDIR);
+        $subdirectories = glob($blocksOrPath . '/*', GLOB_ONLYDIR);
 
-        $blocks = [];
         foreach ($subdirectories as $subdirectory) {
           // Check if "block.json" and "block.php" files exist in the subdirectory
           $jsonFile = $subdirectory . '/block.json';
@@ -814,6 +831,8 @@ class CloakWP extends Admin
       } else {
         throw new InvalidArgumentException("You provided a string argument, which blocks() expects to be a directory path, but the directory does not exist.");
       }
+    } else {
+      $blocks = $blocksOrPath;
     }
 
     foreach ($blocks as $block) {
