@@ -2,7 +2,7 @@
   "name": "cloak-labs/cloakwp-plugin",
   "description": "Transform WordPress into a headless CMS.",
   "type": "wordpress-plugin",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "license": "LGPL-3.0-only",
   "require": {
     "composer/installers": "^2.2",
