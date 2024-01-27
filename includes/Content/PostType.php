@@ -557,7 +557,7 @@ class PostType
   {
     add_action('init', function () {
       register_extended_post_type($this->slug, $this->settings, $this->labels);
-    });
+    }, 3);
 
     if ($this->fieldGroups) {
       foreach ($this->fieldGroups as $fieldGroup) {

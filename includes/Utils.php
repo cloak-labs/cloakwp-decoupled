@@ -4,6 +4,12 @@ namespace CloakWP;
 
 use WP_Theme_JSON_Resolver;
 
+enum PostReturnType: string
+{
+  case Objects = 'objects';
+  case Names = 'names';
+}
+
 class Utils
 {
 
@@ -102,9 +108,9 @@ class Utils
   /**
    * Returns an array of the names of all custom post types (excludes builtins).
    */
-  public static function get_custom_post_types(array $excluded = []): array
+  public static function get_custom_post_types(PostReturnType $returnType = PostReturnType::Names, array $excluded = []): array
   {
-    $cpts = get_post_types(['_builtin' => false], 'names');
+    $cpts = get_post_types(['_builtin' => false], $returnType->value);
 
     if (!$cpts)
       return [];
@@ -126,9 +132,9 @@ class Utils
   /**
    * Returns an array of the names of all public post types.
    */
-  public static function get_public_post_types(): array
+  public static function get_public_post_types(PostReturnType $returnType = PostReturnType::Names): array
   {
-    return get_post_types(['public' => true], 'names');
+    return get_post_types(['public' => true], $returnType->value);
   }
 
   /**

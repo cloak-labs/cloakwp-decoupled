@@ -962,15 +962,50 @@ class CloakWP extends Admin
             if (array_key_exists(LOGGED_IN_COOKIE, $_COOKIE))
               $isLoggedIn = true;
           }
+          Utils::write_log("Is user logged into WP? $isLoggedIn");
           return rest_ensure_response($isLoggedIn);
         },
         'permission_callback' => function ($request) {
+          $auth_header = ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) ? sanitize_text_field( $_SERVER['HTTP_AUTHORIZATION'] ) : false;
+
+          /* Double check for different auth header string (server dependent) */
+          if ( ! $auth_header ) {
+            $auth_header = ! empty( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) ? sanitize_text_field( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) : false;
+          }
+
+          if ( ! $auth_header ) {
+            return false; // no token provided, don't give access
+          }
+
+          /**
+           * Check if the auth header is not bearer, if so, return false
+           */
+          if ( strpos( $auth_header, 'Bearer' ) !== 0 ) {
+            return false;
+          }
+
+          /**
+           * Check the token from the headers.
+           */
+          $JWT = new \Jwt_Auth_Public('jwt_auth', '2');
+          $token = $JWT->validate_token( new \WP_REST_Request(), $auth_header );
+
+          if ( is_wp_error( $token ) ) {
+            return $token; // return error
+          }
+
+          // User provided valid JWT token, so we return true to let them in:
+          return true;
+
+
           /*
             if JWT is passed as header, is_user_logged_in() should return true, otherwise false;
             but for some reason this only works if the route namespace is 'jwt-auth/v1'.
             TODO: look into making this work on routes with custom namespaces -- might need to fork the JWT Auth WP plugin
           */
-          return is_user_logged_in();
+          // Utils::write_log("In permission callback");
+          // Utils::write_log($request);
+          // return is_user_logged_in();
         }
       ));
     });

@@ -33,7 +33,6 @@ use CloakWP\Utils;
     } 
   }
 */
-Utils::write_log("ACF Preview Block");
 
 if (isset($block['data']['cloakwp_block_inserter_preview_image'])):
 
@@ -58,8 +57,6 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
 
   // Delete style.spacing because we don't want to render the spacing on the front-end preview because Gutenberg already adds the spacing within the editor
   unset($block['style']['spacing']);
-  // unset($block['align']);
-  // $block['align'] = 'full';
   unset($block['render_callback']); // we unset this simply to make debug logs smaller
 
   // Utils::write_log('Raw block:');
@@ -106,7 +103,7 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
     ]
   ];
 
-  $attrsToConditionallyAdd = ['align', 'style', 'backgroundColor', 'className'];
+  $attrsToConditionallyAdd = ['align', 'style', 'backgroundColor', 'textColor', 'className'];
   foreach ($attrsToConditionallyAdd as $attr) {
     if (isset($block[$attr]))
       $formattedData['attrs'][$attr] = $block[$attr];
@@ -147,10 +144,12 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
       // this immediately-invoked function takes care of sending block data to the iframe, and receiving the document height from the iframe so we can set its proper height within the editor:     
       (function () {
         const blockData = <?php echo $json ?>;
+        console.log('blockData: ', blockData);
         const iframe = document.getElementById("<?php echo $iframeId ?>");
         const sendBlockData = () => iframe.contentWindow.postMessage(JSON.stringify(blockData), "*");
         // Check if the message is from the <iframe> element
         window.addEventListener("message", function (event) {
+          console.log('Received message from frontend: ', event);
           if (event.source === iframe.contentWindow) {
             if (event.data == "ready") {
               // we wait until iframe tells us it's ready before sending it the blockData
