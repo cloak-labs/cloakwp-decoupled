@@ -162,8 +162,21 @@ class CloakWP extends Admin
             
             foreach ($sizes as $size) {
               $img = wp_get_attachment_image_src($image_id, $size);
-              $url = is_array($img) ? $img['0'] : false;
-              $result[$size] = $url;
+              if (is_array($img)) {
+                $url = $img[0]; // Image URL
+                $width = $img[1]; // Width of the image
+                $height = $img[2]; // Height of the image
+
+                // Include URL, width, and height in the result
+                $result[$size] = [
+                  'src' => $url,
+                  'width' => $width,
+                  'height' => $height
+                ];
+              } else {
+                // Handle cases where the image size does not exist
+                $result[$size] = false;
+              }
             }
 
             $alt_desc = get_post_meta($image_id, '_wp_attachment_image_alt', true);
