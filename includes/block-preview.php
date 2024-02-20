@@ -49,18 +49,9 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
   $is_block_inserter = isset($block['data']['cloakwp_block_inserter_iframe']) && $block['data']['cloakwp_block_inserter_iframe'];
   $first_render = 0;
 
-  // Utils::write_log('=== iFrame Block Preview ===');
-  // Utils::write_log(['$block: ', $block]);
-  // Utils::write_log(['$content: ', $content]);
-  // Utils::write_log(['$post_id: ', $post_id]);
-  // Utils::write_log(['$context: ', $context]);
-
   // Delete style.spacing because we don't want to render the spacing on the front-end preview because Gutenberg already adds the spacing within the editor
   unset($block['style']['spacing']);
   unset($block['render_callback']); // we unset this simply to make debug logs smaller
-
-  // Utils::write_log('Raw block:');
-  // Utils::write_log($block);
 
   $data = $block['data'];
 
@@ -103,14 +94,13 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
     ]
   ];
 
-  $attrsToConditionallyAdd = ['align', 'style', 'backgroundColor', 'textColor', 'className'];
+  $attrsToConditionallyAdd = ['align', 'style', 'backgroundColor', 'gradient', 'textColor', 'className'];
   foreach ($attrsToConditionallyAdd as $attr) {
     if (isset($block[$attr]))
       $formattedData['attrs'][$attr] = $block[$attr];
   }
 
   $blockTransformer = new BlockTransformer();
-  // $blockData = $formattedData;
   $blockData = $blockTransformer->convertBlockToObject($formattedData, $post_id);
   $json = json_encode($blockData ?? null);
   $postPathname = Utils::get_post_pathname($post_id);
@@ -143,27 +133,46 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
     <script>
       // this immediately-invoked function takes care of sending block data to the iframe, and receiving the document height from the iframe so we can set its proper height within the editor:     
       (function () {
-        const blockData = <?php echo $json ?>;
-        console.log('blockData: ', blockData);
+        let blockData = <?php echo $json ?>;
+        let bodyClassName;
+
         const iframe = document.getElementById("<?php echo $iframeId ?>");
-        const sendBlockData = () => iframe.contentWindow.postMessage(JSON.stringify(blockData), "*");
+        if (!iframe) return;
+
+        const sendDataToIframe = (data) => iframe.contentWindow.postMessage(JSON.stringify(data), "*");
+
+        // Find the closest ancestor with class "wp-block"
+        const wpBlockAncestor = iframe.closest('.wp-block');
+
+        if (wpBlockAncestor) {
+          // Check if the block is within a group block with "is-style-dark" class:
+          const parent = wpBlockAncestor.parentNode;
+          if (parent.classList.contains('wp-block') && (parent.classList.contains('is-style-dark') || parent.classList.contains('dark'))) {
+            console.log("Found the desired ancestor with a direct parent having the specific classes.");
+            bodyClassName = { bodyClassName: 'dark dark:darker' }
+          } else {
+            console.log("The closest 'wp-block' ancestor doesn't have a direct parent with the specific classes.");
+          }
+        }
+
         // Check if the message is from the <iframe> element
         window.addEventListener("message", function (event) {
-          console.log('Received message from frontend: ', event);
           if (event.source === iframe.contentWindow) {
             if (event.data == "ready") {
               // we wait until iframe tells us it's ready before sending it the blockData
-              sendBlockData();
+              sendDataToIframe(blockData);
+              if (bodyClassName) sendDataToIframe(bodyClassName);
             } else {
               // Set the height of the <iframe> element to the content height
-              iframe.style.height = event.data + "px";
-              iframe.parentNode.style.height = event.data + "px";
+              const height = parseInt(event.data) + 1 + "px"; // add 1 pixel to be sure we don't cut anything off
+              iframe.style.height = height;
+              iframe.parentNode.style.height = height;
             }
           }
         });
 
-        // this is for subsequent re-renders (we don't wait for the "ready" message from front-end)     })();
-        sendBlockData();
+        // this is for subsequent re-renders (we don't wait for the "ready" message from front-end)
+        sendDataToIframe(blockData);
       })();
     </script>
   </div>
