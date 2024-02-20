@@ -316,18 +316,20 @@ class CloakWP extends Admin
       $view_site_node = $wp_admin_bar->get_node('view-site');
       $site_name_node = $wp_admin_bar->get_node('site-name');
 
-      // Change targets
-      $view_site_node->meta['target'] = '_blank';
-      $site_name_node->meta['target'] = '_blank';
-
-      // Change hrefs to our frontend URL
-      $url = $this->getActiveFrontend()->getUrl();
-      $view_site_node->href = $url;
-      $site_name_node->href = $url;
-
-      // Update Nodes
-      $wp_admin_bar->add_node($view_site_node);
-      $wp_admin_bar->add_node($site_name_node);
+      if ($view_site_node && $site_name_node) {
+        // Change targets
+        $view_site_node->meta['target'] = '_blank';
+        $site_name_node->meta['target'] = '_blank';
+  
+        // Change hrefs to our frontend URL
+        $url = $this->getActiveFrontend()->getUrl();
+        $view_site_node->href = $url;
+        $site_name_node->href = $url;
+  
+        // Update Nodes
+        $wp_admin_bar->add_node($view_site_node);
+        $wp_admin_bar->add_node($site_name_node);
+      }
     }, 80);
     return $this;
   }
@@ -337,11 +339,15 @@ class CloakWP extends Admin
    */
   public function convertToDecoupledUrl($permalink, $post): string
   {
-    $decoupledPostUrl = $this->getActiveFrontend()->getUrl();
+    $decoupledFrontend = $this->getActiveFrontend();
+    if ($decoupledFrontend) $decoupledPostUrl = $decoupledFrontend->getUrl();
+    else return $permalink ? home_url() . $permalink : home_url();
+
     if ($permalink) {
       // str_replace below ensures that the permalink path gets appended to the active frontend url:
       $decoupledPostUrl = str_replace(home_url(), $decoupledPostUrl,  $permalink);
     }
+
     $decoupledPostUrl = apply_filters('cloakwp/decoupled_post_link', $decoupledPostUrl, $permalink, $post);
     return $decoupledPostUrl;
   }
@@ -955,8 +961,9 @@ class CloakWP extends Admin
   public function getActiveFrontend(): Frontend | null
   {
     // TODO: in future, need to build a "frontend switcher" as described above, and return the currently selected frontend here
-    if (is_array($this->frontends)) return $this->frontends[0];
-    return null;
+    if (!empty($this->frontends)) return $this->frontends[0];
+    return Frontend::make('wp', get_site_url());
+    // return null;
   }
 
   /**
