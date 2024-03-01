@@ -145,13 +145,10 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
         const wpBlockAncestor = iframe.closest('.wp-block');
 
         if (wpBlockAncestor) {
-          // Check if the block is within a group block with "is-style-dark" class:
+          // Check if the block is within a parent block with "is-style-dark" class, so we can tell the iframe to render in dark mode:
           const parent = wpBlockAncestor.parentNode;
           if (parent.classList.contains('wp-block') && (parent.classList.contains('is-style-dark') || parent.classList.contains('dark'))) {
-            console.log("Found the desired ancestor with a direct parent having the specific classes.");
             bodyClassName = { bodyClassName: 'dark dark:darker' }
-          } else {
-            console.log("The closest 'wp-block' ancestor doesn't have a direct parent with the specific classes.");
           }
         }
 

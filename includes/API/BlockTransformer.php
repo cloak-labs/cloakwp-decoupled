@@ -253,18 +253,16 @@ class BlockTransformer
           resized (not sure if the latter is very useful)
         */
         if ($type == 'image') {
-          $image_id = $field_value;
-          $img_src = wp_get_attachment_image_src($image_id, 'full');
-          $isSrcValid = is_array($img_src);
-          $alt_tag = get_post_meta($image_id, '_wp_attachment_image_alt', true);
-          $field_value = array(
-            'id' => $image_id,
-            'src' => $isSrcValid ? $img_src[0] : $img_src,
-            'alt' => $alt_tag,
-            'width' => $isSrcValid ? $img_src[1] : $img_src,
-            'height' => $isSrcValid ? $img_src[2] : $img_src,
-            'is_resized' => $isSrcValid ? $img_src[3] : $img_src,
-          );
+          $field_value = $this->get_formatted_acf_image($field_value);
+        }
+
+        if ($type == 'gallery') {
+          $images = [];
+          foreach ($field_value as $image_id) {
+            $images[] = $this->get_formatted_acf_image($image_id);
+          }
+
+          $field_value = $images;
         }
 
         /* 
@@ -322,6 +320,20 @@ class BlockTransformer
     foreach ($parent_fields_found as $parent) { // note: $parent == a full ACF field object
       $this->transform_acf_parent_field($parent);
     }
+  }
+
+  private function get_formatted_acf_image(int $image_id)
+  {
+    $img_src = wp_get_attachment_image_src($image_id, 'full');
+    $isSrcValid = is_array($img_src);
+    $alt_tag = get_post_meta($image_id, '_wp_attachment_image_alt', true);
+    return array(
+      'id' => $image_id,
+      'src' => $isSrcValid ? $img_src[0] : $img_src,
+      'alt' => $alt_tag,
+      'width' => $isSrcValid ? $img_src[1] : $img_src,
+      'height' => $isSrcValid ? $img_src[2] : $img_src,
+    );
   }
 
 
