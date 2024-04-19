@@ -2,6 +2,8 @@
 
 namespace CloakWP\API;
 
+use CloakWP\CloakWP;
+
 /**
  * This class adds a "/menus" endpoint to the WordPress REST API to enable headless projects to easily retrieve WP menus
  */
@@ -19,9 +21,9 @@ class MenusEndpoint
         register_rest_route(
           'cloakwp',
           '/menus',
-          array(
+          array (
             'methods' => 'GET',
-            'callback' => array($self, 'handle_all_menus_request'),
+            'callback' => array ($self, 'handle_all_menus_request'),
             'permission_callback' => '__return_true'
           )
         );
@@ -30,9 +32,9 @@ class MenusEndpoint
         register_rest_route(
           'cloakwp',
           '/menus/(?P<menu_slug>[a-zA-Z0-9-]+)',
-          array(
+          array (
             'methods' => 'GET',
-            'callback' => array($self, 'handle_single_menu_request'),
+            'callback' => array ($self, 'handle_single_menu_request'),
             'permission_callback' => '__return_true'
           )
         );
@@ -112,7 +114,8 @@ class MenusEndpoint
 
       if ($type != 'custom') { // format internal links:
         // chop off domain name so we're left with a relative path
-        $url = str_replace(\MY_FRONTEND_URL, "", $url);
+        $frontendUrl = CloakWP::getInstance()->getActiveFrontend()->getUrl();
+        $url = str_replace($frontendUrl, "", $url);
 
         // Remove trailing backslash:
         // $url = rtrim($url, '/');
