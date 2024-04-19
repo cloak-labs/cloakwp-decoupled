@@ -249,17 +249,20 @@ class BlockTransformer
 
         /* 
           By default, an ACF image field just returns the image ID in the API response. Here we modify it to return an
-          object with the image's src, alt description, width, height, and boolean indicating if the image was 
-          resized (not sure if the latter is very useful)
+          object with the image's src, alt description, width, height
         */
         if ($type == 'image') {
-          $field_value = $this->get_formatted_acf_image($field_value);
+          $valueAsInt = intval($field_value); // coerces strings into integers if they start with numeric data
+          $field_value = is_int($valueAsInt) ? $this->get_formatted_acf_image($valueAsInt) : null;
         }
 
         if ($type == 'gallery') {
           $images = [];
           foreach ($field_value as $image_id) {
-            $images[] = $this->get_formatted_acf_image($image_id);
+            $idAsInt = intval($image_id); // coerces strings into integers if they start with numeric data
+            if (is_int($idAsInt)) {
+              $images[] = $this->get_formatted_acf_image($idAsInt);
+            }
           }
 
           $field_value = $images;
