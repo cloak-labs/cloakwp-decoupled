@@ -56,7 +56,8 @@ class PostTypeSelect extends Select
         if (is_array($enabledPostTypes)) {
           foreach ($enabledPostTypes as $choice) {
             if (!array_key_exists($choice, $validChoices)) {
-              throw new InvalidArgumentException("Invalid post type choice: $choice");
+              continue;
+              // throw new InvalidArgumentException("Invalid post type choice: $choice");
             }
 
             // Set the choices field based on enabled choices
