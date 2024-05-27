@@ -54,7 +54,6 @@ class BlockTransformer
     $blocks = parse_blocks($content);
 
     foreach ($blocks as $block) {
-      $this->acf_fields = []; // reset
       $block_data = $this->convertBlockToObject($block, $postObj->id);
       if ($block_data) {
         $output[] = $block_data;
@@ -74,6 +73,8 @@ class BlockTransformer
    */
   public function convertBlockToObject(array $block, $post_id = 0)
   {
+    $this->acf_fields = []; // reset
+
     if (!$block['blockName']) {
       return false;
     }
