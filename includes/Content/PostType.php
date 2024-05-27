@@ -8,7 +8,7 @@ use Extended\ACF\Location;
 
 class PostType
 {
-  public readonly string $slug;
+  public string $slug;
   protected array $settings = [];
   protected array $labels = [];
   protected array|null $fieldGroups = null;
@@ -223,7 +223,7 @@ class PostType
    * $show_ui, and $show_in_nav_menus are inherited from $public, each does not rely on this 
    * relationship and controls a very specific intention. Default false.
    */
-  public function public (bool $isPublic): static
+  public function public(bool $isPublic): static
   {
     $this->settings['public'] = $isPublic;
     return $this;
