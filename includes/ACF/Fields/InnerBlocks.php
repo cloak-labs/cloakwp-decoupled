@@ -3,7 +3,6 @@
 namespace CloakWP\ACF\Fields;
 
 use CloakWP\ACF\BlockRegistry;
-use CloakWP\CloakWP;
 use Extended\ACF\Fields\Accordion;
 use Extended\ACF\Fields\FlexibleContent;
 use Extended\ACF\Fields\Layout;
@@ -42,20 +41,19 @@ class InnerBlocks extends FlexibleContent
   private function createLayoutsFromBlocks($parentKey): array
   {
     $blocks = BlockRegistry::getInstance()->getBlocks();
-    // $blocks = CloakWP::getInstance()->getBlocks();
     $final_layouts = [];
 
     // if there are blocks in the $blocks array
     if (!empty($blocks)) {
       // loop over each block and create option
-      foreach ($blocks as $block) {
-        $settings = $block->getFieldGroupSettings();
+      foreach ($blocks as $innerBlock) {
+        $settings = $innerBlock->getFieldGroupSettings();
         $included = empty($this->includes) || in_array($settings['name'], $this->includes);
 
-        $is_block_same_as_parent = $parentKey == $settings['key']; // we don't allow nesting a block within itself
-        $excluded = in_array($settings['name'], $this->excludes) || $is_block_same_as_parent;
+        $is_inner_block_same_as_parent_block = $parentKey == $settings['key'] || str_starts_with($parentKey, $settings['key']); // we don't allow nesting a block within itself
+        $excluded = in_array($settings['name'], $this->excludes) || $is_inner_block_same_as_parent_block;
 
-        // filter blocks based on whether they've been included or excluded
+        // filter inner blocks based on whether they've been included or excluded
         if ($included && !$excluded) {
           $fields = $settings['fields'];
           if (is_array($fields)) {
@@ -63,10 +61,10 @@ class InnerBlocks extends FlexibleContent
             // exclude 'Blocks' fields from Layouts to avoid infinite loop/recursion
             $fields = array_filter($fields, function ($field) use (&$count, $fields) {
               $count++;
-              if (isset($field->excludeFromLayouts) && $field->excludeFromLayouts === true) {
+              if (isset ($field->excludeFromLayouts) && $field->excludeFromLayouts === true) {
                 return false;
               }
-              // if (($count == 0 || $count == count($fields) - 1) && get_class($field) == "Extended\ACF\Fields\Accordion") {
+
               if (($count == 0 || $count == count($fields) - 1) && get_class($field) == Accordion::class) {
                 return false;
               }
@@ -130,23 +128,7 @@ class InnerBlocks extends FlexibleContent
 
     }
 
-    // COMMENTED OUT BECAUSE THESE ARE IRRELEVANT TO InnerBlocks FIELDS:
-    //----------------------------------------------------------------------
-    // if (isset($this->settings['sub_fields'])) {
-    //   $this->settings['sub_fields'] = array_map(
-    //     fn ($field) => $field->get($key),
-    //     $this->settings['sub_fields']
-    //   );
-    // }
-
-    // if (isset($this->settings['collapsed'], $this->settings['sub_fields'])) {
-    //   foreach ($this->settings['sub_fields'] as $field) {
-    //     if ($field['name'] === $this->settings['collapsed']) {
-    //       $this->settings['collapsed'] = $field['key'];
-    //       break;
-    //     }
-    //   }
-    // }
+    // Note: `sub_fields` and `collapsed` settings are irrelevant to InnerBlocks fields, so we removed the processing of those here
 
     $this->settings['key'] = Key::generate($key, $this->keyPrefix);
 
