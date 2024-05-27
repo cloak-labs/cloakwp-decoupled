@@ -2,6 +2,7 @@
 
 namespace CloakWP;
 
+use DeepCopy\DeepCopy;
 use WP_Theme_JSON_Resolver;
 
 enum PostReturnType: string
@@ -106,6 +107,25 @@ class Utils
   }
 
   /**
+   * Function to count and return the total number of posts of a given type; it only counts them instead of retrieving them, ensuring efficiency.
+   */
+  public static function get_num_posts_of_type(string $post_type): int
+  {
+    // Set up the query arguments
+    $args = array(
+      'post_type' => $post_type,
+      'posts_per_page' => -1,  // Retrieves all posts
+      'fields' => 'ids' // Retrieve only the IDs for quicker execution
+    );
+
+    // Create a new WP_Query instance
+    $query = new \WP_Query($args);
+
+    // Return the total number of posts found
+    return $query->found_posts;
+  }
+
+  /**
    * Returns an array of the names of all custom post types (excludes builtins).
    */
   public static function get_custom_post_types(PostReturnType $returnType = PostReturnType::Names, array $excluded = []): array
@@ -182,10 +202,96 @@ class Utils
     return $color_palette;
   }
 
-  /* 
-    A simple wrapper for requiring multiple files using a glob pattern. 
-    eg. Utils::require_glob(get_stylesheet_directory() . '/models/*.php'); // will require all PHP files within your child theme's `models/` folder
-  */
+  public static function get_files_from_theme_dir($dir, $options = [])
+  {
+    // Set default options
+    $defaults = [
+      'recurse' => false,
+      'filename' => null
+    ];
+    // Merge passed options with defaults
+    $options = array_merge($defaults, $options);
+
+    // Get the paths for the child and parent theme directories
+    $child_theme_dir = get_stylesheet_directory() . $dir;
+    $parent_theme_dir = get_template_directory() . $dir;
+
+    // Define the recursive function within the main function scope to avoid naming conflicts
+    $scandir_recursive = function ($dir) use (&$scandir_recursive, $options) {
+      $files = [];
+      if (is_dir($dir)) {
+        $items = scandir($dir);
+        foreach ($items as $item) {
+          if ($item == '.' || $item == '..')
+            continue;
+          $path = $dir . '/' . $item;
+          if (is_dir($path) && $options['recurse']) {
+            $files = array_merge($files, $scandir_recursive($path));
+          } elseif (is_file($path)) {
+            if ($options['filename'] && basename($path) != $options['filename'])
+              continue;
+            $files[] = $path;
+          }
+        }
+      }
+      return $files;
+    };
+
+    // Initialize arrays to store files
+    $child_files = [];
+    $parent_files = [];
+
+    // Get the files from child directory if it exists
+    if (is_dir($child_theme_dir)) {
+      $child_files = $scandir_recursive($child_theme_dir);
+    }
+
+    // Get the files from parent directory if it exists
+    if (is_dir($parent_theme_dir)) {
+      $parent_files = $scandir_recursive($parent_theme_dir);
+    }
+
+    // Create an associative array with filenames as keys and paths as values
+    $files = [];
+
+    // Add child theme files
+    foreach ($child_files as $file) {
+      $relative_path = str_replace(get_stylesheet_directory(), '', $file);
+      $files[$relative_path] = $file;
+    }
+
+    // Add parent theme files, only if they are not overridden by child theme
+    foreach ($parent_files as $file) {
+      $relative_path = str_replace(get_template_directory(), '', $file);
+      if (!isset($files[$relative_path])) {
+        $files[$relative_path] = $file;
+      }
+    }
+
+    // Return the paths of the files
+    return array_values($files);
+  }
+
+  /**
+   * `require_all` provides a simple and effective way to include multiple files and collect their contents in an array.
+   */
+  public static function require_all($files)
+  {
+    $contents = [];
+    foreach ($files as $file) {
+      if (file_exists($file)) {
+        $contents[] = require $file;
+      } else {
+        throw new \Exception("File not found: $file");
+      }
+    }
+    return $contents;
+  }
+
+  /** 
+   * A simple wrapper for requiring multiple files using a glob pattern. 
+   * eg. Utils::require_glob(get_stylesheet_directory() . '/models/*.php'); // will require all PHP files within your child theme's `models/` folder
+   */
   public static function require_glob($folder_path_glob)
   {
     $files = glob($folder_path_glob);
@@ -234,9 +340,9 @@ class Utils
 
         // Get value from field.
         // First look for "backup" value ("_name", "_key").
-        if (isset($field["_$variation"])) {
+        if (isset ($field["_$variation"])) {
           $value = $field["_$variation"];
-        } elseif (isset($field[$variation])) {
+        } elseif (isset ($field[$variation])) {
           $value = $field[$variation];
         } else {
           continue;
@@ -264,24 +370,24 @@ class Utils
     }
   }
 
-  /* 
-    Given an array of objects, where those objects might have arrays 
-    of objects themselves, this function recursively traverses the array, 
-    checks for arrays or objects, and clones the objects using `clone` to
-    ensure a complete deep copy; useful to remove object references so you
-    don't modify your original objects. Taken from: https://stackoverflow.com/a/6418989/8297151
-  */
-  public static function array_deep_copy($arr)
+  /**
+   * A function that deeply copies Objects (class instances) and Arrays
+   */
+  public static function deep_copy($var)
   {
-    $newArray = array();
-    foreach ($arr as $key => $value) {
-      if (is_array($value))
-        $newArray[$key] = self::array_deep_copy($value);
-      else if (is_object($value))
-        $newArray[$key] = clone $value;
-      else
-        $newArray[$key] = $value;
+    static $copier = null;
+
+    if (null === $copier) {
+      $copier = new DeepCopy(true);
     }
-    return $newArray;
+
+    try {
+      $copy = $copier->copy($var);
+      return $copy;
+    } catch (\Exception $err) {
+      Utils::write_log("Caught Error while running deep_copy: {$err}");
+    }
+
+    return $var;
   }
 }
