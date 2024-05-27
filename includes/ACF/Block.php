@@ -10,13 +10,6 @@ use Extended\ACF\Key;
 use Extended\ACF\Location;
 use InvalidArgumentException;
 
-
-/**
- * TODO:
- *  - Need a central BlockRegistry singleton class to hold all Block instances and make them easily accessible.
- *  - Need a `processFields` method (or similar name) that runs `getFieldGroupSettings` and saves the result in the BlockRegistry. The best practice is to run `processFields` on ALL Blocks before running `register` on any given block. This allows the special `InnerBlocks` field to pull in the FieldGroupSettings for each block during its registration phase, which happens during a Block's registration phase.
- */
-
 class Block
 {
   protected array $fieldGroupSettings = [];
@@ -151,6 +144,8 @@ class Block
       if ($this->apiResponseCallback) {
         add_filter("cloakwp/rest/blocks/response_format/name=$name", $this->apiResponseCallback, 10, 2);
       }
+
+      $this->isRegistered = true;
     }
   }
 
@@ -206,7 +201,7 @@ class Block
       $this->fieldGroupSettings['fields'] = $this->fields;
     }
 
-    // this 'key' gets used in the 'Blocks' field class to prevent a block from being nested within itself 
+    // this 'key' gets used in the 'InnerBlocks' field class to prevent a block from being nested within itself 
     $this->fieldGroupSettings['key'] = Key::sanitize('block_' . $title);
 
     return $this->fieldGroupSettings;
