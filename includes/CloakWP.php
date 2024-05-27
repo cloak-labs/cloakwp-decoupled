@@ -103,6 +103,7 @@ class CloakWP extends Admin
       ->registerAuthEndpoint()
       ->cleanRestResponses()
       ->makeAcfRestFormatStandard()
+      ->decodeHtmlEntitiesInPostTitles()
       ->modifyJwtIssuer()
       ->extendJwtExpiryDate()
       ->disableBlockPluginRecommendations()
@@ -118,7 +119,8 @@ class CloakWP extends Admin
       ->deprioritizeYoastSeoMetabox()
       ->applyRecommendedThemeSupports()
       ->enableCors()
-      ->cleanAdminNotices();
+      ->cleanAdminNotices()
+      ->tweakWpMigrateDbPro();
   }
 
 
@@ -279,9 +281,8 @@ class CloakWP extends Admin
       // Remove footnotes if it's empty:
       if (isset($modified_data['meta']) && $modified_data['meta']['footnotes'] == "") unset($modified_data['meta']);
 
-      // Remove some unnecessary nesting:
-      if (isset($modified_data['title']['rendered'])) $modified_data['title'] = $modified_data['title']['rendered'];
-      if (isset($modified_data['excerpt']['rendered'])) $modified_data['excerpt'] = $modified_data['excerpt']['rendered'];
+      if (isset($response->data['title'])) $modified_data['title'] = html_entity_decode($response->data['title']['rendered'], ENT_QUOTES, 'UTF-8');
+      if (isset($modified_data['excerpt']['rendered'])) $modified_data['excerpt'] = html_entity_decode($response->data['excerpt']['rendered'], ENT_QUOTES, 'UTF-8');
 
       // Apply a filter to the final modified data so users can customize further (eg. they can remove more fields, and/or add back in some that we removed above)
       $final_data = apply_filters('cloakwp/rest/posts/response_format', $modified_data, $original_data);
@@ -290,12 +291,17 @@ class CloakWP extends Admin
       return $response;
     };
 
-    $publicPostTypes = Utils::get_public_post_types();
-    $publicPostTypes[] = 'revision'; // make sure "revisions" responses also get cleaned in same way
+    add_action("init", function() use($cleanFn) {
+      $publicPostTypes = Utils::get_public_post_types();
+      $customPostTypes = Utils::get_custom_post_types();
+      $allPostTypes = array_merge($customPostTypes, $publicPostTypes);
+      $allPostTypes[] = 'revision'; // make sure "revisions" responses also get cleaned in same way
+  
+      foreach ($allPostTypes as $postType) {
+        add_filter("rest_prepare_{$postType}", $cleanFn, 50, 3);
+      }
+    });
 
-    foreach ($publicPostTypes as $postType) {
-      add_filter("rest_prepare_{$postType}", $cleanFn, 50, 3);
-    }
 
     return $this;
   }
@@ -331,6 +337,19 @@ class CloakWP extends Admin
         $wp_admin_bar->add_node($site_name_node);
       }
     }, 80);
+
+    // chop off domain portion of internal links within menu items:
+    add_filter('cloakwp/eloquent/model/menu_item/formatted_meta', function($meta) {
+      if ($meta['link_type'] != 'custom') {
+        $url = $meta['url'];
+        $frontendUrl = CloakWP::getInstance()->getActiveFrontend()->getUrl();
+        $url = str_replace($frontendUrl, "", $url);
+        $meta['url'] = $url;
+      }
+      
+      return $meta;
+    }, 10, 2);
+
     return $this;
   }
 
@@ -567,11 +586,13 @@ class CloakWP extends Admin
   public function enableLegacyMenuEditor(): static
   {
     add_action('init', function () {
-      register_nav_menus(
-        array(
-          'nav' => __(''), // this creates a menu location that doesn't serve a purpose other than to get the "Menus" page to become visible in wp-admin
-        )
-      );
+      add_theme_support( 'menus' );
+      // TODO: delete below comment when above is confirmed to work the same way
+      // register_nav_menus(
+      //   array(
+      //     'nav' => __(''), // this creates a menu location that doesn't serve a purpose other than to get the "Menus" page to become visible in wp-admin
+      //   )
+      // );
     });
     return $this;
   }
@@ -586,6 +607,21 @@ class CloakWP extends Admin
     });
     return $this;
   }
+
+  /**
+   * Decode post titles in REST responses to avoid issues with React not properly rendering HTML entities
+   */
+  public function decodeHtmlEntitiesInPostTitles(): static {
+    add_filter('rest_prepare_post', function ($response, $post, $request) {
+      if (isset($response->data['title'])) {
+        $response->data['title']['rendered'] = html_entity_decode($response->data['title']['rendered'], ENT_QUOTES, 'UTF-8');
+      }
+      return $response;
+    }, 10, 3);
+    return $this;
+  }
+
+
 
   /*
   Change the JWT token issuer:
@@ -724,7 +760,7 @@ class CloakWP extends Admin
   /**
    * Hides certain wp-admin notices created by plugins that aren't relevant for headless use-case
    */
-  private function cleanAdminNotices(): static
+  public function cleanAdminNotices(): static
   {
     // hide Bedrock warning about search engine indexing:
     add_filter('roots/bedrock/disallow_indexing_admin_notice', '__return_false');
@@ -745,7 +781,7 @@ class CloakWP extends Admin
   /**
    * Remove and add certain theme support
    */
-  private function applyRecommendedThemeSupports(): static
+  public function applyRecommendedThemeSupports(): static
   {
     // We use the after_setup_theme hook with a priority of 11 to load after the parent theme, which will fire on the default priority of 10
     add_action('after_setup_theme', function () {
@@ -757,34 +793,28 @@ class CloakWP extends Admin
     return $this;
   }
 
+  /**
+   * After running into migration errors when pushing media files from local to production using the 
+   * WP Migrate DB Pro plugin, modifying these values via the plugin filters fixed the issues.
+   */
+  public function tweakWpMigrateDbPro() {
+    // increase the file transfer request size bottleneck to reduce number of requests/chunks (may need to increase your production server's php.ini upload_max_filesize limit) 
+    add_filter('wpmdb_transfers_push_bottleneck', function ($bottleneck) {
+      return 10000000;
+    });
+
+    // turn off high performance transfers for unknown reason -- just fixed things.
+    add_filter('wpmdb_force_high_performance_transfers', function ($bottleneck) {
+      return false;
+    });
+  }
+
 
   /**
    * Provide an array of PostType class instances, defining your Custom Post Types and their configurations.
    */
-  public function postTypes(string|array $postTypesOrPath): static
+  public function postTypes(array $postTypes): static
   {
-    $postTypes = [];
-    if (is_string($postTypesOrPath)) {
-      // user provided a directory of post types rather than an array
-      if (file_exists($postTypesOrPath) && is_dir($postTypesOrPath)) {
-        // Scan the directory and get file names
-        $files = scandir($postTypesOrPath);
-
-        // Loop through the file array
-        foreach ($files as $file) {
-            // Skip '.' and '..'
-            if ($file === '.' || $file === '..') continue;
-
-            $postObject = require $postTypesOrPath . '/' . $file;
-            if ($postObject && is_object($postObject)) $postTypes[] = $postObject;
-        }
-      } else {
-        throw new InvalidArgumentException("You provided a string argument, which postTypes() expects to be a directory path, but the directory does not exist.");
-      }
-    } else {
-      $postTypes = $postTypesOrPath;
-    }
-
     $validPostTypes = [];
 
     // validate & register each post type
@@ -811,49 +841,12 @@ class CloakWP extends Admin
   }
 
   /**
-   * Either provide an array of CloakWP\ACF\Block class instances, or a string pointing to the directory where your
-   * CloakWP\ACF\Block class instances live; if the latter, your directory structure is expected to follow this:
-   *   {blocks-directory-name}/
-   *     -- {block-name}/
-   *       -- block.json
-   *       -- block.php
-   *     -- {block-name}/
-   *       -- block.json
-   *       -- block.php
-   *     ...
-   * 
+   * Provide an array of CloakWP\ACF\Block class instances to be registered.
    * While Block classes can register themselves, the benefit of registering through the CloakWP class as an intermediary 
-   * is that it (1) provides a smart file-based registration system which is arguably cleaner/nicer, and (2) automatically 
-   * enables CloakWP's decoupled iframe preview feature for each block, among other sensible defaults.
+   * is that it automatically enables CloakWP's decoupled iframe preview feature for each block, among other sensible defaults.
    */
-  public function blocks(string|array $blocksOrPath): static
+  public function blocks(array $blocks): static
   {
-    $blocks = [];
-    // Handle case where user provides a file directory string pointing at where their Block instances live (rather than a direct array of Block instances)
-    if (is_string($blocksOrPath)) {
-      if (file_exists($blocksOrPath) && is_dir($blocksOrPath)) {
-        // Get a list of all subdirectories in the root directory
-        $subdirectories = glob($blocksOrPath . '/*', GLOB_ONLYDIR);
-
-        foreach ($subdirectories as $subdirectory) {
-          // Check if "block.json" and "block.php" files exist in the subdirectory
-          $jsonFile = $subdirectory . '/block.json';
-          $phpFile = $subdirectory . '/block.php';
-
-          if (file_exists($jsonFile) && file_exists($phpFile)) {
-            $blockObject = require $phpFile;
-            if ($blockObject && is_object($blockObject)) $blocks[] = $blockObject;
-          } else {
-            continue; // not a valid block directory, so skip it
-          }
-        }
-      } else {
-        throw new InvalidArgumentException("You provided a string argument, which blocks() expects to be a directory path, but the directory does not exist.");
-      }
-    } else {
-      $blocks = $blocksOrPath;
-    }
-
     foreach ($blocks as $block) {
       if (!is_object($block) || !method_exists($block, 'getFieldGroupSettings')) continue; // invalid block
 
@@ -1042,7 +1035,7 @@ class CloakWP extends Admin
   // {
   //   add_action('acf/init', function () {
   //     // register all ACF Blocks (using Extended ACF package):
-  //     $blocks = Utils::array_deep_copy($this->blocks); // Copy $this->blocks to another variable to prevent modifying the original value of $this->blocks (fixes bugs related to InnerBlocks field)
+  //     $blocks = Utils::deep_copy($this->blocks); // Copy $this->blocks to another variable to prevent modifying the original value of $this->blocks (fixes bugs related to InnerBlocks field)
   //     foreach ($blocks as $block) {
   //       register_extended_field_group($block);
   //     }
