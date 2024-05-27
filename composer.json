@@ -5,10 +5,11 @@
   "version": "1.1.7",
   "license": "LGPL-3.0-only",
   "require": {
+    "cloak-labs/wp-virtual-fields": "^0.0.1",
     "composer/installers": "^2.2",
+    "myclabs/deep-copy": "^1.11",
     "snicco/better-wp-api": "^1.9",
-    "tburry/pquery": "^1.1",
-    "cloak-labs/wp-virtual-fields": "^0.0.1"
+    "tburry/pquery": "^1.1"
   },
   "autoload": {
     "psr-4": {
