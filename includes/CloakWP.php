@@ -344,7 +344,7 @@ class CloakWP extends Admin
         $url = $meta['url'];
         $frontendUrl = CloakWP::getInstance()->getActiveFrontend()->getUrl();
         $url = str_replace($frontendUrl, "", $url);
-        $meta['url'] = $url;
+        $meta['url'] = untrailingslashit($url);
       }
       
       return $meta;
