@@ -378,8 +378,12 @@ class BlockTransformer
     $num_sub_groups = 1;
     if ($field_type == 'repeater')
       $num_sub_groups = $og_parent_value ?? 0; // for repeaters, og_parent_value == the number (integer) of repeater blocks
-    else if ($field_type == 'flexible_content')
+    else if ($field_type == 'flexible_content') {
+      // if (!$og_parent_value) {
+      //   $og_parent_value = array_map(fn($layout) => $layout['name'], $parent_field_obj['layouts']);
+      // }
       $num_sub_groups = is_array($og_parent_value) ? count($og_parent_value) : 0; // for flexible_content fields, og_parent_value == an array of the layout names used by that instance, in correct order
+    }
 
     $sub_fields = [];
     if (isset($parent_field_obj['sub_fields']))
@@ -417,6 +421,7 @@ class BlockTransformer
 
         if ($is_inner_blocks) {
           $formatted_sub_fields['type'] = 'acf';
+          $formatted_sub_fields['attrs'] = []; // set as empty just to avoid client-side errors where the BlockRenderer expects `attrs` to exist
           $formatted_sub_fields = apply_filters('cloakwp/rest/blocks/response_format', $formatted_sub_fields, null);
         }
       }
@@ -467,16 +472,18 @@ class BlockTransformer
       $sub_field_api_default_name = $sub_field_prefix . $sub_field_name; // this string is the field key for the current sub_field in the default Block API Response (before transformation occurs)
 
       if ($field_type == 'repeater') {
-        $nestedRepeater = $this->acf_fields[$sub_field_api_default_name]; // note: $nestedRepeater is different than $sub_field because its 'value' property was set by us earlier, whereas $sub_field['value'] == null --> this 'value' is required to make the repeater while loop work properly
-        $sub_field_value = $this->transform_acf_parent_field($nestedRepeater, $sub_field_prefix);
+        $nestedRepeaterField = $this->acf_fields[$sub_field_api_default_name]; // note: $nestedRepeaterField is different than $sub_field because its 'value' property was set by us earlier, whereas $sub_field['value'] == null --> this 'value' is required to make the repeater while loop work properly
+        $sub_field_value = $this->transform_acf_parent_field($nestedRepeaterField, $sub_field_prefix);
       } else if ($field_type == 'group' || $field_type == 'flexible_content') {
-        $sub_field_value = $this->transform_acf_parent_field($sub_field, $sub_field_prefix);
+        $nestedFlexibleContentField = $this->acf_fields[$sub_field_api_default_name]; // note: $nestedFlexibleContentField is different than $sub_field because its 'value' property was set by us earlier, whereas $sub_field['value'] == null --> this 'value' is required to make the repeater while loop work properly
+        $sub_field_value = $this->transform_acf_parent_field($nestedFlexibleContentField, $sub_field_prefix);
       } else {
         // if (!isset($this->acf_fields[$sub_field_api_default_name])) break; // prevent 
         $sub_field_value = $this->acf_fields[$sub_field_api_default_name];
       }
 
       $final_group[$sub_field_name] = $sub_field_value;
+      $sub_field_value = null; // reset
       unset($this->acf_fields[$sub_field_api_default_name]); // remove sub_field from top-level, as we're nesting it within its parent value
     }
     return $final_group;
