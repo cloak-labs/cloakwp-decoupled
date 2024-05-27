@@ -53,7 +53,12 @@ class MenusEndpoint
 
     $menus = null;
     if ($locationFilter) {
-      $menus = MenuLocation::getMenuByLocation($locationFilter)->getStructuredMenu();
+      $menuAtLocation = MenuLocation::getMenuByLocation($locationFilter);
+      if ($menuAtLocation && method_exists($menuAtLocation, 'getStructuredMenu')) {
+        $menus = $menuAtLocation->getStructuredMenu();
+      } else {
+        $menus = null;
+      }
     } else {
       $menus = Menu::all()->map(function (Menu $menu) {
         return $menu->getStructuredMenu();
@@ -61,7 +66,8 @@ class MenusEndpoint
     }
 
     if (!$menus) {
-      return new \WP_Error('menus_not_found', 'Zero menus exist.', array('status' => 404));
+      $error_msg = $locationFilter ? "No menus are assigned to the location, '$locationFilter'." : 'No menus exist.';
+      return new \WP_Error('menus_not_found', $error_msg, array('status' => 404));
     }
 
     return rest_ensure_response($menus);
