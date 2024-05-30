@@ -390,4 +390,25 @@ class Utils
 
     return $var;
   }
+
+  /**
+   * filterArrayByKeys takes an array of associative arrays and an array of field names, then returns a cleaned version of the 1st array where each associative array only contains the properties defined in the 2nd array.
+   * Note: you can also rename any selected property by passing the keys array like so: filterArrayByKeys([...], ['field_x' => 'new_field_name', ...])
+   */
+  public static function filterArrayByKeys(array $array, array $keys)
+  {
+    return array_map(function ($item) use ($keys) {
+      $filteredItem = [];
+      foreach ($keys as $originalKey => $newKey) {
+        if (is_int($originalKey)) {
+          // If the key is an integer, use it as the original key and the value as the new key
+          $originalKey = $newKey;
+        }
+        if (array_key_exists($originalKey, $item)) {
+          $filteredItem[$newKey] = $item[$originalKey];
+        }
+      }
+      return $filteredItem;
+    }, $array);
+  }
 }
