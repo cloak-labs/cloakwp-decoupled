@@ -237,7 +237,7 @@ class BlockTransformer
                 unset($related_post->{$p});
               }
 
-              if ($type == 'post_object')
+              if ($type == 'post_object' || $type == 'page_link')
                 $related_posts = $related_post;
               else
                 $related_posts[] = $related_post;
