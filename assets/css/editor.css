@@ -63,7 +63,7 @@
 
   .acf-fields > .acf-field {
     /* Decrease horizontal margin around fields to improve squished UI */
-    margin: 16px 10px !important;
+    /* margin: 16px 10px !important; */
 
     /* Improve label + description visual hierarchy/spacing */
     .acf-label {
