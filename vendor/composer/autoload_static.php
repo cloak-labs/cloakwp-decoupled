@@ -6,14 +6,24 @@ namespace Composer\Autoload;
 
 class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
 {
+    public static $files = array (
+        '3d52546ced8417744e2d5042a4f2c2ae' => __DIR__ . '/..' . '/cloak-labs/wp-virtual-fields/src/register.php',
+        '6124b4c8570aa390c21fafd04a26c69f' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/deep_copy.php',
+    );
+
     public static $prefixLengthsPsr4 = array (
         'S' => 
         array (
             'Snicco\\Component\\BetterWPAPI\\' => 29,
         ),
+        'D' => 
+        array (
+            'DeepCopy\\' => 9,
+        ),
         'C' => 
         array (
             'Composer\\Installers\\' => 20,
+            'CloakWP\\VirtualFields\\' => 22,
             'CloakWP\\' => 8,
         ),
     );
@@ -23,9 +33,17 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         array (
             0 => __DIR__ . '/..' . '/snicco/better-wp-api/src',
         ),
+        'DeepCopy\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy',
+        ),
         'Composer\\Installers\\' => 
         array (
             0 => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers',
+        ),
+        'CloakWP\\VirtualFields\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/cloak-labs/wp-virtual-fields/src',
         ),
         'CloakWP\\' => 
         array (
@@ -35,25 +53,29 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
 
     public static $classMap = array (
         'CloakWP\\ACF\\Block' => __DIR__ . '/../..' . '/includes/ACF/Block.php',
+        'CloakWP\\ACF\\BlockRegistry' => __DIR__ . '/../..' . '/includes/ACF/BlockRegistry.php',
         'CloakWP\\ACF\\FieldGroup' => __DIR__ . '/../..' . '/includes/ACF/FieldGroup.php',
         'CloakWP\\ACF\\Fields\\Alignment' => __DIR__ . '/../..' . '/includes/ACF/Fields/Alignment.php',
         'CloakWP\\ACF\\Fields\\InnerBlocks' => __DIR__ . '/../..' . '/includes/ACF/Fields/InnerBlocks.php',
+        'CloakWP\\ACF\\Fields\\MenuSelect' => __DIR__ . '/../..' . '/includes/ACF/Fields/MenuSelect.php',
         'CloakWP\\ACF\\Fields\\PostTypeSelect' => __DIR__ . '/../..' . '/includes/ACF/Fields/PostTypeSelect.php',
         'CloakWP\\ACF\\Fields\\ThemeColorPicker' => __DIR__ . '/../..' . '/includes/ACF/Fields/ThemeColorPicker.php',
         'CloakWP\\API\\BlockTransformer' => __DIR__ . '/../..' . '/includes/API/BlockTransformer.php',
-        'CloakWP\\API\\Frontpage' => __DIR__ . '/../..' . '/includes/API/Frontpage.php',
-        'CloakWP\\API\\Menus' => __DIR__ . '/../..' . '/includes/API/Menus.php',
-        'CloakWP\\API\\Options' => __DIR__ . '/../..' . '/includes/API/Options.php',
-        'CloakWP\\API\\Posts' => __DIR__ . '/../..' . '/includes/API/Posts.php',
-        'CloakWP\\API\\Widgets' => __DIR__ . '/../..' . '/includes/API/Widgets.php',
+        'CloakWP\\API\\Fetch' => __DIR__ . '/../..' . '/includes/API/Fetch.php',
+        'CloakWP\\API\\FrontpageEndpoint' => __DIR__ . '/../..' . '/includes/API/FrontpageEndpoint.php',
+        'CloakWP\\API\\MenusEndpoint' => __DIR__ . '/../..' . '/includes/API/MenusEndpoint.php',
+        'CloakWP\\API\\OptionsEndpoint' => __DIR__ . '/../..' . '/includes/API/OptionsEndpoint.php',
         'CloakWP\\Admin\\Admin' => __DIR__ . '/../..' . '/includes/Admin/Admin.php',
-        'CloakWP\\Admin\\HeadlessAdmin' => __DIR__ . '/../..' . '/includes/Admin/HeadlessAdmin.php',
+        'CloakWP\\Admin\\Enqueue\\Asset' => __DIR__ . '/../..' . '/includes/Admin/Enqueue/Asset.php',
+        'CloakWP\\Admin\\Enqueue\\Script' => __DIR__ . '/../..' . '/includes/Admin/Enqueue/Script.php',
+        'CloakWP\\Admin\\Enqueue\\Stylesheet' => __DIR__ . '/../..' . '/includes/Admin/Enqueue/Stylesheet.php',
         'CloakWP\\CloakWP' => __DIR__ . '/../..' . '/includes/CloakWP.php',
         'CloakWP\\Content\\PostType' => __DIR__ . '/../..' . '/includes/Content/PostType.php',
         'CloakWP\\Frontend' => __DIR__ . '/../..' . '/includes/Frontend.php',
         'CloakWP\\General\\PluginActivator' => __DIR__ . '/../..' . '/includes/General/PluginActivator.php',
         'CloakWP\\General\\PluginDeactivator' => __DIR__ . '/../..' . '/includes/General/PluginDeactivator.php',
         'CloakWP\\Utils' => __DIR__ . '/../..' . '/includes/Utils.php',
+        'CloakWP\\VirtualFields\\VirtualField' => __DIR__ . '/..' . '/cloak-labs/wp-virtual-fields/src/VirtualField.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'Composer\\Installers\\AglInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AglInstaller.php',
         'Composer\\Installers\\AkauntingInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AkauntingInstaller.php',
@@ -151,6 +173,31 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'Composer\\Installers\\YawikInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/YawikInstaller.php',
         'Composer\\Installers\\ZendInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/ZendInstaller.php',
         'Composer\\Installers\\ZikulaInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/ZikulaInstaller.php',
+        'DeepCopy\\DeepCopy' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/DeepCopy.php',
+        'DeepCopy\\Exception\\CloneException' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Exception/CloneException.php',
+        'DeepCopy\\Exception\\PropertyException' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Exception/PropertyException.php',
+        'DeepCopy\\Filter\\ChainableFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Filter/ChainableFilter.php',
+        'DeepCopy\\Filter\\Doctrine\\DoctrineCollectionFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Filter/Doctrine/DoctrineCollectionFilter.php',
+        'DeepCopy\\Filter\\Doctrine\\DoctrineEmptyCollectionFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Filter/Doctrine/DoctrineEmptyCollectionFilter.php',
+        'DeepCopy\\Filter\\Doctrine\\DoctrineProxyFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Filter/Doctrine/DoctrineProxyFilter.php',
+        'DeepCopy\\Filter\\Filter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Filter/Filter.php',
+        'DeepCopy\\Filter\\KeepFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Filter/KeepFilter.php',
+        'DeepCopy\\Filter\\ReplaceFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Filter/ReplaceFilter.php',
+        'DeepCopy\\Filter\\SetNullFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Filter/SetNullFilter.php',
+        'DeepCopy\\Matcher\\Doctrine\\DoctrineProxyMatcher' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Matcher/Doctrine/DoctrineProxyMatcher.php',
+        'DeepCopy\\Matcher\\Matcher' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Matcher/Matcher.php',
+        'DeepCopy\\Matcher\\PropertyMatcher' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Matcher/PropertyMatcher.php',
+        'DeepCopy\\Matcher\\PropertyNameMatcher' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Matcher/PropertyNameMatcher.php',
+        'DeepCopy\\Matcher\\PropertyTypeMatcher' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Matcher/PropertyTypeMatcher.php',
+        'DeepCopy\\Reflection\\ReflectionHelper' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/Reflection/ReflectionHelper.php',
+        'DeepCopy\\TypeFilter\\Date\\DateIntervalFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/Date/DateIntervalFilter.php',
+        'DeepCopy\\TypeFilter\\ReplaceFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/ReplaceFilter.php',
+        'DeepCopy\\TypeFilter\\ShallowCopyFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/ShallowCopyFilter.php',
+        'DeepCopy\\TypeFilter\\Spl\\ArrayObjectFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/Spl/ArrayObjectFilter.php',
+        'DeepCopy\\TypeFilter\\Spl\\SplDoublyLinkedList' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/Spl/SplDoublyLinkedList.php',
+        'DeepCopy\\TypeFilter\\Spl\\SplDoublyLinkedListFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/Spl/SplDoublyLinkedListFilter.php',
+        'DeepCopy\\TypeFilter\\TypeFilter' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeFilter/TypeFilter.php',
+        'DeepCopy\\TypeMatcher\\TypeMatcher' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/TypeMatcher/TypeMatcher.php',
         'Snicco\\Component\\BetterWPAPI\\BetterWPAPI' => __DIR__ . '/..' . '/snicco/better-wp-api/src/BetterWPAPI.php',
         'pQuery' => __DIR__ . '/..' . '/tburry/pquery/pQuery.php',
         'pQuery\\AspEmbeddedNode' => __DIR__ . '/..' . '/tburry/pquery/gan_node_html.php',

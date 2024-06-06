@@ -7,6 +7,8 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Snicco\\Component\\BetterWPAPI\\' => array($vendorDir . '/snicco/better-wp-api/src'),
+    'DeepCopy\\' => array($vendorDir . '/myclabs/deep-copy/src/DeepCopy'),
     'Composer\\Installers\\' => array($vendorDir . '/composer/installers/src/Composer/Installers'),
+    'CloakWP\\VirtualFields\\' => array($vendorDir . '/cloak-labs/wp-virtual-fields/src'),
     'CloakWP\\' => array($baseDir . '/includes'),
 );
