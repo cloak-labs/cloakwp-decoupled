@@ -90,7 +90,9 @@ class Utils
         // If an ACF reference exists for this value, add it to the $acf array.
         if ($is_acf_field) {
           $acf_obj = get_field_object($key, 'user_' . $author->ID);
-          $acf[$key] = $acf_obj['value'];
+          if (is_array($acf_obj)) {
+            $acf[$key] = $acf_obj['value'];
+          }
         } else if (!$is_acf_key && ($desired_meta === true || in_array($key, $desired_meta))) {
           $final_meta[$key] = $value[0];
         }
@@ -340,9 +342,9 @@ class Utils
 
         // Get value from field.
         // First look for "backup" value ("_name", "_key").
-        if (isset ($field["_$variation"])) {
+        if (isset($field["_$variation"])) {
           $value = $field["_$variation"];
-        } elseif (isset ($field[$variation])) {
+        } elseif (isset($field[$variation])) {
           $value = $field[$variation];
         } else {
           continue;
