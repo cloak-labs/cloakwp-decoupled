@@ -7,12 +7,19 @@
  * The following variables are made available by WP/Gutenberg for use in this template
  * @param   object $block The block settings and attributes.
  * @param   string $content The block inner HTML (empty).
- * @param   bool $is_preview True while in Block Editor (not relevant to headless apps)
+ * @param   bool $is_preview True while in Block Editor
  * @param   int $post_id The post ID the block is rendering content against.
  *          This is either the post ID currently being displayed inside a query loop,
  *          or the post ID of the post hosting this block.
  * @param   object $context The context provided to the block by the post or it's parent block.
  */
+
+// prevent the block preview code (further below) from running in irrelevant contexts, such as during WP REST API requests:
+if (!$is_preview) {
+  ?>
+  <div><?php echo '__' . $block['name'] . '__'; ?></div>
+  <?php return;
+}
 
 use CloakWP\API\BlockTransformer;
 use CloakWP\CloakWP;
@@ -47,50 +54,40 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])):
 
 elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gutenberg Editor ACF Block iframe preview rendering:
   $is_block_inserter = isset($block['data']['cloakwp_block_inserter_iframe']) && $block['data']['cloakwp_block_inserter_iframe'];
-  $first_render = 0;
+  $first_render = false;
 
   // Delete style.spacing because we don't want to render the spacing on the front-end preview because Gutenberg already adds the spacing within the editor
   unset($block['style']['spacing']);
   unset($block['render_callback']); // we unset this simply to make debug logs smaller
 
-  $data = $block['data'];
-
   $field_values = [];
-  foreach ($data as $key => $value) {
+  foreach ($block['data'] as $key => $value) {
     if (strpos($key, 'field_') === 0) {
       /* when previewing ACF Block where data has been updated, the $block value is very 
         different from when the data hasn't been updated -- the code below transforms the ACF data
         so that it's always in the same shape no matter whether the block's data has been changed 
-        or not. This ensures previews after making field changes don't break. 
+        or not. This ensures previews don't break after making field changes.
       */
       $field_object = get_field_object($key);
       if ($field_object) {
         $field_name = $field_object['name'];
-        $field_value = $field_object['value'];
+        $field_values[$field_object['name']] = $field_object['value'];
 
-        $field_values[$field_name] = $field_value;
-
-        $types_to_ignore = ['group', 'repeater'];
-        if (!in_array($field_object['type'], $types_to_ignore))
-          $field_values['_' . $field_name] = $key; // convertBlockToObject() requires this to work properly
-
-        // if ($field_object['type'] == 'repeater') {
-        //   // TODO: test
-        //   $block_id = $block['id'];
-        //   $meta = acf_setup_meta($block['data'], $block_id);
-        //   $repeaterVal = get_field($field_name, $block_id);
-        // }
-
+        //! Note: we commented out the below on June 27, 2024, after finding that the ACF fields were already formatted properly at this point. The following ensured that BlockTransformer ran its ACF formatting for us, which is irrelevant apparently (in this context); need to test more before removing this completely.
+        // $types_that_are_formatted_correctly_by_default = ['text', 'textarea', 'group', 'repeater'];
+        // if (!in_array($field_object['type'], $types_to_ignore))
+        //   $field_values['_' . $field_object['name']] = $key; // convertBlockToObject() requires this to work properly
       }
     } else {
-      $first_render = 1;
+      $first_render = true;
+      break;
     }
   }
 
   $formattedData = [
     'blockName' => $block['name'],
     'attrs' => [
-      'data' => $first_render === 1 ? $data : $field_values,
+      'data' => $first_render === true ? $block['data'] : $field_values,
     ]
   ];
 
@@ -100,7 +97,7 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
       $formattedData['attrs'][$attr] = $block[$attr];
   }
 
-  $blockTransformer = new BlockTransformer();
+  $blockTransformer = new BlockTransformer(true);
   $blockData = $blockTransformer->convertBlockToObject($formattedData, $post_id);
   $json = json_encode($blockData ?? null);
   $postPathname = Utils::get_post_pathname($post_id);
@@ -111,9 +108,11 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
   $settings = $frontend->getSettings();
   $iframeUrl = "$frontendUrl/{$settings['blockPreviewPath']}?secret={$settings['authSecret']}&pathname=$postPathname";
   $iframeId = uniqid();
+  $bodyClasses = apply_filters('admin_body_class', '');
+  $isPageDark = in_array('dark', explode(" ", $bodyClasses));
 
   ?>
-  <div class="cloakwp-block-preview-ctnr">
+  <div class="decoupled-block-preview-ctnr">
     <!-- Block selector icon overlay on hover (note: we don't render this icon for block inserter previews, only within Editor) -->
     <?php if (!$is_block_inserter): ?>
       <div class="cloakwp-block-selector">
@@ -126,17 +125,22 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
       </div>
     <?php endif; ?>
 
-    <iframe id="<?php echo $iframeId ?>"
-      class="block-preview-iframe <?php echo $is_block_inserter ? 'in-block-inserter' : '' ?>"
-      src='<?php echo $iframeUrl ?>' title="Block Preview" width="100%" scrolling="no" allow-same-origin></iframe>
+    <iframe id="<?php echo $iframeId; ?>"
+      class="block-preview-iframe <?php echo $is_block_inserter ? 'in-block-inserter' : ''; ?>"
+      src='<?php echo $iframeUrl; ?>' title="Block Preview" width="100%" scrolling="no" allow-same-origin></iframe>
 
     <script>
       // this immediately-invoked function takes care of sending block data to the iframe, and receiving the document height from the iframe so we can set its proper height within the editor:     
       (function () {
-        let blockData = <?php echo $json ?>;
-        let bodyClassName;
+        let blockData = <?php echo $json; ?>;
+        let isPageDark = <?php echo $isPageDark ? 'true' : 'false'; ?>;
+        let bodyClassNames = [];
+        if (isPageDark) {
+          bodyClassNames.push('dark');
+          bodyClassNames.push('dark:darker');
+        }
 
-        const iframe = document.getElementById("<?php echo $iframeId ?>");
+        const iframe = document.getElementById("<?php echo $iframeId; ?>");
         if (!iframe) return;
 
         const sendDataToIframe = (data) => iframe.contentWindow.postMessage(JSON.stringify(data), "*");
@@ -144,11 +148,13 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
         // Find the closest ancestor with class "wp-block"
         const wpBlockAncestor = iframe.closest('.wp-block');
 
-        if (wpBlockAncestor) {
-          // Check if the block is within a parent block with "is-style-dark" class, so we can tell the iframe to render in dark mode:
+        // Check if the block is within a parent block with "is-style-dark" class, so we can tell the iframe to render in dark mode:
+        if (!isPageDark && wpBlockAncestor) {
           const parent = wpBlockAncestor.parentNode;
           if (parent.classList.contains('wp-block') && (parent.classList.contains('is-style-dark') || parent.classList.contains('dark'))) {
-            bodyClassName = { bodyClassName: 'dark dark:darker' }
+            bodyClassNames.push('dark');
+            bodyClassNames.push('dark:darker');
+            // bodyClassName = { bodyClassName: 'dark dark:darker' }
           }
         }
 
@@ -158,7 +164,7 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
             if (event.data == "ready") {
               // we wait until iframe tells us it's ready before sending it the blockData
               sendDataToIframe(blockData);
-              if (bodyClassName) sendDataToIframe(bodyClassName);
+              if (bodyClassNames) sendDataToIframe({ bodyClassName: bodyClassNames.join(' ') });
             } else {
               // Set the height of the <iframe> element to the content height
               const height = parseInt(event.data) + 1 + "px"; // add 1 pixel to be sure we don't cut anything off

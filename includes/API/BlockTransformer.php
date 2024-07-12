@@ -2,6 +2,7 @@
 
 namespace CloakWP\API;
 
+use CloakWP\Eloquent\Model\Post;
 use CloakWP\Utils;
 use WP_Block;
 use pQuery;
@@ -29,24 +30,27 @@ use pQuery;
 
 class BlockTransformer
 {
-  private $acf_fields = [];
-  private $current_block_name = [];
+  private array $acfFields = [];
+  private bool $useDefaultAcfFormatting = false;
 
-  public function __construct()
+  private array $currentBlock = [];
+
+  public function __construct(bool $useDefaultAcfFormatting = false)
   {
-    Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/response_format', array('name', 'type'));
-    Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/acf_response_format', array('name', 'type', 'blockName'), 2);
+    $this->useDefaultAcfFormatting = $useDefaultAcfFormatting;
+
+    // Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/response_format', array('name', 'type'));
+    // Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/acf_response_format', array('name', 'type', 'blockName'), 2);
   }
 
   /**
    * Get blocks from html string.
    *
-   * @param string $content Content to parse.
-   * @param int    $post_id Post int.
+   * @param int|\WP_Post|array $post The post to parse.
    *
    * @return array
    */
-  public function getBlocksFromPost(int|\WP_Post|array $post)
+  public function getBlocksFromPost(int|\WP_Post|array $post): array
   {
     $postObj = Utils::get_wp_post_object($post);
     $content = $postObj->post_content;
@@ -54,7 +58,7 @@ class BlockTransformer
     $blocks = parse_blocks($content);
 
     foreach ($blocks as $block) {
-      $block_data = $this->convertBlockToObject($block, $postObj->id);
+      $block_data = $this->convertBlockToObject($block, $postObj->ID);
       if ($block_data) {
         $output[] = $block_data;
       }
@@ -73,7 +77,8 @@ class BlockTransformer
    */
   public function convertBlockToObject(array $block, $post_id = 0)
   {
-    $this->acf_fields = []; // reset
+    $this->currentBlock = $block;
+    $this->acfFields = []; // reset
 
     if (!$block['blockName']) {
       return false;
@@ -82,7 +87,6 @@ class BlockTransformer
     $raw_block_object = new WP_Block($block);
     $attrs = $block['attrs'];
     $block_type = 'core';
-    $this->current_block_name = $block['blockName'];
 
     if ($raw_block_object && $raw_block_object->block_type) {
 
@@ -100,20 +104,24 @@ class BlockTransformer
       }
 
       if ($attributes) {
+        if (isset($attributes['data']))
+          $block_type = 'acf';
         foreach ($attributes as $key => $attribute) {
 
           $enable_acf_block_transform = apply_filters('cloakwp/rest/blocks/enable_acf_block_transform', true);
 
           // Special processing of ACF Blocks:
           if ($key == 'data') {
-            $block_type = 'acf';
+            $fields = $attrs[$key];
             if ($enable_acf_block_transform) {
-              $fields = $attrs[$key];
-              $this->transform_acf_fields($fields); // $this->acf_fields gets added back to the block object further below
+              $this->transform_acf_fields($fields); // $this->acfFields gets added back to the block object further below
+            } else {
+              $this->acfFields = $fields;
             }
           }
 
-          if (($block_type == 'core' || ($block_type == 'acf' && !$enable_acf_block_transform)) && !isset($attrs[$key])) {
+          // if (($block_type == 'core' || ($block_type == 'acf' && !$enable_acf_block_transform)) && !isset($attrs[$key])) {
+          if (!isset($attrs[$key])) {
             // Regular attribute handling:
             $attr_value = $this->get_attribute($attribute, $raw_block_object->inner_html, $post_id);
             if ($attr_value)
@@ -134,8 +142,8 @@ class BlockTransformer
     );
 
     // Add ACF fields under 'data' property
-    if ($this->acf_fields)
-      $formatted_block['data'] = $this->acf_fields;
+    if ($this->acfFields)
+      $formatted_block['data'] = $this->acfFields;
 
     // Add 'innerBlocks' if they exist
     if (!empty($block['innerBlocks'])) {
@@ -167,17 +175,22 @@ class BlockTransformer
     transform_acf_fields
 
     Loops over and transforms ACF fields from an ACF Block into proper/use-able format, 
-    sometimes exanding data such as IDs into full data objects, to prevent having to 
+    sometimes expanding data such as IDs into full data objects, to prevent having to 
     run multiple REST API requests to fetch a block's full data
   */
   private function transform_acf_fields($fields)
   {
-    // $this->acf_fields = $fields; return; // uncomment this and visit a post REST API endpoint when you want to see the shape of the original, non-transformed ACF data that we're working with
+    // $this->acfFields = $fields; return; // uncomment this and visit a post REST API endpoint when you want to see the shape of the original, non-transformed ACF data that we're working with
     $parent_fields_found = [];
+
+    $block_data = $this->currentBlock['attrs']['data'];
+    $block_id = acf_get_block_id($block_data);
+    if (is_array($block_data))
+      acf_setup_meta($block_data, $block_id);
 
     foreach ($fields as $key => $value) { // loop through fields in 'data' (ACF fields)
       if (str_starts_with($key, '_') && str_starts_with($value, 'field_')) { // pick out the fields that have the ACF field names 
-        $acf_field_object = get_field_object($value); // contains all info about ACF field, except the value (see below)
+        $acf_field_object = get_field_object($value); // contains all info about the ACF field, except the value (see below)
 
         $field_name = ltrim($key, '_');
         $field_value = $fields[$field_name];
@@ -187,136 +200,167 @@ class BlockTransformer
           $acf_field_object = [];
         if (!isset($acf_field_object['type']))
           $acf_field_object['type'] = '';
+
         $type = $acf_field_object['type'];
+        $isSubField = str_starts_with($acf_field_object['parent'], "field_");
 
-        /* 
-          By default, ACF relationship fields return an array of post IDs. Below we modify it to return the related posts' 
-          full data so we can eliminate the need to make multiple separate requests on decoupled front-end:
-        */
-        $relational_field_types = array('relationship', 'page_link', 'post_object');
-        $is_relational_field = in_array($type, $relational_field_types);
-        if ($is_relational_field) {
-          if ($field_value) {
-            $related_posts = [];
-            if (!is_array($field_value))
-              $field_value = array($field_value); // convert to array if it isn't already
+        if ($this->useDefaultAcfFormatting) {
+          if (!$isSubField) {
+            if ($type == 'accordion')
+              continue;
+            $fieldTypesRequiringFormatting = ['repeater', 'group', 'flexible_content', 'relationship', 'page_link', 'post_object', 'true_false', 'gallery'];
 
-            // loop through array of related page/post IDs and retrieve their full data
-            foreach ($field_value as $related_post) {
-              $related_post = get_post($related_post);
-              Utils::write_log('Relationship post id:');
-              Utils::write_log($related_post->ID);
+            if (in_array($type, $fieldTypesRequiringFormatting) || ($type == 'image' && is_int($field_value))) {
+              $field_value = get_field($field_name, $block_id); // uses ACF's built-in logic to handle field formatting
+            }
 
-              $related_post->author = Utils::get_pretty_author($related_post->post_author); // replace default 'post_author' (ID) with basic 'author' object
-              $related_post->pathname = Utils::get_post_pathname($related_post->ID); // front-end route for post
-              $related_post->featured_image = get_the_post_thumbnail_url($related_post->ID, 'full');
-              $related_post->acf = get_fields($related_post->ID);
-              $related_post->id = $related_post->ID;
+            $filter_variation_values = array(
+              'type' => $type,
+              'name' => $field_name,
+              'blockName' => $this->currentBlock['blockName'],
+            );
 
-              // We remove a bunch of fields that are usually useless -- user can add any of these (and more) back by using the 'cloakwp/rest/blocks/acf_response_format/type=relationship' filter hook
-              $properties_to_remove = [
-                'ID', // replaced by lowercase 'id' field above (uppercase is weird)
-                'post_author', // replaced by 'author' field above 
-                'post_date_gmt',
-                'comment_status',
-                'ping_status',
-                'to_ping',
-                'pinged',
-                'post_modified_gmt',
-                'post_content_filtered',
-                'guid',
-                'post_mime_type',
-                'comment_count',
-                'filter',
-                'post_password',
-                'post_parent',
-                'post_content' // removing post_content is potentially controversial -- but it adds a lot of weight to payload sizes, so we prefer for users to add it back via the 'cloakwp/rest/blocks/acf_response_format/type=relationship' filter hook if they need it
-              ];
+            $final_value = apply_filters('cloakwp/rest/blocks/acf_response_format', $field_value, $acf_field_object, $filter_variation_values);
+            $this->acfFields[$field_name] = $final_value;
+          }
+        } else {
+          /* 
+            By default, ACF relationship fields return an array of post IDs. Below we modify it to return the related posts' 
+            full data so we can eliminate the need to make multiple separate requests on decoupled front-end:
+          */
+          $relational_field_types = array('relationship', 'page_link', 'post_object');
+          $is_relational_field = in_array($type, $relational_field_types);
+          if ($is_relational_field) {
+            if ($field_value) {
+              $related_posts = [];
+              if (!is_array($field_value))
+                $field_value = array($field_value); // convert to array if it isn't already
 
-              foreach ($properties_to_remove as $p) {
-                unset($related_post->{$p});
+              // $related_posts = Post::byIds($field_value)->get();
+              // $related_posts_array = $related_posts->map->toArray();
+
+              // loop through array of related page/post IDs and retrieve their full data
+              foreach ($field_value as $related_post) {
+                // $related_post = get_post($related_post);
+                $related_post = Post::find($related_post);
+
+                $related_post->author = Utils::get_pretty_author($related_post->post_author); // replace default 'post_author' (ID) with basic 'author' object
+                $related_post->pathname = Utils::get_post_pathname($related_post->ID); // front-end route for post
+                $related_post->featured_image = get_the_post_thumbnail_url($related_post->ID, 'full');
+                $related_post->acf = get_fields($related_post->ID);
+                $related_post->id = $related_post->ID;
+
+                // We remove a bunch of fields that are usually useless -- user can add any of these (and more) back by using the 'cloakwp/rest/blocks/acf_response_format/type=relationship' filter hook
+                $properties_to_remove = [
+                  'ID', // replaced by lowercase 'id' field above (uppercase is weird)
+                  'post_author', // replaced by 'author' field above 
+                  'post_date_gmt',
+                  'comment_status',
+                  'ping_status',
+                  'to_ping',
+                  'pinged',
+                  'post_modified_gmt',
+                  'post_content_filtered',
+                  'guid',
+                  'post_mime_type',
+                  'comment_count',
+                  'filter',
+                  'post_password',
+                  'post_parent',
+                  'post_content' // removing post_content is potentially controversial -- but it adds a lot of weight to payload sizes, so we prefer for users to add it back via the 'cloakwp/rest/blocks/acf_response_format/type=relationship' filter hook if they need it
+                ];
+
+                foreach ($properties_to_remove as $p) {
+                  unset($related_post->{$p});
+                }
+
+                if ($type == 'post_object' || $type == 'page_link')
+                  $related_posts = $related_post;
+                else
+                  $related_posts[] = $related_post;
+
               }
 
-              if ($type == 'post_object' || $type == 'page_link')
-                $related_posts = $related_post;
-              else
-                $related_posts[] = $related_post;
-            }
-            $field_value = $related_posts;
-          } else {
-            $field_value = null;
-          }
-        }
-
-        /* 
-          By default, an ACF image field just returns the image ID in the API response. Here we modify it to return an
-          object with the image's src, alt description, width, height
-        */
-        if ($type == 'image') {
-          $valueAsInt = intval($field_value); // coerces strings into integers if they start with numeric data
-          $field_value = is_int($valueAsInt) ? $this->get_formatted_acf_image($valueAsInt) : null;
-        }
-
-        if ($type == 'gallery') {
-          $images = [];
-          foreach ($field_value as $image_id) {
-            $idAsInt = intval($image_id); // coerces strings into integers if they start with numeric data
-            if (is_int($idAsInt)) {
-              $images[] = $this->get_formatted_acf_image($idAsInt);
+              $field_value = $related_posts;
+            } else {
+              $field_value = null;
             }
           }
 
-          $field_value = $images;
-        }
-
-        /* 
-          Convert true_false field values from 1/0 to true/false
-        */
-        if ($type == 'true_false') {
-          $field_value = [
-            "0" => false,
-            "1" => true
-          ][$field_value];
-        }
-
-        $acf_field_object['value'] = $field_value; // finally, insert the value of the field for the current page/post into the ACF field object --> now we have all the info we need about each ACF field within one object
-
-        /* 
-          For ACF repeater and group fields, we will format their sub_fields to be in a proper format
-          AFTER this foreach is done processing. This ensures that all sub_fields get the same response
-          formats as top-level fields; eg. an image field that is a repeater sub_field still gets the 
-          special treatment that you see a few lines up ^^
-        */
-        if ($type == 'repeater' || $type == 'group' || $type == 'flexible_content') {
           /* 
-            repeaters and groups are not done processing, so we set them to their full ACF field
-            Objects at this point; they will eventually get processed and set to their final values.
+            By default, an ACF image field just returns the image ID in the API response. Here we modify it to return an
+            object with the image's src, alt description, width, height
           */
-          $is_top_level_field = str_starts_with($acf_field_object['parent'], 'group_');
-          if ($is_top_level_field) {
-            /* 
-              if the repeater/group has a "parent" value of "group_*", it means it's a top-level field 
-              within the Field Group, whereas a parent value of "field_*" means it's nested within another 
-              Group/Repeater --> in which case we don't set it up for processing at this point; top-level
-              group/repeater fields will trigger the processing of any children groups/repeaters for us.
-            */
-            $parent_fields_found[] = $acf_field_object;
+          if ($type == 'image') {
+            $valueAsInt = intval($field_value); // coerces strings into integers if they start with numeric data
+            $field_value = is_int($valueAsInt) ? $this->get_formatted_acf_image($valueAsInt) : null;
           }
 
-          $this->acf_fields[$field_name] = $acf_field_object; // will get formatted later
-        } else {
-          // all other fields are done processing at this point, so we set them to their final values
-          $filter_variation_values = array(
-            'type' => $type,
-            'name' => $field_name,
-            'blockName' => $this->current_block_name,
-          );
-          $final_value = apply_filters('cloakwp/rest/blocks/acf_response_format', $field_value, $acf_field_object, $filter_variation_values);
-          $this->acf_fields[$field_name] = $final_value;
+          if ($type == 'gallery') {
+            $images = [];
+            foreach ($field_value as $image_id) {
+              $idAsInt = intval($image_id); // coerces strings into integers if they start with numeric data
+              if (is_int($idAsInt)) {
+                $images[] = $this->get_formatted_acf_image($idAsInt);
+              }
+            }
+
+            $field_value = $images;
+          }
+
+          /* 
+            Convert true_false field values from 1/0 to true/false
+          */
+          if ($type == 'true_false') {
+            $field_value = [
+              "0" => false,
+              "1" => true
+            ][$field_value];
+          }
+
+          $acf_field_object['value'] = $field_value; // finally, insert the value of the field for the current page/post into the ACF field object --> now we have all the info we need about each ACF field within one object
+
+          /* 
+            For ACF repeater and group fields, we will format their sub_fields to be in a proper format
+            AFTER this foreach is done processing. This ensures that all sub_fields get the same response
+            formats as top-level fields; eg. an image field that is a repeater sub_field still gets the 
+            special treatment that you see a few lines up ^^
+          */
+          if ($type == 'repeater' || $type == 'group' || $type == 'flexible_content') {
+            /* 
+              repeaters and groups are not done processing, so we set them to their full ACF field
+              Objects at this point; they will eventually get processed and set to their final values.
+            */
+            $is_top_level_field = str_starts_with($acf_field_object['parent'], 'group_');
+            if ($is_top_level_field) {
+              /* 
+                if the repeater/group has a "parent" value of "group_*", it means it's a top-level field 
+                within the Field Group, whereas a parent value of "field_*" means it's nested within another 
+                Group/Repeater --> in which case we don't set it up for processing at this point; top-level
+                group/repeater fields will trigger the processing of any children groups/repeaters for us.
+              */
+              $parent_fields_found[] = $acf_field_object;
+            }
+
+            $this->acfFields[$field_name] = $acf_field_object; // will get formatted later
+          } else {
+            // all other fields are done processing at this point, so we set them to their final values
+            $filter_variation_values = array(
+              'type' => $type,
+              'name' => $field_name,
+              'blockName' => $this->currentBlock['blockName'],
+            );
+            $final_value = apply_filters('cloakwp/rest/blocks/acf_response_format', $field_value, $acf_field_object, $filter_variation_values);
+            $this->acfFields[$field_name] = $final_value;
+          }
         }
-      } else {
-        // if we end up here, we have to assume the field is formatted correctly by default, so we simply add it to the block's final ACF data response:
-        $this->acf_fields[$key] = $value;
+      } else if (!isset($fields['_' . $key])) {
+        /*
+          The field doesn't start with an underscore, and a matching underscore field doesn't exist.
+          This means the field came pre-formatted correctly by default, so we simply add it to the 
+          block's final ACF data response:
+        */
+        $this->acfFields[$key] = $value;
       }
     } // END looping through the Block's ACF fields
 
@@ -369,7 +413,7 @@ class BlockTransformer
    */
   private function transform_acf_parent_field($parent_field_obj, $grandparent_field_name = '')
   {
-    // return $this->acf_fields; // uncomment to test the default data response format for repeater/group fields
+    // return $this->acfFields; // uncomment to test the default data response format for repeater/group fields
     $og_parent_value = $parent_field_obj['value'];
     $final_parent_value = [];
     $field_name = $parent_field_obj['name'];
@@ -438,7 +482,7 @@ class BlockTransformer
     $filter_variation_values = array(
       'type' => $field_type,
       'name' => $field_name,
-      'blockName' => $this->current_block_name,
+      'blockName' => $this->currentBlock['blockName'],
     );
 
     $final_value = apply_filters('cloakwp/rest/blocks/acf_response_format', $final_parent_value, $parent_field_obj, $filter_variation_values);
@@ -447,7 +491,7 @@ class BlockTransformer
       return $final_value;
     }
 
-    $this->acf_fields[$field_name] = $final_value; // finally, replace repeater/group's value with the formatted sub_fields
+    $this->acfFields[$field_name] = $final_value; // finally, replace repeater/group's value with the formatted sub_fields
   }
 
 
@@ -473,19 +517,19 @@ class BlockTransformer
       $sub_field_api_default_name = $sub_field_prefix . $sub_field_name; // this string is the field key for the current sub_field in the default Block API Response (before transformation occurs)
 
       if ($field_type == 'repeater') {
-        $nestedRepeaterField = $this->acf_fields[$sub_field_api_default_name]; // note: $nestedRepeaterField is different than $sub_field because its 'value' property was set by us earlier, whereas $sub_field['value'] == null --> this 'value' is required to make the repeater while loop work properly
+        $nestedRepeaterField = $this->acfFields[$sub_field_api_default_name]; // note: $nestedRepeaterField is different than $sub_field because its 'value' property was set by us earlier, whereas $sub_field['value'] == null --> this 'value' is required to make the repeater while loop work properly
         $sub_field_value = $this->transform_acf_parent_field($nestedRepeaterField, $sub_field_prefix);
       } else if ($field_type == 'group' || $field_type == 'flexible_content') {
-        $nestedFlexibleContentField = $this->acf_fields[$sub_field_api_default_name]; // note: $nestedFlexibleContentField is different than $sub_field because its 'value' property was set by us earlier, whereas $sub_field['value'] == null --> this 'value' is required to make the repeater while loop work properly
+        $nestedFlexibleContentField = $this->acfFields[$sub_field_api_default_name]; // note: $nestedFlexibleContentField is different than $sub_field because its 'value' property was set by us earlier, whereas $sub_field['value'] == null --> this 'value' is required to make the repeater while loop work properly
         $sub_field_value = $this->transform_acf_parent_field($nestedFlexibleContentField, $sub_field_prefix);
       } else {
-        // if (!isset($this->acf_fields[$sub_field_api_default_name])) break; // prevent 
-        $sub_field_value = $this->acf_fields[$sub_field_api_default_name];
+        // if (!isset($this->acfFields[$sub_field_api_default_name])) break; // prevent 
+        $sub_field_value = $this->acfFields[$sub_field_api_default_name];
       }
 
       $final_group[$sub_field_name] = $sub_field_value;
       $sub_field_value = null; // reset
-      unset($this->acf_fields[$sub_field_api_default_name]); // remove sub_field from top-level, as we're nesting it within its parent value
+      unset($this->acfFields[$sub_field_api_default_name]); // remove sub_field from top-level, as we're nesting it within its parent value
     }
     return $final_group;
   }
