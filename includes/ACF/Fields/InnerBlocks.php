@@ -45,6 +45,43 @@ class InnerBlocks extends FlexibleContent
 
     // if there are blocks in the $blocks array
     if (!empty($blocks)) {
+
+      // define field filtering function to exclude certain incompatible fields from being nested in an InnerBlock/layout:
+      $filterExcludedFields = function ($fields) use (&$filterExcludedFields) {
+        $count = -1; // Initialize the index
+        // exclude 'Blocks' fields from Layouts to avoid infinite loop/recursion
+        $fields = array_filter($fields, function ($field) use (&$count, $fields) {
+          $count++;
+          if (isset($field->excludeFromLayouts) && $field->excludeFromLayouts === true) {
+            // `excludeFromLayouts` is a static property that can be set on custom fields to exclude them from InnerBlocks -- the InnerBlocks field itself uses this to prevent infinite recursion; TODO: allow InnerBlocks within InnerBlocks but limit nested recursion to a specified depth to prevent infinite loop.
+            return false;
+          }
+
+          $fieldClass = get_class($field);
+
+          // Exclude top-level wrapping Accordion fields because the ACF Flexible Content field UI already wraps layouts in accordion:
+          if (($count == 0 || $count == count($fields) - 1) && $fieldClass == Accordion::class) {
+            return false;
+          }
+
+          return true;
+        });
+
+        // Recursively filter sub_fields:
+        $fields = array_map(function ($field) use ($filterExcludedFields) {
+          $property = (new \ReflectionClass($field))->getProperty('settings');
+          $property->setAccessible(true);
+
+          $settings = $field->settings;
+          if (isset($settings['sub_fields'])) {
+            $field->fields($filterExcludedFields($settings['sub_fields']));
+          }
+          return $field;
+        }, $fields);
+
+        return $fields;
+      };
+
       // loop over each block and create option
       foreach ($blocks as $innerBlock) {
         $settings = $innerBlock->getFieldGroupSettings();
@@ -57,19 +94,7 @@ class InnerBlocks extends FlexibleContent
         if ($included && !$excluded) {
           $fields = $settings['fields'];
           if (is_array($fields)) {
-            $count = -1; // Initialize the index
-            // exclude 'Blocks' fields from Layouts to avoid infinite loop/recursion
-            $fields = array_filter($fields, function ($field) use (&$count, $fields) {
-              $count++;
-              if (isset ($field->excludeFromLayouts) && $field->excludeFromLayouts === true) {
-                return false;
-              }
-
-              if (($count == 0 || $count == count($fields) - 1) && get_class($field) == Accordion::class) {
-                return false;
-              }
-              return true;
-            });
+            $fields = $filterExcludedFields($fields);
           }
 
           // Make a Flexible Content "layout" using each block's fields
@@ -94,7 +119,6 @@ class InnerBlocks extends FlexibleContent
   /** @internal */
   public function get(string|null $parentKey = null): array
   {
-
     $this->setLayouts($parentKey); // we copied get() from the base Field class just to add this
 
     $key = $parentKey . '_' . Key::sanitize($this->settings['name']);
@@ -130,7 +154,30 @@ class InnerBlocks extends FlexibleContent
 
     // Note: `sub_fields` and `collapsed` settings are irrelevant to InnerBlocks fields, so we removed the processing of those here
 
-    $this->settings['key'] = Key::generate($key, $this->keyPrefix);
+    $final_key = Key::generate($key, $this->keyPrefix);
+    $this->settings['key'] = $final_key;
+
+    // Adjust the ACF formatting of InnerBlocks field values to mimic the standard Block data format: 
+    add_filter("acf/format_value/key={$final_key}", function ($value, $post_id, $field) {
+      $formattedInnerBlocksValue = [];
+      foreach ($value as $layout) {
+        // When a Flexible Content layout is from an `InnerBlocks` field, we apply special formatting to mimic a regular Block:
+        $name = $layout['acf_fc_layout'];
+        unset($layout['acf_fc_layout']);
+
+        $defaultBlock = [
+          'name' => $name,
+          'type' => 'acf',
+          'attrs' => [],
+          'data' => $layout
+        ];
+
+        $formattedBlock = apply_filters('cloakwp/rest/blocks/response_format', $defaultBlock, ['name' => $name, 'type' => 'acf']);
+        $formattedInnerBlocksValue[] = $formattedBlock;
+      }
+
+      return $formattedInnerBlocksValue;
+    }, 10, 3);
 
     return $this->settings;
   }
