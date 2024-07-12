@@ -1,8 +1,8 @@
 <?php return array(
     'root' => array(
         'name' => 'cloak-labs/cloakwp-plugin',
-        'pretty_version' => '1.1.13',
-        'version' => '1.1.13.0',
+        'pretty_version' => '1.1.14',
+        'version' => '1.1.14.0',
         'reference' => NULL,
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
@@ -11,8 +11,8 @@
     ),
     'versions' => array(
         'cloak-labs/cloakwp-plugin' => array(
-            'pretty_version' => '1.1.13',
-            'version' => '1.1.13.0',
+            'pretty_version' => '1.1.14',
+            'version' => '1.1.14.0',
             'reference' => NULL,
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
@@ -20,9 +20,9 @@
             'dev_requirement' => false,
         ),
         'cloak-labs/wp-virtual-fields' => array(
-            'pretty_version' => '0.0.1',
-            'version' => '0.0.1.0',
-            'reference' => '62a3c47cb67ba68b662fddc2ed17d78db60b6eaa',
+            'pretty_version' => '0.0.2',
+            'version' => '0.0.2.0',
+            'reference' => 'c5196bb6339bcc6765ebb575d276e45d955b4cbb',
             'type' => 'library',
             'install_path' => __DIR__ . '/../cloak-labs/wp-virtual-fields',
             'aliases' => array(),
@@ -86,9 +86,9 @@
             'dev_requirement' => false,
         ),
         'symfony/console' => array(
-            'pretty_version' => 'v6.4.8',
-            'version' => '6.4.8.0',
-            'reference' => 'be5854cee0e8c7b110f00d695d11debdfa1a2a91',
+            'pretty_version' => 'v6.4.9',
+            'version' => '6.4.9.0',
+            'reference' => '6edb5363ec0c78ad4d48c5128ebf4d083d89d3a9',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/console',
             'aliases' => array(),
@@ -104,9 +104,9 @@
             'dev_requirement' => false,
         ),
         'symfony/filesystem' => array(
-            'pretty_version' => 'v6.4.8',
-            'version' => '6.4.8.0',
-            'reference' => '4d37529150e7081c51b3c5d5718c55a04a9503f3',
+            'pretty_version' => 'v6.4.9',
+            'version' => '6.4.9.0',
+            'reference' => 'b51ef8059159330b74a4d52f68e671033c0fe463',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/filesystem',
             'aliases' => array(),
@@ -167,9 +167,9 @@
             'dev_requirement' => false,
         ),
         'symfony/string' => array(
-            'pretty_version' => 'v7.1.1',
-            'version' => '7.1.1.0',
-            'reference' => '60bc311c74e0af215101235aa6f471bcbc032df2',
+            'pretty_version' => 'v7.1.2',
+            'version' => '7.1.2.0',
+            'reference' => '14221089ac66cf82e3cf3d1c1da65de305587ff8',
             'type' => 'library',
             'install_path' => __DIR__ . '/../symfony/string',
             'aliases' => array(),

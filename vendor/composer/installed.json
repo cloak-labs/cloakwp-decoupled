@@ -2,32 +2,41 @@
     "packages": [
         {
             "name": "cloak-labs/wp-virtual-fields",
-            "version": "0.0.1",
-            "version_normalized": "0.0.1.0",
+            "version": "0.0.2",
+            "version_normalized": "0.0.2.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-virtual-fields.git",
+                "reference": "c5196bb6339bcc6765ebb575d276e45d955b4cbb"
+            },
             "dist": {
-                "type": "path",
-                "url": "../wp-virtual-fields",
-                "reference": "62a3c47cb67ba68b662fddc2ed17d78db60b6eaa"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-virtual-fields/zipball/c5196bb6339bcc6765ebb575d276e45d955b4cbb",
+                "reference": "c5196bb6339bcc6765ebb575d276e45d955b4cbb",
+                "shasum": ""
             },
             "require": {
                 "composer/installers": "^2.2"
             },
+            "time": "2024-07-12T22:05:30+00:00",
             "type": "library",
             "installation-source": "dist",
             "autoload": {
-                "psr-4": {
-                    "CloakWP\\VirtualFields\\": "src"
-                },
                 "files": [
                     "src/register.php"
-                ]
+                ],
+                "psr-4": {
+                    "CloakWP\\VirtualFields\\": "src"
+                }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Simple API for creating virtual fields on WordPress posts.",
-            "transport-options": {
-                "relative": true
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-virtual-fields/issues",
+                "source": "https://github.com/cloak-labs/wp-virtual-fields/tree/v0.0.2"
             },
             "install-path": "../cloak-labs/wp-virtual-fields"
         },
@@ -481,17 +490,17 @@
         },
         {
             "name": "symfony/console",
-            "version": "v6.4.8",
-            "version_normalized": "6.4.8.0",
+            "version": "v6.4.9",
+            "version_normalized": "6.4.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/console.git",
-                "reference": "be5854cee0e8c7b110f00d695d11debdfa1a2a91"
+                "reference": "6edb5363ec0c78ad4d48c5128ebf4d083d89d3a9"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/console/zipball/be5854cee0e8c7b110f00d695d11debdfa1a2a91",
-                "reference": "be5854cee0e8c7b110f00d695d11debdfa1a2a91",
+                "url": "https://api.github.com/repos/symfony/console/zipball/6edb5363ec0c78ad4d48c5128ebf4d083d89d3a9",
+                "reference": "6edb5363ec0c78ad4d48c5128ebf4d083d89d3a9",
                 "shasum": ""
             },
             "require": {
@@ -524,7 +533,7 @@
                 "symfony/stopwatch": "^5.4|^6.0|^7.0",
                 "symfony/var-dumper": "^5.4|^6.0|^7.0"
             },
-            "time": "2024-05-31T14:49:08+00:00",
+            "time": "2024-06-28T09:49:33+00:00",
             "type": "library",
             "installation-source": "dist",
             "autoload": {
@@ -558,7 +567,7 @@
                 "terminal"
             ],
             "support": {
-                "source": "https://github.com/symfony/console/tree/v6.4.8"
+                "source": "https://github.com/symfony/console/tree/v6.4.9"
             },
             "funding": [
                 {
@@ -648,17 +657,17 @@
         },
         {
             "name": "symfony/filesystem",
-            "version": "v6.4.8",
-            "version_normalized": "6.4.8.0",
+            "version": "v6.4.9",
+            "version_normalized": "6.4.9.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/filesystem.git",
-                "reference": "4d37529150e7081c51b3c5d5718c55a04a9503f3"
+                "reference": "b51ef8059159330b74a4d52f68e671033c0fe463"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/filesystem/zipball/4d37529150e7081c51b3c5d5718c55a04a9503f3",
-                "reference": "4d37529150e7081c51b3c5d5718c55a04a9503f3",
+                "url": "https://api.github.com/repos/symfony/filesystem/zipball/b51ef8059159330b74a4d52f68e671033c0fe463",
+                "reference": "b51ef8059159330b74a4d52f68e671033c0fe463",
                 "shasum": ""
             },
             "require": {
@@ -669,7 +678,7 @@
             "require-dev": {
                 "symfony/process": "^5.4|^6.4|^7.0"
             },
-            "time": "2024-05-31T14:49:08+00:00",
+            "time": "2024-06-28T09:49:33+00:00",
             "type": "library",
             "installation-source": "dist",
             "autoload": {
@@ -697,7 +706,7 @@
             "description": "Provides basic utilities for the filesystem",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/filesystem/tree/v6.4.8"
+                "source": "https://github.com/symfony/filesystem/tree/v6.4.9"
             },
             "funding": [
                 {
@@ -1197,17 +1206,17 @@
         },
         {
             "name": "symfony/string",
-            "version": "v7.1.1",
-            "version_normalized": "7.1.1.0",
+            "version": "v7.1.2",
+            "version_normalized": "7.1.2.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/string.git",
-                "reference": "60bc311c74e0af215101235aa6f471bcbc032df2"
+                "reference": "14221089ac66cf82e3cf3d1c1da65de305587ff8"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/string/zipball/60bc311c74e0af215101235aa6f471bcbc032df2",
-                "reference": "60bc311c74e0af215101235aa6f471bcbc032df2",
+                "url": "https://api.github.com/repos/symfony/string/zipball/14221089ac66cf82e3cf3d1c1da65de305587ff8",
+                "reference": "14221089ac66cf82e3cf3d1c1da65de305587ff8",
                 "shasum": ""
             },
             "require": {
@@ -1228,7 +1237,7 @@
                 "symfony/translation-contracts": "^2.5|^3.0",
                 "symfony/var-exporter": "^6.4|^7.0"
             },
-            "time": "2024-06-04T06:40:14+00:00",
+            "time": "2024-06-28T09:27:18+00:00",
             "type": "library",
             "installation-source": "dist",
             "autoload": {
@@ -1267,7 +1276,7 @@
                 "utf8"
             ],
             "support": {
-                "source": "https://github.com/symfony/string/tree/v7.1.1"
+                "source": "https://github.com/symfony/string/tree/v7.1.2"
             },
             "funding": [
                 {
