@@ -67,6 +67,12 @@ class CloakWP extends Admin
 
     $this->plugin_name = 'cloakwp';
     $this->setLocale();
+
+    // Set up BlockTransformer and its filters
+    $this->blockTransformer = new BlockTransformer(true);
+    Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/response_format', array('name', 'type'));
+    Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/acf_response_format', array('name', 'type', 'blockName'), 2);
+
     $this->bootstrap();
   }
 
@@ -74,12 +80,10 @@ class CloakWP extends Admin
    * This function gets called when initiating the CloakWP instance via getInstance().
    * We extracted this logic into this separate method so that users can extend CloakWP 
    * and customize the bootstrapping process without having to also redeclare __construct(),
-   * which most likely folks will not want to customize. 
+   * which most likely folks will NOT want to customize. 
    */
   private function bootstrap()
   {
-    $this->blockTransformer = new BlockTransformer();
-
     // Register CloakWP custom REST API endpoints:
     MenusEndpoint::register();
     FrontpageEndpoint::register();
@@ -89,16 +93,18 @@ class CloakWP extends Admin
     $this->enqueueAssets([
       Stylesheet::make("{$this->plugin_name}_admin_styles")
         ->src(dirname(plugin_dir_url(__FILE__)) . '/assets/css/admin.css')
-        ->version($this->version),
+        ->version(\WP_ENV != "production" ? uniqid() : $this->version),
       Stylesheet::make("{$this->plugin_name}_gutenberg_styles")
         ->hook('enqueue_block_editor_assets')
         ->src(dirname(plugin_dir_url(__FILE__)) . '/assets/css/editor.css')
-        ->version($this->version)
+        ->version(\WP_ENV != "production" ? uniqid() : $this->version)
     ]);
 
     // for now, enable all wp-admin customizations by default:
     $this
       ->replaceFrontendLinks()
+      ->includePostFiltersForAcf()
+      ->formatAcfImages()
       ->registerHeadlessVirtualFields()
       ->registerAuthEndpoint()
       ->cleanRestResponses()
@@ -136,6 +142,75 @@ class CloakWP extends Admin
   }
 
   /**
+   * By default, posts fetched within ACF (using its internal `acf_get_posts` function) suppress filters 
+   * like "the_posts", preventing WP Virtual Fields from affecting ACF relational fields data, for example. 
+   * This method fixes this.
+   */
+  public function includePostFiltersForAcf(): static
+  {
+    add_filter('acf/acf_get_posts/args', function($args) {
+      return wp_parse_args(
+        $args,
+        array(
+          'suppress_filters' => false
+        )
+      );
+    }, 10, 1);
+
+    return $this;
+  }
+
+  public static function getFormattedImage(mixed $imageId) {
+    if (!$imageId || is_array($imageId)) return $imageId;
+
+    $imageId = intval($imageId); // coerces strings into integers if they start with numeric data
+
+    $result = [];
+    $sizes = apply_filters('cloakwp/image_format/sizes', ['medium', 'large', 'full'], $imageId);
+    
+    foreach ($sizes as $size) {
+      $img = wp_get_attachment_image_src($imageId, $size);
+      if (is_array($img)) {
+        $url = $img[0]; // Image URL
+        $width = $img[1]; // Width of the image
+        $height = $img[2]; // Height of the image
+
+        // Include URL, width, and height in the result
+        $result[$size] = [
+          'src' => $url,
+          'width' => $width,
+          'height' => $height
+        ];
+      } else {
+        // Handle cases where the image size does not exist
+        $result[$size] = false;
+      }
+    }
+
+    $alt_desc = get_post_meta($imageId, '_wp_attachment_image_alt', true);
+    $result['alt'] = $alt_desc;
+
+    return $result;
+  }
+  public function formatAcfImages(): static {
+    add_filter('acf/format_value/type=image', function($value, $post_id, $field) {
+      return $this->getFormattedImage($value);
+    }, 20, 3);
+
+    add_filter('acf/format_value/type=gallery', function($value, $post_id, $field) {
+      if (!is_array($value)) return $value;
+
+      $gallery = [];
+      foreach($value as $imageId) {
+        $gallery[] = $this->getFormattedImage($imageId);
+      }
+      return $gallery;
+    }, 99, 3);
+
+    return $this;
+  }
+
+  /**
    * Registers the post virtual fields that are necessary for CloakWP.js to work.
    */
   public function registerHeadlessVirtualFields(): static
@@ -157,39 +232,18 @@ class CloakWP extends Admin
         VirtualField::make('featured_image')
           ->value(function ($post) {
             $post_id = is_array($post) ? $post['id'] : $post->ID;
-            $image_id = get_post_thumbnail_id($post_id);
-            
-            $result = [];
-            $sizes = apply_filters('cloakwp/virtual_fields/featured_image/sizes', ['medium', 'large', 'full'], $post, $image_id);
-            
-            foreach ($sizes as $size) {
-              $img = wp_get_attachment_image_src($image_id, $size);
-              if (is_array($img)) {
-                $url = $img[0]; // Image URL
-                $width = $img[1]; // Width of the image
-                $height = $img[2]; // Height of the image
-
-                // Include URL, width, and height in the result
-                $result[$size] = [
-                  'src' => $url,
-                  'width' => $width,
-                  'height' => $height
-                ];
-              } else {
-                // Handle cases where the image size does not exist
-                $result[$size] = false;
-              }
-            }
-
-            $alt_desc = get_post_meta($image_id, '_wp_attachment_image_alt', true);
-            $result['alt'] = $alt_desc;
-  
-            return $result;
+            $image_id = get_post_thumbnail_id($post_id);  
+            return $this->getFormattedImage($image_id);
           }),
         VirtualField::make('author')
           ->value(function ($post) {
             $authorId = is_array($post) ? $post['author'] : $post->post_author;
             return Utils::get_pretty_author($authorId);
+          }),
+        VirtualField::make('acf')
+          ->value(function ($post) {
+            $postId = is_array($post) ? $post['id'] : $post->ID;
+            return get_fields($postId);
           }),
         VirtualField::make('taxonomies')
           ->value(function (\WP_Post $post) {  
@@ -235,7 +289,7 @@ class CloakWP extends Admin
               if (!$post) return [];
               return $this->blockTransformer->getBlocksFromPost($post);
             })
-            ->excludeFrom(['core'])
+            ->excludeFrom(['core', 'acf'])
         ]);
       }
     }, 99);
