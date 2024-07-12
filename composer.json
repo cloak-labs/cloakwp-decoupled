@@ -9,7 +9,8 @@
     "composer/installers": "^2.2",
     "myclabs/deep-copy": "^1.11",
     "snicco/better-wp-api": "^1.9",
-    "tburry/pquery": "^1.1"
+    "tburry/pquery": "^1.1",
+    "franzl/studio": "*"
   },
   "autoload": {
     "psr-4": {
@@ -21,7 +22,8 @@
     "preferred-install": "dist",
     "sort-packages": true,
     "allow-plugins": {
-      "composer/installers": true
+      "composer/installers": true,
+      "franzl/studio": true
     }
   },
   "minimum-stability": "stable",
