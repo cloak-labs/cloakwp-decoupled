@@ -166,6 +166,8 @@ class CloakWP extends Admin
     $imageId = intval($imageId); // coerces strings into integers if they start with numeric data
 
     $result = [];
+
+    // IMPORTANT: the array of sizes must be ordered from smallest to largest in order for exclusion logic further below to work properly: 
     $sizes = apply_filters('cloakwp/image_format/sizes', ['medium', 'large', 'full'], $imageId);
     
     foreach ($sizes as $size) {
@@ -187,11 +189,40 @@ class CloakWP extends Admin
       }
     }
 
-    $alt_desc = get_post_meta($imageId, '_wp_attachment_image_alt', true);
-    $result['alt'] = $alt_desc;
+    // Now we remove larger sizes if they have the same width as a previous size (i.e. the original uploaded image was small, so it's unnecassary to include larger versions if the size doesn't actually change):
+    $previousWidth = null;
+    $keepSizes = [];
 
-    return $result;
+    foreach ($sizes as $size) {
+      if (isset($result[$size]) && $result[$size]) {
+        if ($previousWidth === null) {
+          $previousWidth = $result[$size]['width'];
+          $keepSizes[] = $size;
+        } else {
+          if ($result[$size]['width'] === $previousWidth) {
+            // Stop processing further sizes
+            break;
+          } else {
+            $previousWidth = $result[$size]['width'];
+            $keepSizes[] = $size;
+          }
+        }
+      }
+    }
+
+    // Keep only the sizes that passed the width check
+    $filteredResult = [];
+    foreach ($keepSizes as $size) {
+      $filteredResult[$size] = $result[$size];
+    }
+
+    $alt_desc = get_post_meta($imageId, '_wp_attachment_image_alt', true);
+    $filteredResult['alt'] = $alt_desc;
+
+    return $filteredResult;
   }
+
+
   public function formatAcfImages(): static {
     add_filter('acf/format_value/type=image', function($value, $post_id, $field) {
       return $this->getFormattedImage($value);
@@ -227,7 +258,7 @@ class CloakWP extends Admin
           ->value(fn ($post) => Utils::get_post_pathname(is_array($post) ? $post['id'] : $post->ID))
       ]);
 
-      // add `featured_image` and `taxonomies` virtual fields to all CPTs + public built-in post types:
+      // add some virtual fields to all CPTs + public built-in post types:
       register_virtual_fields($allPostTypes, [
         VirtualField::make('featured_image')
           ->value(function ($post) {
