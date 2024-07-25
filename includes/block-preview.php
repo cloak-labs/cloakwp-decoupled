@@ -150,11 +150,10 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
 
         // Check if the block is within a parent block with "is-style-dark" class, so we can tell the iframe to render in dark mode:
         if (!isPageDark && wpBlockAncestor) {
-          const parent = wpBlockAncestor.parentNode;
-          if (parent.classList.contains('wp-block') && (parent.classList.contains('is-style-dark') || parent.classList.contains('dark'))) {
+          const isBlockNodeDark = (node) => node.classList.contains('wp-block') && (node.classList.contains('is-style-dark') || node.classList.contains('dark'))
+          if (isBlockNodeDark(wpBlockAncestor) || isBlockNodeDark(wpBlockAncestor.parentNode)) {
             bodyClassNames.push('dark');
             bodyClassNames.push('dark:darker');
-            // bodyClassName = { bodyClassName: 'dark dark:darker' }
           }
         }
 
