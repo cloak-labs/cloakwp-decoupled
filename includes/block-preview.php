@@ -145,16 +145,32 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
 
         const sendDataToIframe = (data) => iframe.contentWindow.postMessage(JSON.stringify(data), "*");
 
-        // Find the closest ancestor with class "wp-block"
-        const wpBlockAncestor = iframe.closest('.wp-block');
-
         // Check if the block is within a parent block with "is-style-dark" class, so we can tell the iframe to render in dark mode:
-        if (!isPageDark && wpBlockAncestor) {
-          const isBlockNodeDark = (node) => node.classList.contains('wp-block') && (node.classList.contains('is-style-dark') || node.classList.contains('dark'))
-          if (isBlockNodeDark(wpBlockAncestor) || isBlockNodeDark(wpBlockAncestor.parentNode)) {
-            bodyClassNames.push('dark');
-            bodyClassNames.push('dark:darker');
+        if (!isPageDark) {
+          // Find the closest ancestor with class "wp-block"
+          let wpBlockAncestor = iframe.closest('.wp-block');
+
+          // loop over block ancestors to check for dark mode:
+          while (wpBlockAncestor && !wpBlockAncestor.classList.contains('is-root-container')) {
+            if (wpBlockAncestor.classList.contains('wp-block')) {
+              // Check if the ancestor block has "is-style-dark" or "dark" class
+              const c = wpBlockAncestor.classList;
+              if (c.contains('is-style-dark') || c.contains('dark')) {
+                bodyClassNames.push('dark');
+                bodyClassNames.push('dark:darker');
+                break; // Exit the loop if a dark block is found
+              }
+            }
+            wpBlockAncestor = wpBlockAncestor.parentNode;
           }
+        }
+
+        const sendAllInfo = () => {
+          sendDataToIframe(blockData);
+          if (bodyClassNames?.length) {
+            console.log('Sending bodyClassNames to frontend: ', bodyClassNames)
+            sendDataToIframe({ bodyClassName: bodyClassNames.join(' ') })
+          };
         }
 
         // Check if the message is from the <iframe> element
@@ -162,8 +178,7 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
           if (event.source === iframe.contentWindow) {
             if (event.data == "ready") {
               // we wait until iframe tells us it's ready before sending it the blockData
-              sendDataToIframe(blockData);
-              if (bodyClassNames) sendDataToIframe({ bodyClassName: bodyClassNames.join(' ') });
+              sendAllInfo();
             } else {
               // Set the height of the <iframe> element to the content height
               const height = parseInt(event.data) + 1 + "px"; // add 1 pixel to be sure we don't cut anything off
@@ -174,7 +189,7 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
         });
 
         // this is for subsequent re-renders (we don't wait for the "ready" message from front-end)
-        sendDataToIframe(blockData);
+        sendAllInfo();
       })();
     </script>
   </div>
