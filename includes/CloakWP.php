@@ -672,12 +672,6 @@ class CloakWP extends Admin
   {
     add_action('init', function () {
       add_theme_support( 'menus' );
-      // TODO: delete below comment when above is confirmed to work the same way
-      // register_nav_menus(
-      //   array(
-      //     'nav' => __(''), // this creates a menu location that doesn't serve a purpose other than to get the "Menus" page to become visible in wp-admin
-      //   )
-      // );
     });
     return $this;
   }
