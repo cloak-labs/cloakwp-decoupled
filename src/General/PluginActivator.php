@@ -9,7 +9,7 @@ namespace CloakWP\General;
  * @since      0.6.0
  *
  * @package    CloakWP
- * @subpackage CloakWP/includes
+ * @subpackage CloakWP/src
  */
 
 /**
@@ -19,20 +19,22 @@ namespace CloakWP\General;
  *
  * @since      0.6.0
  * @package    CloakWP
- * @subpackage CloakWP/includes
+ * @subpackage CloakWP/src
  * @author     Cloak Labs 
  */
-class PluginActivator {
+class PluginActivator
+{
 
-	/**
-	 * Short Description. (use period)
-	 *
-	 * Long Description.
-	 *
-	 * @since    0.6.0
-	 */
-	public static function activate() {
+  /**
+   * Short Description. (use period)
+   *
+   * Long Description.
+   *
+   * @since    0.6.0
+   */
+  public static function activate()
+  {
 
-	}
+  }
 
 }

@@ -14,7 +14,7 @@ use pQuery;
  * @since      0.7.0
  *
  * @package    CloakWP
- * @subpackage CloakWP/includes
+ * @subpackage CloakWP/src
  */
 
 /**
@@ -24,7 +24,7 @@ use pQuery;
  *
  * @since      0.7.0
  * @package    CloakWP
- * @subpackage CloakWP/includes
+ * @subpackage CloakWP/src
  * @author     Cloak Labs 
  */
 
