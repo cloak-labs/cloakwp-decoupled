@@ -1,8 +1,8 @@
 <?php return array(
     'root' => array(
         'name' => 'cloak-labs/cloakwp-plugin',
-        'pretty_version' => '1.1.19',
-        'version' => '1.1.19.0',
+        'pretty_version' => '1.1.20',
+        'version' => '1.1.20.0',
         'reference' => NULL,
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
@@ -11,8 +11,8 @@
     ),
     'versions' => array(
         'cloak-labs/cloakwp-plugin' => array(
-            'pretty_version' => '1.1.19',
-            'version' => '1.1.19.0',
+            'pretty_version' => '1.1.20',
+            'version' => '1.1.20.0',
             'reference' => NULL,
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',

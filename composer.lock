@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bbad142f799c651f3c4e229bde02435e",
+    "content-hash": "570b97a55352692350ce2bf61f071802",
     "packages": [
         {
             "name": "cloak-labs/wp-virtual-fields",
