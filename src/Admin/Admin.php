@@ -2,7 +2,7 @@
 
 namespace CloakWP\Admin;
 
-// use CloakWP\CloakWP;
+// use CloakWP\DecoupledAdmin;
 // use CloakWP\Utils;
 
 use CloakWP\Admin\Enqueue\Script;

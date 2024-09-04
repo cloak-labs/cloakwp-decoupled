@@ -5,7 +5,7 @@ namespace CloakWP;
 use Exception;
 use WP_Post;
 
-class Frontend
+class DecoupledFrontend
 {
   protected string $key;
   protected string $url;

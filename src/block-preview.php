@@ -22,7 +22,7 @@ if (!$is_preview) {
 }
 
 use CloakWP\API\BlockTransformer;
-use CloakWP\CloakWP;
+use CloakWP\DecoupledAdmin;
 use CloakWP\Utils;
 
 /* 
@@ -102,8 +102,8 @@ elseif (isset($block['data']) && !empty($block['data'])): // handle regular Gute
   $json = json_encode($blockData ?? null);
   $postPathname = Utils::get_post_pathname($post_id);
 
-  $CloakWP = CloakWP::getInstance();
-  $frontend = $CloakWP->getActiveFrontend();
+  $admin = DecoupledAdmin::getInstance();
+  $frontend = $admin->getActiveFrontend();
   $frontendUrl = $frontend->getUrl();
   $settings = $frontend->getSettings();
   $iframeUrl = "$frontendUrl/{$settings['blockPreviewPath']}?secret={$settings['authSecret']}&pathname=$postPathname";

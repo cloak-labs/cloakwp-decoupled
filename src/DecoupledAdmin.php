@@ -18,7 +18,7 @@ use WP_Block_Type_Registry;
 use WP_Error;
 use WP_REST_Response;
 
-class CloakWP extends Admin
+class DecoupledAdmin extends Admin
 {
   /**
    * Stores the CloakWP Singleton instance.
@@ -31,7 +31,7 @@ class CloakWP extends Admin
   private BlockTransformer $blockTransformer;
 
   /**
-   * Stores one or more decoupled Frontend instances, defined by plugin user.
+   * Stores one or more DecoupledFrontend instances, defined by plugin user.
    */
   protected array $frontends = [];
 
@@ -453,7 +453,7 @@ class CloakWP extends Admin
     add_filter('cloakwp/eloquent/model/menu_item/formatted_meta', function($meta) {
       if ($meta['link_type'] != 'custom') {
         $url = $meta['url'];
-        $frontendUrl = CloakWP::getInstance()->getActiveFrontend()->getUrl();
+        $frontendUrl = DecoupledAdmin::getInstance()->getActiveFrontend()->getUrl();
         $url = str_replace($frontendUrl, "", $url);
         $meta['url'] = untrailingslashit($url);
       }
@@ -1042,7 +1042,7 @@ class CloakWP extends Admin
   }
 
   /**
-   * Retrieve a specific Frontend class instance via key (you provided the keys in Frontend::make(...)).
+   * Retrieve a specific Frontend class instance via key (you provided the keys in DecoupledFrontend::make(...)).
    */
   public function getFrontend(string $key)
   {
@@ -1064,7 +1064,7 @@ class CloakWP extends Admin
   {
     // TODO: in future, need to build a "frontend switcher" as described above, and return the currently selected frontend here
     if (!empty($this->frontends)) return $this->frontends[0];
-    return Frontend::make('wp', get_site_url());
+    return DecoupledFrontend::make('wp', get_site_url());
     // return null;
   }
 

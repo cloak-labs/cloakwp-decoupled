@@ -5,7 +5,7 @@ namespace CloakWP\ACF\Fields;
 use CloakWP\Utils;
 use Extended\ACF\Fields\RadioButton;
 
-// Note: this field requires custom CSS which CloakWP::injectThemeColorPickerCss() handles by dynamically generating and inlining CSS into wp-admin <head>
+// Note: this field requires custom CSS which DecoupledAdmin::injectThemeColorPickerCss() handles by dynamically generating and inlining CSS into wp-admin <head>
 class ThemeColorPicker extends RadioButton
 {
   // we override inherited `make` in order to set default colors when include() isn't called/specified

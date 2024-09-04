@@ -25,7 +25,7 @@
  * Domain Path:       /languages
  */
 
-use CloakWP\CloakWP;
+use CloakWP\DecoupledAdmin;
 use CloakWP\General\PluginActivator;
 use CloakWP\General\PluginDeactivator;
 
@@ -70,4 +70,4 @@ register_deactivation_hook(__FILE__, 'deactivate_cloakwp');
 /**
  * Begin execution of the plugin:
  */
-CloakWP::getInstance(); // creates CloakWP singleton instance, if it hasn't already been created.
+DecoupledAdmin::getInstance(); // creates CloakWP singleton instance, if it hasn't already been created.
