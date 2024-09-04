@@ -7,6 +7,7 @@ use CloakWP\Admin\Enqueue\Stylesheet;
 use CloakWP\Eloquent\Model\Attachment;
 use CloakWP\VirtualFields\VirtualField;
 use CloakWP\Utils;
+use CloakWP\HookModifiers;
 
 use CloakWP\API\BlockTransformer;
 use CloakWP\API\FrontpageEndpoint;
@@ -71,8 +72,23 @@ class DecoupledAdmin extends Admin
 
     // Set up BlockTransformer and its filters
     $this->blockTransformer = new BlockTransformer(true);
-    Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/response_format', array('name', 'type'));
-    Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/acf_response_format', array('name', 'type', 'blockName'), 2);
+
+    // TODO: maybe move the `cloakwp/rest/blocks` hook modifiers below into the Blocks class (when separated into its own package)
+    HookModifiers::make(['name', 'type'])
+      ->forFilter('cloakwp/rest/blocks/response_format')
+      ->register();
+
+    HookModifiers::make(['name', 'type', 'blockName'])
+      ->forFilter('cloakwp/rest/blocks/acf_response_format')
+      ->modifiersArgPosition(2)
+      ->register();
+
+    // TODO: test this
+    HookModifiers::make(['post_type'])
+      ->forFilter('cloakwp/eloquent/posts')
+      ->register();
+    // Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/response_format', array('name', 'type'));
+    // Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/acf_response_format', array('name', 'type', 'blockName'), 2);
     
     // Register CloakWP custom REST API endpoints:
     MenusEndpoint::register();
@@ -248,7 +264,7 @@ class DecoupledAdmin extends Admin
   }
 
   public function formatAttachments(): static {
-    add_filter('cloakwp/eloquent/attachments', function($attachments) {
+    add_filter('cloakwp/eloquent/posts/post_type=attachment', function($attachments) {
       $formatted = [];
       foreach($attachments as $attachment) {
         $formatted[] = $this->getFormattedImage($attachment['ID']);
@@ -444,8 +460,8 @@ class DecoupledAdmin extends Admin
         $site_name_node->href = $url;
   
         // Update Nodes
-        $wp_admin_bar->add_node($view_site_node);
-        $wp_admin_bar->add_node($site_name_node);
+        $wp_admin_bar->add_node((array)$view_site_node);
+        $wp_admin_bar->add_node((array)$site_name_node);
       }
     }, 80);
 
