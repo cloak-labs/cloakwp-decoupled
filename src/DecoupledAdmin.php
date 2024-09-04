@@ -522,7 +522,7 @@ class DecoupledAdmin extends Admin
     <table class="form-table" role="presentation">
       <tbody>
         <?php
-        $this->renderConfigRow('URL', $frontend->getUrl());
+        $this->renderConfigRow('Decoupled Frontend URL', $frontend->getUrl());
         $this->renderConfigRow('Auth Secret', $settings['authSecret']);
         $this->renderConfigRow('API Base Path', $settings['apiBasePath']);
         $this->renderConfigRow('API Router Base Path', $settings['apiRouterBasePath']);
@@ -1060,7 +1060,7 @@ class DecoupledAdmin extends Admin
    * and this method will return that currently active frontend. All wp-admin links referencing 
    * the frontend will point to the "active" frontend's URL.
    */
-  public function getActiveFrontend(): Frontend | null
+  public function getActiveFrontend(): DecoupledFrontend | null
   {
     // TODO: in future, need to build a "frontend switcher" as described above, and return the currently selected frontend here
     if (!empty($this->frontends)) return $this->frontends[0];
