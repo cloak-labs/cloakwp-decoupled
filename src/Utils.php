@@ -314,65 +314,6 @@ class Utils
   }
 
   /**
-   * add_hook_variations
-   *    --> adapted from ACF's acf_add_filter_variations() + acf_add_action_variations() + _acf_apply_hook_variations()
-   *
-   * Registers variations for the given filter/action.
-   *
-   * @param   string $type The hook type, either 'filter' or 'action'
-   * @param   string $hook The filter/action name.
-   * @param   array  $variations An array of variation keys.
-   * @param   int    $index The param index to find variation values.
-   * @return  void
-   */
-  public static function add_hook_variations($type = 'filter', $hook = '', $variations = array(), $index = 0)
-  {
-    $apply_hook_variations = function () use ($type, $variations, $index) {
-      // Get current hook name
-      $hook_name = current_filter();
-
-      // Get args provided to current hook
-      $args = func_get_args();
-
-      // Find field in args using index.
-      $field = $args[$index];
-
-      // Loop over variations and apply filters.
-      foreach ($variations as $variation) {
-
-        // Get value from field.
-        // First look for "backup" value ("_name", "_key").
-        if (isset($field["_$variation"])) {
-          $value = $field["_$variation"];
-        } elseif (isset($field[$variation])) {
-          $value = $field[$variation];
-        } else {
-          continue;
-        }
-
-        // Apply filter variations
-        if ($type === 'filter') {
-          $args[0] = apply_filters_ref_array("$hook_name/$variation=$value", $args);
-        } else {
-          // Or do action variations
-          do_action_ref_array("$hook_name/$variation=$value", $args);
-        }
-      }
-
-      // Return first arg.
-      return $args[0];
-    };
-
-    // Hook our filter/action variations onto the parent hook
-    // Use a priotiry of 10, and accepted args of 10 (ignored by WP).
-    if ($type === 'filter') {
-      add_filter($hook, $apply_hook_variations, 10, 10);
-    } else {
-      add_action($hook, $apply_hook_variations, 10, 10);
-    }
-  }
-
-  /**
    * A function that deeply copies Objects (class instances) and Arrays
    */
   public static function deep_copy($var)

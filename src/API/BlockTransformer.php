@@ -38,9 +38,6 @@ class BlockTransformer
   public function __construct(bool $useDefaultAcfFormatting = false)
   {
     $this->useDefaultAcfFormatting = $useDefaultAcfFormatting;
-
-    // Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/response_format', array('name', 'type'));
-    // Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/acf_response_format', array('name', 'type', 'blockName'), 2);
   }
 
   /**

@@ -83,12 +83,9 @@ class DecoupledAdmin extends Admin
       ->modifiersArgPosition(2)
       ->register();
 
-    // TODO: test this
     HookModifiers::make(['post_type'])
       ->forFilter('cloakwp/eloquent/posts')
       ->register();
-    // Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/response_format', array('name', 'type'));
-    // Utils::add_hook_variations('filter', 'cloakwp/rest/blocks/acf_response_format', array('name', 'type', 'blockName'), 2);
     
     // Register CloakWP custom REST API endpoints:
     MenusEndpoint::register();
