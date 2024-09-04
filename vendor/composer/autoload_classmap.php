@@ -29,6 +29,7 @@ return array(
     'CloakWP\\DecoupledFrontend' => $baseDir . '/src/DecoupledFrontend.php',
     'CloakWP\\General\\PluginActivator' => $baseDir . '/src/General/PluginActivator.php',
     'CloakWP\\General\\PluginDeactivator' => $baseDir . '/src/General/PluginDeactivator.php',
+    'CloakWP\\HookModifiers' => $vendorDir . '/cloak-labs/wp-hook-modifiers/src/HookModifiers.php',
     'CloakWP\\Utils' => $baseDir . '/src/Utils.php',
     'CloakWP\\VirtualFields\\VirtualField' => $vendorDir . '/cloak-labs/wp-virtual-fields/src/VirtualField.php',
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',

@@ -21,5 +21,5 @@ return array(
     'DeepCopy\\' => array($vendorDir . '/myclabs/deep-copy/src/DeepCopy'),
     'Composer\\Installers\\' => array($vendorDir . '/composer/installers/src/Composer/Installers'),
     'CloakWP\\VirtualFields\\' => array($vendorDir . '/cloak-labs/wp-virtual-fields/src'),
-    'CloakWP\\' => array($baseDir . '/src'),
+    'CloakWP\\' => array($baseDir . '/src', $vendorDir . '/cloak-labs/wp-hook-modifiers/src'),
 );

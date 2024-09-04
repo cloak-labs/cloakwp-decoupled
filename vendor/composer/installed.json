@@ -1,6 +1,44 @@
 {
     "packages": [
         {
+            "name": "cloak-labs/wp-hook-modifiers",
+            "version": "0.0.1",
+            "version_normalized": "0.0.1.0",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-hook-modifiers.git",
+                "reference": "33c8c6312fe1023c990fe812a3c3090ce05035d0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-hook-modifiers/zipball/33c8c6312fe1023c990fe812a3c3090ce05035d0",
+                "reference": "33c8c6312fe1023c990fe812a3c3090ce05035d0",
+                "shasum": ""
+            },
+            "require": {
+                "composer/installers": "^2.2",
+                "php": ">=7.4"
+            },
+            "time": "2024-09-04T23:12:43+00:00",
+            "type": "library",
+            "installation-source": "dist",
+            "autoload": {
+                "psr-4": {
+                    "CloakWP\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "LGPL-3.0-only"
+            ],
+            "description": "A package to create WordPress hook modifiers for more granular filtering and actions",
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-hook-modifiers/issues",
+                "source": "https://github.com/cloak-labs/wp-hook-modifiers/tree/v0.0.1"
+            },
+            "install-path": "../cloak-labs/wp-hook-modifiers"
+        },
+        {
             "name": "cloak-labs/wp-virtual-fields",
             "version": "0.0.2",
             "version_normalized": "0.0.2.0",

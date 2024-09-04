@@ -112,6 +112,7 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'CloakWP\\' => 
         array (
             0 => __DIR__ . '/../..' . '/src',
+            1 => __DIR__ . '/..' . '/cloak-labs/wp-hook-modifiers/src',
         ),
     );
 
@@ -139,6 +140,7 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         'CloakWP\\DecoupledFrontend' => __DIR__ . '/../..' . '/src/DecoupledFrontend.php',
         'CloakWP\\General\\PluginActivator' => __DIR__ . '/../..' . '/src/General/PluginActivator.php',
         'CloakWP\\General\\PluginDeactivator' => __DIR__ . '/../..' . '/src/General/PluginDeactivator.php',
+        'CloakWP\\HookModifiers' => __DIR__ . '/..' . '/cloak-labs/wp-hook-modifiers/src/HookModifiers.php',
         'CloakWP\\Utils' => __DIR__ . '/../..' . '/src/Utils.php',
         'CloakWP\\VirtualFields\\VirtualField' => __DIR__ . '/..' . '/cloak-labs/wp-virtual-fields/src/VirtualField.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',

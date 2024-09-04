@@ -1,8 +1,8 @@
 <?php return array(
     'root' => array(
         'name' => 'cloak-labs/cloakwp-plugin',
-        'pretty_version' => '1.1.20',
-        'version' => '1.1.20.0',
+        'pretty_version' => '1.1.21',
+        'version' => '1.1.21.0',
         'reference' => NULL,
         'type' => 'wordpress-plugin',
         'install_path' => __DIR__ . '/../../',
@@ -11,11 +11,20 @@
     ),
     'versions' => array(
         'cloak-labs/cloakwp-plugin' => array(
-            'pretty_version' => '1.1.20',
-            'version' => '1.1.20.0',
+            'pretty_version' => '1.1.21',
+            'version' => '1.1.21.0',
             'reference' => NULL,
             'type' => 'wordpress-plugin',
             'install_path' => __DIR__ . '/../../',
+            'aliases' => array(),
+            'dev_requirement' => false,
+        ),
+        'cloak-labs/wp-hook-modifiers' => array(
+            'pretty_version' => '0.0.1',
+            'version' => '0.0.1.0',
+            'reference' => '33c8c6312fe1023c990fe812a3c3090ce05035d0',
+            'type' => 'library',
+            'install_path' => __DIR__ . '/../cloak-labs/wp-hook-modifiers',
             'aliases' => array(),
             'dev_requirement' => false,
         ),
