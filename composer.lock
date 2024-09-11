@@ -4,21 +4,71 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "7f7ccce6f06205563c51745be86caf6a",
+    "content-hash": "aa5e62f48cef341fc61e444e6fea6b4b",
     "packages": [
         {
-            "name": "cloak-labs/wp-hook-modifiers",
+            "name": "cloakwp/block-parser",
             "version": "0.0.1",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/cloak-labs/wp-hook-modifiers.git",
-                "reference": "33c8c6312fe1023c990fe812a3c3090ce05035d0"
-            },
             "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/cloak-labs/wp-hook-modifiers/zipball/33c8c6312fe1023c990fe812a3c3090ce05035d0",
-                "reference": "33c8c6312fe1023c990fe812a3c3090ce05035d0",
-                "shasum": ""
+                "type": "path",
+                "url": "../cloakwp-block-parser",
+                "reference": "6f0292a60d7ed9b147effd6073f5de4e266128a0"
+            },
+            "require": {
+                "cloakwp/hook-modifiers": "*",
+                "composer/installers": "^2.2",
+                "franzl/studio": "*",
+                "php": ">=7.4",
+                "tburry/pquery": "^1.1"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "CloakWP\\BlockParser\\": "src/"
+                }
+            },
+            "license": [
+                "LGPL-3.0-only"
+            ],
+            "description": "Parse Gutenberg + ACF Blocks into structured objects.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "cloakwp/core",
+            "version": "0.0.1",
+            "dist": {
+                "type": "path",
+                "url": "../cloakwp-core",
+                "reference": "6dfdb110e42bd28c505ffab2f6cc3cc01ddc9f2a"
+            },
+            "require": {
+                "composer/installers": "^2.2",
+                "myclabs/deep-copy": "^1.11",
+                "snicco/better-wp-api": "^1.9"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "CloakWP\\Core\\": "src"
+                }
+            },
+            "license": [
+                "LGPL-3.0-only"
+            ],
+            "description": "A set of OOP abstractions around WordPress core to improve developer experience.",
+            "transport-options": {
+                "relative": true
+            }
+        },
+        {
+            "name": "cloakwp/hook-modifiers",
+            "version": "0.0.3",
+            "dist": {
+                "type": "path",
+                "url": "../wp-hook-modifiers",
+                "reference": "2cd38a79eef0aa3b72ab87b863be8efa1b998fa1"
             },
             "require": {
                 "composer/installers": "^2.2",
@@ -30,53 +80,42 @@
                     "CloakWP\\": "src/"
                 }
             },
-            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
-            "description": "A package to create WordPress hook modifiers for more granular filtering and actions",
-            "support": {
-                "issues": "https://github.com/cloak-labs/wp-hook-modifiers/issues",
-                "source": "https://github.com/cloak-labs/wp-hook-modifiers/tree/v0.0.1"
-            },
-            "time": "2024-09-04T23:12:43+00:00"
+            "description": "Extend WordPress hooks with modifiers for more granular filters and actions",
+            "transport-options": {
+                "relative": true
+            }
         },
         {
-            "name": "cloak-labs/wp-virtual-fields",
-            "version": "0.0.2",
-            "source": {
-                "type": "git",
-                "url": "https://github.com/cloak-labs/wp-virtual-fields.git",
-                "reference": "c5196bb6339bcc6765ebb575d276e45d955b4cbb"
-            },
+            "name": "cloakwp/virtual-fields",
+            "version": "0.0.3",
             "dist": {
-                "type": "zip",
-                "url": "https://api.github.com/repos/cloak-labs/wp-virtual-fields/zipball/c5196bb6339bcc6765ebb575d276e45d955b4cbb",
-                "reference": "c5196bb6339bcc6765ebb575d276e45d955b4cbb",
-                "shasum": ""
+                "type": "path",
+                "url": "../wp-virtual-fields",
+                "reference": "6a54101f576dbfa3ae0ed9117eed8bc841d9d1d8"
             },
             "require": {
+                "cloakwp/core": "^0.0.1",
                 "composer/installers": "^2.2"
             },
             "type": "library",
             "autoload": {
-                "files": [
-                    "src/register.php"
-                ],
                 "psr-4": {
                     "CloakWP\\VirtualFields\\": "src"
-                }
+                },
+                "files": [
+                    "src/register.php"
+                ]
             },
-            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Simple API for creating virtual fields on WordPress posts.",
-            "support": {
-                "issues": "https://github.com/cloak-labs/wp-virtual-fields/issues",
-                "source": "https://github.com/cloak-labs/wp-virtual-fields/tree/v0.0.2"
-            },
-            "time": "2024-07-12T22:05:30+00:00"
+            "transport-options": {
+                "relative": true
+            }
         },
         {
             "name": "composer/installers",
@@ -740,20 +779,20 @@
         },
         {
             "name": "symfony/polyfill-ctype",
-            "version": "v1.30.0",
+            "version": "v1.31.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/polyfill-ctype.git",
-                "reference": "0424dff1c58f028c451efff2045f5d92410bd540"
+                "reference": "a3cc8b044a6ea513310cbd48ef7333b384945638"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/polyfill-ctype/zipball/0424dff1c58f028c451efff2045f5d92410bd540",
-                "reference": "0424dff1c58f028c451efff2045f5d92410bd540",
+                "url": "https://api.github.com/repos/symfony/polyfill-ctype/zipball/a3cc8b044a6ea513310cbd48ef7333b384945638",
+                "reference": "a3cc8b044a6ea513310cbd48ef7333b384945638",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.1"
+                "php": ">=7.2"
             },
             "provide": {
                 "ext-ctype": "*"
@@ -799,7 +838,7 @@
                 "portable"
             ],
             "support": {
-                "source": "https://github.com/symfony/polyfill-ctype/tree/v1.30.0"
+                "source": "https://github.com/symfony/polyfill-ctype/tree/v1.31.0"
             },
             "funding": [
                 {
@@ -815,24 +854,24 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-05-31T15:07:36+00:00"
+            "time": "2024-09-09T11:45:10+00:00"
         },
         {
             "name": "symfony/polyfill-intl-grapheme",
-            "version": "v1.30.0",
+            "version": "v1.31.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/polyfill-intl-grapheme.git",
-                "reference": "64647a7c30b2283f5d49b874d84a18fc22054b7a"
+                "reference": "b9123926e3b7bc2f98c02ad54f6a4b02b91a8abe"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/polyfill-intl-grapheme/zipball/64647a7c30b2283f5d49b874d84a18fc22054b7a",
-                "reference": "64647a7c30b2283f5d49b874d84a18fc22054b7a",
+                "url": "https://api.github.com/repos/symfony/polyfill-intl-grapheme/zipball/b9123926e3b7bc2f98c02ad54f6a4b02b91a8abe",
+                "reference": "b9123926e3b7bc2f98c02ad54f6a4b02b91a8abe",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.1"
+                "php": ">=7.2"
             },
             "suggest": {
                 "ext-intl": "For best performance"
@@ -877,7 +916,7 @@
                 "shim"
             ],
             "support": {
-                "source": "https://github.com/symfony/polyfill-intl-grapheme/tree/v1.30.0"
+                "source": "https://github.com/symfony/polyfill-intl-grapheme/tree/v1.31.0"
             },
             "funding": [
                 {
@@ -893,24 +932,24 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-05-31T15:07:36+00:00"
+            "time": "2024-09-09T11:45:10+00:00"
         },
         {
             "name": "symfony/polyfill-intl-normalizer",
-            "version": "v1.30.0",
+            "version": "v1.31.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/polyfill-intl-normalizer.git",
-                "reference": "a95281b0be0d9ab48050ebd988b967875cdb9fdb"
+                "reference": "3833d7255cc303546435cb650316bff708a1c75c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/a95281b0be0d9ab48050ebd988b967875cdb9fdb",
-                "reference": "a95281b0be0d9ab48050ebd988b967875cdb9fdb",
+                "url": "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/3833d7255cc303546435cb650316bff708a1c75c",
+                "reference": "3833d7255cc303546435cb650316bff708a1c75c",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.1"
+                "php": ">=7.2"
             },
             "suggest": {
                 "ext-intl": "For best performance"
@@ -958,7 +997,7 @@
                 "shim"
             ],
             "support": {
-                "source": "https://github.com/symfony/polyfill-intl-normalizer/tree/v1.30.0"
+                "source": "https://github.com/symfony/polyfill-intl-normalizer/tree/v1.31.0"
             },
             "funding": [
                 {
@@ -974,24 +1013,24 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-05-31T15:07:36+00:00"
+            "time": "2024-09-09T11:45:10+00:00"
         },
         {
             "name": "symfony/polyfill-mbstring",
-            "version": "v1.30.0",
+            "version": "v1.31.0",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/polyfill-mbstring.git",
-                "reference": "fd22ab50000ef01661e2a31d850ebaa297f8e03c"
+                "reference": "85181ba99b2345b0ef10ce42ecac37612d9fd341"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/polyfill-mbstring/zipball/fd22ab50000ef01661e2a31d850ebaa297f8e03c",
-                "reference": "fd22ab50000ef01661e2a31d850ebaa297f8e03c",
+                "url": "https://api.github.com/repos/symfony/polyfill-mbstring/zipball/85181ba99b2345b0ef10ce42ecac37612d9fd341",
+                "reference": "85181ba99b2345b0ef10ce42ecac37612d9fd341",
                 "shasum": ""
             },
             "require": {
-                "php": ">=7.1"
+                "php": ">=7.2"
             },
             "provide": {
                 "ext-mbstring": "*"
@@ -1038,7 +1077,7 @@
                 "shim"
             ],
             "support": {
-                "source": "https://github.com/symfony/polyfill-mbstring/tree/v1.30.0"
+                "source": "https://github.com/symfony/polyfill-mbstring/tree/v1.31.0"
             },
             "funding": [
                 {
@@ -1054,7 +1093,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-06-19T12:30:46+00:00"
+            "time": "2024-09-09T11:45:10+00:00"
         },
         {
             "name": "symfony/process",

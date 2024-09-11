@@ -1,17 +1,18 @@
 {
-  "name": "cloak-labs/cloakwp-plugin",
+  "name": "cloakwp/decoupled",
   "description": "Transform WordPress into a headless CMS.",
   "type": "wordpress-plugin",
   "version": "1.1.22",
   "license": "LGPL-3.0-only",
   "require": {
-    "cloak-labs/wp-hook-modifiers": "^0.0.1",
-    "cloak-labs/wp-virtual-fields": "^0.0.2",
+    "cloakwp/block-parser": "^0.0",
+    "cloakwp/core": "^0.0",
+    "cloakwp/hook-modifiers": "^0.0",
+    "cloakwp/virtual-fields": "^0.0",
     "composer/installers": "^2.2",
+    "franzl/studio": "^0.16",
     "myclabs/deep-copy": "^1.11",
-    "snicco/better-wp-api": "^1.9",
-    "tburry/pquery": "^1.1",
-    "franzl/studio": "*"
+    "snicco/better-wp-api": "^1.9"
   },
   "autoload": {
     "psr-4": {
