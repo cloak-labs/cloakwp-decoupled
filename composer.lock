@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "07363bed1fa6564ccb02edaf7d467496",
+    "content-hash": "8d6369b7f2153453e0fa148786652ddd",
     "packages": [
         {
             "name": "cloakwp/block-parser",
