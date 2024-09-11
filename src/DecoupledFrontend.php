@@ -2,6 +2,7 @@
 
 namespace CloakWP;
 
+use CloakWP\Core\Utils;
 use Exception;
 use WP_Post;
 
