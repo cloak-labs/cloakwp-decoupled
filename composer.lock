@@ -4,15 +4,21 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "aa5e62f48cef341fc61e444e6fea6b4b",
+    "content-hash": "07363bed1fa6564ccb02edaf7d467496",
     "packages": [
         {
             "name": "cloakwp/block-parser",
             "version": "0.0.1",
-            "dist": {
-                "type": "path",
-                "url": "../cloakwp-block-parser",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-block-parser.git",
                 "reference": "6f0292a60d7ed9b147effd6073f5de4e266128a0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-block-parser/zipball/6f0292a60d7ed9b147effd6073f5de4e266128a0",
+                "reference": "6f0292a60d7ed9b147effd6073f5de4e266128a0",
+                "shasum": ""
             },
             "require": {
                 "cloakwp/hook-modifiers": "*",
@@ -27,21 +33,30 @@
                     "CloakWP\\BlockParser\\": "src/"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Parse Gutenberg + ACF Blocks into structured objects.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-block-parser/issues",
+                "source": "https://github.com/cloak-labs/wp-block-parser/tree/v0.0.1"
+            },
+            "time": "2024-09-10T00:07:02+00:00"
         },
         {
             "name": "cloakwp/core",
-            "version": "0.0.1",
+            "version": "0.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/cloakwp-core.git",
+                "reference": "994fcb8c67d528c2218d4a16b8972bb0109b80f7"
+            },
             "dist": {
-                "type": "path",
-                "url": "../cloakwp-core",
-                "reference": "6dfdb110e42bd28c505ffab2f6cc3cc01ddc9f2a"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/cloakwp-core/zipball/994fcb8c67d528c2218d4a16b8972bb0109b80f7",
+                "reference": "994fcb8c67d528c2218d4a16b8972bb0109b80f7",
+                "shasum": ""
             },
             "require": {
                 "composer/installers": "^2.2",
@@ -54,21 +69,30 @@
                     "CloakWP\\Core\\": "src"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "A set of OOP abstractions around WordPress core to improve developer experience.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/cloakwp-core/issues",
+                "source": "https://github.com/cloak-labs/cloakwp-core/tree/v0.0.2"
+            },
+            "time": "2024-09-11T00:15:24+00:00"
         },
         {
             "name": "cloakwp/hook-modifiers",
             "version": "0.0.3",
-            "dist": {
-                "type": "path",
-                "url": "../wp-hook-modifiers",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-hook-modifiers.git",
                 "reference": "2cd38a79eef0aa3b72ab87b863be8efa1b998fa1"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-hook-modifiers/zipball/2cd38a79eef0aa3b72ab87b863be8efa1b998fa1",
+                "reference": "2cd38a79eef0aa3b72ab87b863be8efa1b998fa1",
+                "shasum": ""
             },
             "require": {
                 "composer/installers": "^2.2",
@@ -80,42 +104,54 @@
                     "CloakWP\\": "src/"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Extend WordPress hooks with modifiers for more granular filters and actions",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-hook-modifiers/issues",
+                "source": "https://github.com/cloak-labs/wp-hook-modifiers/tree/v0.0.3"
+            },
+            "time": "2024-09-09T22:57:13+00:00"
         },
         {
             "name": "cloakwp/virtual-fields",
-            "version": "0.0.3",
+            "version": "0.0.4",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-virtual-fields.git",
+                "reference": "72b308bffb0e197ecbff39d48f8bfe4f61d876b8"
+            },
             "dist": {
-                "type": "path",
-                "url": "../wp-virtual-fields",
-                "reference": "6a54101f576dbfa3ae0ed9117eed8bc841d9d1d8"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-virtual-fields/zipball/72b308bffb0e197ecbff39d48f8bfe4f61d876b8",
+                "reference": "72b308bffb0e197ecbff39d48f8bfe4f61d876b8",
+                "shasum": ""
             },
             "require": {
-                "cloakwp/core": "^0.0.1",
+                "cloakwp/core": "^0.0.2",
                 "composer/installers": "^2.2"
             },
             "type": "library",
             "autoload": {
-                "psr-4": {
-                    "CloakWP\\VirtualFields\\": "src"
-                },
                 "files": [
                     "src/register.php"
-                ]
+                ],
+                "psr-4": {
+                    "CloakWP\\VirtualFields\\": "src"
+                }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Simple API for creating virtual fields on WordPress posts.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-virtual-fields/issues",
+                "source": "https://github.com/cloak-labs/wp-virtual-fields/tree/v0.0.4"
+            },
+            "time": "2024-09-11T00:20:51+00:00"
         },
         {
             "name": "composer/installers",

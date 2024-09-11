@@ -20,6 +20,8 @@ return array(
     'Psr\\Container\\' => array($vendorDir . '/psr/container/src'),
     'DeepCopy\\' => array($vendorDir . '/myclabs/deep-copy/src/DeepCopy'),
     'Composer\\Installers\\' => array($vendorDir . '/composer/installers/src/Composer/Installers'),
-    'CloakWP\\VirtualFields\\' => array($vendorDir . '/cloak-labs/wp-virtual-fields/src'),
-    'CloakWP\\' => array($baseDir . '/src', $vendorDir . '/cloak-labs/wp-hook-modifiers/src'),
+    'CloakWP\\VirtualFields\\' => array($vendorDir . '/cloakwp/virtual-fields/src'),
+    'CloakWP\\Core\\' => array($vendorDir . '/cloakwp/core/src'),
+    'CloakWP\\BlockParser\\' => array($vendorDir . '/cloakwp/block-parser/src'),
+    'CloakWP\\' => array($baseDir . '/src', $vendorDir . '/cloakwp/hook-modifiers/src'),
 );

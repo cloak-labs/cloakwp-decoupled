@@ -1,0 +1,30 @@
+{
+  "name": "cloakwp/block-parser",
+  "description": "Parse Gutenberg + ACF Blocks into structured objects.",
+  "type": "library",
+  "version": "0.0.1",
+  "license": "LGPL-3.0-only",
+  "autoload": {
+    "psr-4": {
+      "CloakWP\\BlockParser\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=7.4",
+    "cloakwp/hook-modifiers": "*",
+    "composer/installers": "^2.2",
+    "franzl/studio": "*",
+    "tburry/pquery": "^1.1"
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "allow-plugins": {
+      "composer/installers": true,
+      "franzl/studio": true
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}

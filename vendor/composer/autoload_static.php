@@ -4,7 +4,7 @@
 
 namespace Composer\Autoload;
 
-class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
+class ComposerStaticInit07158a885e5c76381401eeaad18015ec
 {
     public static $files = array (
         '0e6d7bf4a5811bfa5cf40c5ccd6fae6a' => __DIR__ . '/..' . '/symfony/polyfill-mbstring/bootstrap.php',
@@ -13,8 +13,8 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         '8825ede83f2f289127722d4e842cf7e8' => __DIR__ . '/..' . '/symfony/polyfill-intl-grapheme/bootstrap.php',
         'e69f7f6ee287b969198c3c9d6777bd38' => __DIR__ . '/..' . '/symfony/polyfill-intl-normalizer/bootstrap.php',
         'b6b991a57620e2fb6b2f66f03fe9ddc2' => __DIR__ . '/..' . '/symfony/string/Resources/functions.php',
-        '3d52546ced8417744e2d5042a4f2c2ae' => __DIR__ . '/..' . '/cloak-labs/wp-virtual-fields/src/register.php',
         '6124b4c8570aa390c21fafd04a26c69f' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/deep_copy.php',
+        '37c47808e6bf3cdb8350fbc9573976e0' => __DIR__ . '/..' . '/cloakwp/virtual-fields/src/register.php',
     );
 
     public static $prefixLengthsPsr4 = array (
@@ -44,6 +44,8 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         array (
             'Composer\\Installers\\' => 20,
             'CloakWP\\VirtualFields\\' => 22,
+            'CloakWP\\Core\\' => 13,
+            'CloakWP\\BlockParser\\' => 20,
             'CloakWP\\' => 8,
         ),
     );
@@ -107,42 +109,44 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
         ),
         'CloakWP\\VirtualFields\\' => 
         array (
-            0 => __DIR__ . '/..' . '/cloak-labs/wp-virtual-fields/src',
+            0 => __DIR__ . '/..' . '/cloakwp/virtual-fields/src',
+        ),
+        'CloakWP\\Core\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/cloakwp/core/src',
+        ),
+        'CloakWP\\BlockParser\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/cloakwp/block-parser/src',
         ),
         'CloakWP\\' => 
         array (
             0 => __DIR__ . '/../..' . '/src',
-            1 => __DIR__ . '/..' . '/cloak-labs/wp-hook-modifiers/src',
+            1 => __DIR__ . '/..' . '/cloakwp/hook-modifiers/src',
         ),
     );
 
     public static $classMap = array (
-        'CloakWP\\ACF\\Block' => __DIR__ . '/../..' . '/src/ACF/Block.php',
-        'CloakWP\\ACF\\BlockRegistry' => __DIR__ . '/../..' . '/src/ACF/BlockRegistry.php',
-        'CloakWP\\ACF\\FieldGroup' => __DIR__ . '/../..' . '/src/ACF/FieldGroup.php',
-        'CloakWP\\ACF\\Fields\\Alignment' => __DIR__ . '/../..' . '/src/ACF/Fields/Alignment.php',
-        'CloakWP\\ACF\\Fields\\InnerBlocks' => __DIR__ . '/../..' . '/src/ACF/Fields/InnerBlocks.php',
-        'CloakWP\\ACF\\Fields\\MenuSelect' => __DIR__ . '/../..' . '/src/ACF/Fields/MenuSelect.php',
-        'CloakWP\\ACF\\Fields\\PostTypeSelect' => __DIR__ . '/../..' . '/src/ACF/Fields/PostTypeSelect.php',
-        'CloakWP\\ACF\\Fields\\ThemeColorPicker' => __DIR__ . '/../..' . '/src/ACF/Fields/ThemeColorPicker.php',
-        'CloakWP\\ACF\\OptionsPage' => __DIR__ . '/../..' . '/src/ACF/OptionsPage.php',
-        'CloakWP\\API\\BlockTransformer' => __DIR__ . '/../..' . '/src/API/BlockTransformer.php',
         'CloakWP\\API\\FrontpageEndpoint' => __DIR__ . '/../..' . '/src/API/FrontpageEndpoint.php',
         'CloakWP\\API\\MenusEndpoint' => __DIR__ . '/../..' . '/src/API/MenusEndpoint.php',
         'CloakWP\\API\\OptionsEndpoint' => __DIR__ . '/../..' . '/src/API/OptionsEndpoint.php',
-        'CloakWP\\Admin\\Admin' => __DIR__ . '/../..' . '/src/Admin/Admin.php',
-        'CloakWP\\Admin\\Enqueue\\Asset' => __DIR__ . '/../..' . '/src/Admin/Enqueue/Asset.php',
-        'CloakWP\\Admin\\Enqueue\\Script' => __DIR__ . '/../..' . '/src/Admin/Enqueue/Script.php',
-        'CloakWP\\Admin\\Enqueue\\Stylesheet' => __DIR__ . '/../..' . '/src/Admin/Enqueue/Stylesheet.php',
-        'CloakWP\\Content\\MenuLocation' => __DIR__ . '/../..' . '/src/Content/MenuLocation.php',
-        'CloakWP\\Content\\PostType' => __DIR__ . '/../..' . '/src/Content/PostType.php',
-        'CloakWP\\DecoupledAdmin' => __DIR__ . '/../..' . '/src/DecoupledAdmin.php',
+        'CloakWP\\BlockParser\\BlockParser' => __DIR__ . '/..' . '/cloakwp/block-parser/src/BlockParser.php',
+        'CloakWP\\BlockParser\\Helpers\\AttributeParser' => __DIR__ . '/..' . '/cloakwp/block-parser/src/Helpers/AttributeParser.php',
+        'CloakWP\\BlockParser\\Transformers\\ACFBlockTransformer' => __DIR__ . '/..' . '/cloakwp/block-parser/src/Transformers/ACFBlockTransformer.php',
+        'CloakWP\\BlockParser\\Transformers\\AbstractBlockTransformer' => __DIR__ . '/..' . '/cloakwp/block-parser/src/Transformers/AbstractBlockTransformer.php',
+        'CloakWP\\BlockParser\\Transformers\\BlockTransformerInterface' => __DIR__ . '/..' . '/cloakwp/block-parser/src/Transformers/BlockTransformerInterface.php',
+        'CloakWP\\BlockParser\\Transformers\\CoreBlockTransformer' => __DIR__ . '/..' . '/cloakwp/block-parser/src/Transformers/CoreBlockTransformer.php',
+        'CloakWP\\Core\\CMS' => __DIR__ . '/..' . '/cloakwp/core/src/CMS.php',
+        'CloakWP\\Core\\Content\\MenuLocation' => __DIR__ . '/..' . '/cloakwp/core/src/Content/MenuLocation.php',
+        'CloakWP\\Core\\Content\\PostType' => __DIR__ . '/..' . '/cloakwp/core/src/Content/PostType.php',
+        'CloakWP\\Core\\Enqueue\\Asset' => __DIR__ . '/..' . '/cloakwp/core/src/Enqueue/Asset.php',
+        'CloakWP\\Core\\Enqueue\\Script' => __DIR__ . '/..' . '/cloakwp/core/src/Enqueue/Script.php',
+        'CloakWP\\Core\\Enqueue\\Stylesheet' => __DIR__ . '/..' . '/cloakwp/core/src/Enqueue/Stylesheet.php',
+        'CloakWP\\Core\\Utils' => __DIR__ . '/..' . '/cloakwp/core/src/Utils.php',
+        'CloakWP\\DecoupledCMS' => __DIR__ . '/../..' . '/src/DecoupledCMS.php',
         'CloakWP\\DecoupledFrontend' => __DIR__ . '/../..' . '/src/DecoupledFrontend.php',
-        'CloakWP\\General\\PluginActivator' => __DIR__ . '/../..' . '/src/General/PluginActivator.php',
-        'CloakWP\\General\\PluginDeactivator' => __DIR__ . '/../..' . '/src/General/PluginDeactivator.php',
-        'CloakWP\\HookModifiers' => __DIR__ . '/..' . '/cloak-labs/wp-hook-modifiers/src/HookModifiers.php',
-        'CloakWP\\Utils' => __DIR__ . '/../..' . '/src/Utils.php',
-        'CloakWP\\VirtualFields\\VirtualField' => __DIR__ . '/..' . '/cloak-labs/wp-virtual-fields/src/VirtualField.php',
+        'CloakWP\\HookModifiers' => __DIR__ . '/..' . '/cloakwp/hook-modifiers/src/HookModifiers.php',
+        'CloakWP\\VirtualFields\\VirtualField' => __DIR__ . '/..' . '/cloakwp/virtual-fields/src/VirtualField.php',
         'Composer\\InstalledVersions' => __DIR__ . '/..' . '/composer/InstalledVersions.php',
         'Composer\\Installers\\AglInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AglInstaller.php',
         'Composer\\Installers\\AkauntingInstaller' => __DIR__ . '/..' . '/composer/installers/src/Composer/Installers/AkauntingInstaller.php',
@@ -500,9 +504,9 @@ class ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a
     public static function getInitializer(ClassLoader $loader)
     {
         return \Closure::bind(function () use ($loader) {
-            $loader->prefixLengthsPsr4 = ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a::$prefixLengthsPsr4;
-            $loader->prefixDirsPsr4 = ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a::$prefixDirsPsr4;
-            $loader->classMap = ComposerStaticInit74b51a05ba48c4d9c9f46390ff052c9a::$classMap;
+            $loader->prefixLengthsPsr4 = ComposerStaticInit07158a885e5c76381401eeaad18015ec::$prefixLengthsPsr4;
+            $loader->prefixDirsPsr4 = ComposerStaticInit07158a885e5c76381401eeaad18015ec::$prefixDirsPsr4;
+            $loader->classMap = ComposerStaticInit07158a885e5c76381401eeaad18015ec::$classMap;
 
         }, null, ClassLoader::class);
     }

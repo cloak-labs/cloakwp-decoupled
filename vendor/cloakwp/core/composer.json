@@ -1,0 +1,28 @@
+{
+  "name": "cloakwp/core",
+  "description": "A set of OOP abstractions around WordPress core to improve developer experience.",
+  "type": "library",
+  "version": "0.0.2",
+  "license": "LGPL-3.0-only",
+  "require": {
+    "composer/installers": "^2.2",
+    "myclabs/deep-copy": "^1.11",
+    "snicco/better-wp-api": "^1.9"
+  },
+  "autoload": {
+    "psr-4": {
+      "CloakWP\\Core\\": "src"
+    }
+  },
+  "config": {
+    "optimize-autoloader": true,
+    "preferred-install": "dist",
+    "sort-packages": true,
+    "allow-plugins": {
+      "composer/installers": true,
+      "franzl/studio": true
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
