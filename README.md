@@ -1,6 +1,8 @@
-# CloakWP WordPress Plugin
+# CloakWP Decoupled
 
-CloakWP is a suite of open-source tools that makes it incredibly easy and fast to build high-quality headless WordPress websites. Unlike traditional WordPress, you get to build your front-end using the latest and greatest JavaScript frameworks, such as Next.js, and benefit from the vastly better developer experience, productivity, site performance, and ultimately business results for you and/or your clients.
+A PHP/Composer package with everything you need to turn WordPress into a decoupled/headless CMS.
+
+CloakWP is a suite of open-source tools that makes it incredibly easy and fast to build high-quality decoupled/headless WordPress websites. Unlike traditional WordPress, you get to build your front-end using the latest and greatest JavaScript frameworks, such as Next.js, and benefit from the vastly better developer experience, productivity, site performance, and ultimately business results for you and/or your clients.
 
 And unlike most existing headless WordPress solutions, you don't have to sacrifice the benefits of the traditional "coupled" approach, such as the Gutenberg editor, post preview mode, ACF block previews within the editor, the front-end admin toolbar, and more. AND you don't have to maintain all of the underlying headless infrastructure yourself (trust us, it's a lot); we've extracted the infrastructure into a maintainable, version-controlled suite of software tools that you can easily upgrade as we release updates over time. These tools include:
 
