@@ -9,9 +9,7 @@
     "cloakwp/core": "^0.0",
     "cloakwp/hook-modifiers": "^0.0",
     "cloakwp/virtual-fields": "^0.0",
-    "composer/installers": "^2.2",
-    "myclabs/deep-copy": "^1.11",
-    "snicco/better-wp-api": "^1.9"
+    "composer/installers": "^2.2"
   },
   "require-dev": {
     "franzl/studio": "^0.16"
