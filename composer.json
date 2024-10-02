@@ -9,7 +9,8 @@
     "cloakwp/core": "^0.0",
     "cloakwp/hook-modifiers": "^0.0",
     "cloakwp/virtual-fields": "^0.0",
-    "composer/installers": "^2.2"
+    "composer/installers": "^2.2",
+    "usefulteam/jwt-auth": "^3.0"
   },
   "require-dev": {
     "franzl/studio": "^0.16"
@@ -17,6 +18,16 @@
   "autoload": {
     "psr-4": {
       "CloakWP\\": "src"
+    },
+    "classmap": [
+      "vendor/jwt-auth"
+    ]
+  },
+  "extra": {
+    "installer-paths": {
+      "vendor/{$name}/": [
+        "type:wordpress-plugin"
+      ]
     }
   },
   "config": {
