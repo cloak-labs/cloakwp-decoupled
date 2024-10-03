@@ -147,27 +147,6 @@ class DecoupledFrontend
     return $this;
   }
 
-  /** 
-   * When this method is called, we hijack the default WordPress preview system so that 
-   * all preview links initiate and redirect you to preview mode on your decoupled frontend.
-   * If you're using CloakWP.js on your frontend, and you have the CloakWP API Router configured,
-   * this decoupled preview mode should just work.
-   */
-  public function enableDecoupledPreview(): static
-  {
-    // Modify 'preview' links on posts/pages to point to this frontend URL
-    add_filter('preview_post_link', array($this, 'getPostPreviewUrl'), 10);
-
-    /* 
-      Redirect page visits in WP's built-in preview mode to our decoupled frontend preview 
-      page --> this is in addition to our 'preview_post_link' filter above that changes the 
-      preview link (which doesn't work all the time due to known bugs).
-   */
-    add_action('template_redirect', array($this, 'redirectToFrontendPreview'));
-
-    return $this;
-  }
-
   public function getPostPreviewUrl($post)
   {
     $revisionId = '';
@@ -175,25 +154,34 @@ class DecoupledFrontend
 
     if ($post instanceof WP_Post) {
       // $post is a WP_Post object
-      $revisionId = $post->ID; // the ID of the post revision, not the master post
-      $postId = $post->post_parent; // the revision's parent == the post we're previewing
-    } else if (is_string($post)) {
-      // $post is a preview URL string (unknown why it can change -- probably a WP version thing)
-      $query_string = parse_url($post, PHP_URL_QUERY);
-      if ($query_string) {
-        parse_str($query_string, $params);
-        $postId = $params['preview_id'];
+      if ($post->post_parent) {
+        $revisionId = $post->ID; // the ID of the post revision, not the master post
+        $postId = $post->post_parent; // the revision's parent == the post we're previewing
+      } else {
+        $postId = $post->ID;
       }
-      if (!$postId)
-        $postId = get_the_ID();
-      $path = Utils::get_post_pathname($postId);
-      // $revisionId = $post->ID; // the ID of the post revision, not the master post
-    } else {
-      return $post;
     }
+    // else if (is_string($post)) {
+    //   // $post is a preview URL string (unknown why it can change -- probably a WP version thing)
+    //   $query_string = parse_url($post, PHP_URL_QUERY);
+    //   if ($query_string) {
+    //     parse_str($query_string, $params);
+    //     $postId = $params['preview_id'];
+    //   }
+
+    //   if (!$postId) {
+    //     $postId = get_the_ID();
+    //   }
+
+    //   // $revisionId = $post->ID; // the ID of the post revision, not the master post
+    // } else {
+    //   return $post;
+    // }
+
+    $path = Utils::get_post_pathname($postId);
 
     $postType = get_post_type($postId); // the master/parent post's post type --> important for cloakwp to retrieve the correct revision data  
-    return "$this->url/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/preview?revisionId=$revisionId&postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}";
+    return "{$this->getApiRouteUrl()}/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/preview?revisionId=$revisionId&postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}";
   }
 
   public function redirectToFrontendPreview()
@@ -203,7 +191,7 @@ class DecoupledFrontend
       $path = Utils::get_post_pathname($postId);
       // wp_is_post_revision($postId) // todo: check if it's a revision and if not, get the latest revision and include `?revisionId=$revisionId` in url below:
       $postType = get_post_type($postId); // the master/parent post's post type --> important for cloakwp to retrieve the correct revision data  
-      wp_redirect("$this->url/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/preview?postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}");
+      wp_redirect("{$this->getApiRouteUrl()}/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/preview?postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}");
       exit();
     }
   }
@@ -212,6 +200,11 @@ class DecoupledFrontend
   {
     $this->settings['apiRouteUrl'] = is_callable($url) ? $url() : $url;
     return $this;
+  }
+
+  public function getApiRouteUrl()
+  {
+    return $this->settings['apiRouteUrl'] ?? $this->url;
   }
 
   public function getUrl()
