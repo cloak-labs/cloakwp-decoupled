@@ -14,13 +14,27 @@ use CloakWP\API\FrontpageEndpoint;
 use CloakWP\API\MenusEndpoint;
 use CloakWP\API\OptionsEndpoint;
 
+use JWTAuth\Setup as JWTAuth;
+use JWTAuth\Auth;
 use WP_Error;
 use WP_REST_Response;
+
+/* 
+  TODO: consider breaking this class up into more standalone "services", and use a service container design pattern (like Laravel) to manage dependency injection. 
+  Would enable users to swap in their own service implementations, for things like:
+    - REST API Authentication (eg. perhaps they don't want to use JWTs, or our specific JWT Auth implementation)
+    - Image formatting
+    - Block parsing
+    - Virtual field management
+    - Custom REST API Endpoint management
+
+  Just not sure if this added complexity is worth it, to be honest. Currently users can just extend this class and override certain methods.
+*/
 
 class DecoupledCMS extends CMS
 {
   /**
-   * Stores the CloakWP Singleton instance.
+   * Stores the DecoupledCMS Singleton instance.
    */
   private static $instance;
 
@@ -40,14 +54,9 @@ class DecoupledCMS extends CMS
   protected array $blocks = [];
 
   /**
-   * Stores one or more PostType instances.
-   */
-  protected array $postTypes = [];
-
-  /**
    * Define the core functionality of the plugin.
    */
-  private function __construct()
+  public function __construct()
   {
     // Set up the default BlockParser and its filters
     $this->blockParser = new BlockParser();
@@ -64,13 +73,24 @@ class DecoupledCMS extends CMS
     // Enqueue CloakWP custom CSS/JS assets:
     $this->assets([
       // some style improvements for the Gutenberg editor, including styles for the decoupled ACF Block Iframe previewer
-      Stylesheet::make("cloakwp_gutenberg_stylesz")
+      Stylesheet::make("cloakwp_gutenberg_styles")
         ->hook('enqueue_block_editor_assets')
         ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
         ->version(\WP_ENV != "production" ? uniqid() : '1.1.22')
     ]);
 
     $this->bootstrap();
+  }
+
+  /**
+   * Returns the DecoupledCMS Singleton instance.
+   */
+  public static function getInstance(): self
+  {
+    if (self::$instance === null) {
+      self::$instance = new self();
+    }
+    return self::$instance;
   }
 
   /**
@@ -81,47 +101,39 @@ class DecoupledCMS extends CMS
    */
   private function bootstrap()
   {
-    // for now, enable all WP customizations by default:
+    // TODO: some of these methods are too opinionated; we should extend DecoupledCMS in our _base_theme and move those methods there, so they only apply to Pillar Labs' own projects.
     $this
       ->replaceFrontendLinks()
-      ->includePostFiltersForAcf()
-      ->formatAcfImages()
-      ->formatAttachments()
       ->registerVirtualFields()
-      ->registerAuthEndpoint()
-      ->cleanRestResponses()
-      ->makeAcfRestFormatStandard()
-      ->decodeHtmlEntitiesInPostTitles()
-      ->modifyJwtIssuer()
-      ->extendJwtExpiryDate()
-      ->disableBlockPluginRecommendations()
-      ->injectBrowserSyncScript()
-      ->injectThemeColorPickerCss()
-      ->restrictAppearanceMenuForEditors()
-      ->enableMenuEditingForEditors()
-      ->addXdebugInfoPage()
-      ->addConfigDisplayPage()
-      ->removeAdminToolbarOptions()
-      ->enableLegacyMenuEditor()
-      ->removeIrrelevantAdminPages()
-      ->deprioritizeYoastSeoMetabox()
-      ->applyRecommendedThemeSupports()
+      ->extendExpiryDateForJWT()
+      ->enableLoginStatusEndpoint()
+      ->enableImageFormatting()
+      ->enableDecoupledPreview()
+      ->enableAuthViaJWT()
+      ->enableStandardRestFormatForACF()
+      ->enablePostFiltersForACF()
+      ->enableCleanParamForRestApi()
+      ->enableMenusForEditors()
+      ->enableFeaturedImages()
+      ->enableExcerpts()
+      ->enableBrowserSync()
+      ->enableXdebugInfoPage()
       ->enableCors()
-      ->cleanAdminNotices()
-      ->tweakWpMigrateDbPro()
-      ->removeDashboardWidgets();
-  }
-
-
-  /**
-   * Returns the CloakWP Singleton instance.
-   */
-  public static function getInstance(): static
-  {
-    if (self::$instance === null) {
-      self::$instance = new self();
-    }
-    return self::$instance;
+      ->enableHtmlEntityDecodingForRestApi()
+      ->disableBlockPluginRecommendations()
+      ->disableLegacyCustomizer()
+      ->disableWidgets()
+      ->disableComments()
+      ->disableDashboard()
+      ->disableDefaultPatterns()
+      ->disableToolsForEditors()
+      ->disableYoastForEditors()
+      ->disableYoastToolbarMenu()
+      ->disablePostsArchiveToolbarMenu()
+      ->disableUpdateNotices()
+      ->disableDashboardWidgets()
+      ->disableSearchEngineIndexingWarnings()
+      ->deprioritizeYoastMetabox();
   }
 
   /**
@@ -137,24 +149,24 @@ class DecoupledCMS extends CMS
   }
 
   /**
-   * By default, posts fetched within ACF (using its internal `acf_get_posts` function) suppress filters 
-   * like "the_posts", preventing WP Virtual Fields from affecting ACF relational fields data, for example. 
-   * This method fixes this.
+   * This method serves as a single point-of-entry for enabling all decoupled image formatting functionality. 
+   * It's simply a wrapper around all instance-specific image-formatting methods.
+   * 
+   * See the description of the formatImage() method for more information on why image formatting is necessary for decoupled apps.
    */
-  public function includePostFiltersForAcf(): static
+  public function enableImageFormatting(): static 
   {
-    add_filter('acf/acf_get_posts/args', function($args) {
-      return wp_parse_args(
-        $args,
-        array(
-          'suppress_filters' => false
-        )
-      );
-    }, 10, 1);
-
+    $this->enableImageFormattingForAttachments();
+    $this->enableImageFormattingForACF();
     return $this;
   }
 
+  /**
+   * By default, WordPress exposes images via the REST API as image IDs, which is not very useful for decoupled frontends -- it
+   * requires making a separate/additional REST API request for each image to get its URL, size, alt text, etc. This method serves as
+   * our source-of-truth for formatting all image data for the REST API. On its own, it does not modify REST API responses -- other methods
+   * (enableImageFormattingForACF(), enableImageFormattingForAttachments(), etc.) hook into the necessary places to modify image data using this method.
+   */
   public static function formatImage(mixed $imageId) {
     if (!$imageId || is_array($imageId)) return $imageId;
 
@@ -221,7 +233,10 @@ class DecoupledCMS extends CMS
   }
 
 
-  public function formatAcfImages(): static {
+  /**
+   * Ensures ACF images are formatted using our `formatImage()` method so they can be consumed more easily by decoupled frontends.
+   */
+  public function enableImageFormattingForACF(): static {
     add_filter('acf/format_value/type=image', function($value, $post_id, $field) {
       return $this->formatImage($value);
     }, 20, 3);
@@ -239,7 +254,11 @@ class DecoupledCMS extends CMS
     return $this;
   }
 
-  public function formatAttachments(): static {
+  /**
+   * Ensures Attachment post types (aka Media Library images) are formatted using our `formatImage()` 
+   * method, so that they can be consumed more easily by decoupled frontends.
+   */
+  public function enableImageFormattingForAttachments(): static {
     add_filter('cloakwp/eloquent/posts/post_type=attachment', function($attachments) {
       $formatted = [];
       foreach($attachments as $attachment) {
@@ -253,7 +272,7 @@ class DecoupledCMS extends CMS
   }
 
   /**
-   * Registers post virtual fields that are convenient/necessary for decoupled frontends to consume.
+   * Registers post virtual fields that are convenient/necessary for decoupled frontends.
    */
   public function registerVirtualFields(): static
   {
@@ -372,10 +391,10 @@ class DecoupledCMS extends CMS
 
   /**
    * This method allows you to add a URL parameter `clean` to any WP REST API request, which will 
-   * remove fields that are usually unused by decoupled frontends. It simply makes REST responses
+   * remove fields that are usually unused by decoupled frontends. It makes REST responses
    * nicer to look at and quicker to mentally parse when debugging in the browser.
    */
-  public function cleanRestResponses(): static
+  public function enableCleanParamForRestApi(): static
   {
     $cleanFn = function (WP_REST_Response|WP_Error $response, $post, $context) {
       // First check if the REST response is an error:
@@ -398,6 +417,7 @@ class DecoupledCMS extends CMS
         $modified_data['comment_status'],
         $modified_data['ping_status'],
         $modified_data['guid'],
+        $modified_data['content'],
         // Remove categories & tags in favour of "taxonomies" virtual field added in registerVirtualFields() method:
         $modified_data['categories'],
         $modified_data['tags'],
@@ -496,230 +516,35 @@ class DecoupledCMS extends CMS
     return $decoupledPostUrl;
   }
 
-
-  /**
-   * Add CloakWP Config Display page to wp-admin
+  /** 
+   * Hijack the default WordPress preview system so that all preview links initiate and redirect you 
+   * to preview mode on your decoupled frontend. If you're using CloakWP.js on your frontend, and you 
+   * have the CloakWP API Router configured, this decoupled preview mode should just work.
    */
-  public function addConfigDisplayPage(): static
+  public function enableDecoupledPreview(): static
   {
-    add_action('admin_menu', function () {
-      add_menu_page(
-        'CloakWP Configuration Details',
-        'CloakWP',
-        'manage_options',
-        'cloakwp',
-        function () {
-?>
-        <div>
-          <h2>CloakWP Configuration</h2>
-          <?php
-          $this->renderActiveFrontendSettings()
-          ?>
-        </div>
-    <?php
-        },
-        'data:image/svg+xml;base64,' . base64_encode('<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="m22.43.01-.73.07C14.88.69 8.5 4.37 4.45 10.02A23.75 23.75 0 0 0 .22 20.51a18.3 18.3 0 0 0-.22 3.5c0 1.78.02 2.17.22 3.49A24.1 24.1 0 0 0 21.7 47.94c.73.08 3.87.08 4.6 0a24.22 24.22 0 0 0 8.65-2.53c.4-.2.49-.27.43-.31-.03-.03-1.8-2.4-3.9-5.24l-3.84-5.19-4.81-7.11a688.2 688.2 0 0 0-4.84-7.12c-.02 0-.04 3.16-.05 7.02-.02 6.76-.02 7.04-.1 7.2a.85.85 0 0 1-.42.42c-.15.08-.28.1-.99.1h-.81l-.22-.15a.88.88 0 0 1-.31-.34l-.1-.2.01-9.42.02-9.4.14-.19c.08-.1.24-.22.35-.29.19-.09.27-.1 1.08-.1.95 0 1.11.04 1.36.31.07.08 2.68 4 5.8 8.72l9.46 14.34 3.8 5.76.2-.13c1.7-1.1 3.5-2.68 4.92-4.32a23.89 23.89 0 0 0 5.65-12.27c.2-1.32.22-1.7.22-3.5 0-1.78-.02-2.17-.22-3.49A24.1 24.1 0 0 0 26.37.07c-.45-.04-3.55-.1-3.94-.06zm9.82 14.52a.95.95 0 0 1 .48.55c.03.12.04 2.73.03 8.61v8.44l-1.5-2.28-1.49-2.28v-6.14c0-3.96.02-6.19.05-6.3a.96.96 0 0 1 .46-.59c.2-.1.26-.1 1-.1.7 0 .82 0 .97.09z" fill="#000"/></svg>')
-      );
+    // Modify 'preview' links on posts/pages to point to this frontend URL
+    add_filter('preview_post_link', function($preview_link, $post) {
+      return $this->getActiveFrontend()->getPostPreviewUrl($post);
+    }, 10, 2);
+
+    /* 
+      Redirect page visits in WP's built-in preview mode to our decoupled frontend preview 
+      page --> this is in addition to our 'preview_post_link' filter above that changes the 
+      preview link (which doesn't work all the time due to known bugs).
+   */
+    add_action('template_redirect', function() {
+      $this->getActiveFrontend()->redirectToFrontendPreview();
     });
+
     return $this;
   }
 
   /**
-   * Render the Active Frontend's settings in rows.
+   * Enables expanded ACF field data in REST API responses; eg. image fields return full image data rather than just an ID.
+   * More info: https://www.advancedcustomfields.com/resources/wp-rest-api-integration/
    */
-  private function renderActiveFrontendSettings()
-  {
-    $frontend = $this->getActiveFrontend();
-    $settings = $frontend->getSettings();
-    ?>
-    <h3>Active Frontend Settings:</h3>
-    <table class="form-table" role="presentation">
-      <tbody>
-        <?php
-        $this->renderConfigRow('Decoupled Frontend URL', $frontend->getUrl());
-        $this->renderConfigRow('Auth Secret', $settings['authSecret']);
-        $this->renderConfigRow('API Base Path', $settings['apiBasePath']);
-        $this->renderConfigRow('API Router Base Path', $settings['apiRouterBasePath']);
-        $this->renderConfigRow('Block Preview Path', $settings['blockPreviewPath']);
-        $this->renderConfigRow('Deployments', $settings['deployments']);
-        ?>
-      </tbody>
-    </table>
-  <?php
-  }
-
-  /**
-   * Render a config/setting row
-   */
-  private function renderConfigRow($name, $var)
-  {
-  ?>
-    <tr>
-      <th scope="row">
-        <?php echo $name ?>
-      </th>
-      <td><?php $this->renderConfigVariable($var); ?></td>
-    </tr>
-<?php
-  }
-
-  /**
-   * Render a config/setting variable. Includes the variable's type in parentheses.
-   */
-  private function renderConfigVariable($var)
-  {
-    if (isset($var)) {
-      if (gettype($var) === 'boolean') {
-        if ($var === TRUE) {
-          echo "<span>TRUE</span>";
-        }
-        if ($var === FALSE) {
-          echo "<span>FALSE</span>";
-        }
-      } else if (gettype($var) === 'string') {
-        if (strlen($var) > 0) {
-          echo "<span>" . $var . "</span>";
-        }
-        if (strlen($var) === 0) {
-          echo "<span>''</span>";
-        }
-      } else if (gettype($var) === 'array' || gettype($var) === 'object') {
-        echo '<pre>';
-        print_r($var);
-        echo '</pre>';
-      }
-      echo "<span style='color: grey;'> (" . gettype($var) . ")</span>";
-    } else {
-      echo "<span>Unset</span>";
-    }
-  }
-
-  /**
-   * Add a "Xdebug Info" page under the "Tools" menu that prints useful Xdebug dev info. 
-   * Only gets added for Admin users. 
-   */
-  public function addXdebugInfoPage(): static
-  {
-    add_action('admin_menu', function () {
-      add_submenu_page(
-        'tools.php',           // Parent page
-        'Xdebug Info',         // Menu title
-        'Xdebug Info',         // Page title
-        'manage_options',      // user "role"
-        'php-info-page',       // page slug
-        array($this, 'renderXdebugInfoPage') // callback function
-      );
-    });
-    return $this;
-  }
-
-  /**
-   * Callback for addXdebugInfoPage()->add_submenu_page()
-   */
-  private function renderXdebugInfoPage()
-  {
-    $message = '<h2>No Xdebug enabled</h2>';
-    if (function_exists('xdebug_info')) {
-      /** @disregard */
-      xdebug_info();
-    } else {
-      echo $message;
-    }
-  }
-
-  // Add browserSync script to wp-admin <head> to enable live reloading upon saving theme files
-  public function injectBrowserSyncScript(): static
-  {
-    add_action('admin_head', function () {
-      echo '<script id="__bs_script__">//<![CDATA[
-        (function() {
-          try {
-            console.log("adding BrowserSync script");
-            var script = document.createElement("script");
-            if ("async") {
-              script.async = true;
-            }
-            script.src = "http://localhost:3000/browser-sync/browser-sync-client.js?v=2.29.3";
-            if (document.body) {
-              document.body.appendChild(script);
-            } else if (document.head) {
-              document.head.appendChild(script);
-            }
-          } catch (e) {
-            console.error("Browsersync: could not append script tag", e);
-          }
-        })()
-      //]]></script>';
-    });
-    return $this;
-  }
-
-  /**
-   * Add dynamically-generated CSS to wp-admin's <head>, to style our ThemeColorPicker custom ACF Field using our theme.json's colors
-   *
-   * @since    0.6.0
-   */
-  public function injectThemeColorPickerCss(): static
-  {
-    add_action('admin_head', function () {
-      $themeColorPickerCSS = '';
-      $color_palette = Utils::get_theme_color_palette();
-      if (!empty($color_palette)) {
-        foreach ($color_palette as $color) {
-          $themeColorPickerCSS .= ".cloakwp-theme-color-picker .acf-radio-list li label input[type='radio'][value='{$color['slug']}'] { background-color: var(--wp--preset--color--{$color['slug']}); }";
-        }
-      }
-      echo "<style id='themeColorPickerACF'>{$themeColorPickerCSS}</style>";
-    });
-    return $this;
-  }
-
-  /*
-    Add ability for "editor" user role to edit WP Menus, but hide all other submenus under Appearance (for editors only) -- eg. we don't want clients to be able to switch/deactivate theme 
-  */
-  public function restrictAppearanceMenuForEditors(): static
-  {
-    add_action('admin_head', function () {
-      $role_object = get_role('editor');
-      if (!$role_object->has_cap('edit_theme_options')) {
-        $role_object->add_cap('edit_theme_options');
-      }
-
-      if (current_user_can('editor')) { // remove certain Appearance > Sub-pages
-        remove_submenu_page('themes.php', 'themes.php'); // hide the theme selection submenu
-        remove_submenu_page('themes.php', 'widgets.php'); // hide the widgets submenu
-
-        // special handling for removing "Customize" submenu (above method doesn't work due to its URL structure) --> snippet taken from https://stackoverflow.com/a/50912719/8297151
-        global $submenu;
-        if (isset($submenu['themes.php'])) {
-          foreach ($submenu['themes.php'] as $index => $menu_item) {
-            foreach ($menu_item as $value) {
-              if (strpos($value, 'customize') !== false) {
-                unset($submenu['themes.php'][$index]);
-              }
-            }
-          }
-        }
-      }
-    });
-    return $this;
-  }
-
-  /**
-   * This is required in order for WP Admin > Appearance > Menus page to be visible for new Block themes. 
-   */
-  public function enableLegacyMenuEditor(): static
-  {
-    add_action('init', function () {
-      add_theme_support( 'menus' );
-    });
-    return $this;
-  }
-
-  /**
-   * Expand ACF field data returned in REST API; eg. image fields return full image data rather than just an ID. More info: https://www.advancedcustomfields.com/resources/wp-rest-api-integration/
-   */
-  public function makeAcfRestFormatStandard(): static
+  public function enableStandardRestFormatForACF(): static
   {
     add_filter('acf/settings/rest_api_format', function () {
       return 'standard';
@@ -728,30 +553,55 @@ class DecoupledCMS extends CMS
   }
 
   /**
-   * Decode post titles in REST responses to avoid issues with React not properly rendering HTML entities
+   * Decode post properties in REST responses to avoid issues with JS frameworks like React not properly rendering HTML entities.
+   * For example, if your post title includes the "&" character, and you don't decode the property, it will be rendered as "&amp;" 
+   * in React. It's easiest to decode the strings "at the source" (i.e. server-side rather than client-side), which also 
+   * ensures consistency in cases where you might have multiple clients/frontends.
    */
-  public function decodeHtmlEntitiesInPostTitles(): static {
+  public function enableHtmlEntityDecodingForRestApi(): static {
     add_filter('rest_prepare_post', function ($response, $post, $request) {
-      if (isset($response->data['title'])) {
-        $response->data['title']['rendered'] = html_entity_decode($response->data['title']['rendered'], ENT_QUOTES, 'UTF-8');
+      /* 
+        This filter allows you to specify which properties of a post should be decoded using html_entity_decode.
+        By default, it decodes the "title.rendered" property, but you can add as many properties as you want, using
+        dot notation for nested properties.
+      */
+      $properties = apply_filters('cloakwp/decode_properties', ['title.rendered'], $response, $post, $request);
+
+      foreach ($properties as $property) {
+        // Handle dot notation in property names
+        $parts = explode('.', $property);
+        $value = &$response->data;
+        
+        // Traverse the data structure
+        foreach ($parts as $part) {
+          if (!isset($value[$part])) {
+            $value = null;
+            break;
+          }
+          $value = &$value[$part];
+        }
+        
+        // Apply html_entity_decode if a string value is found
+        if (is_string($value)) {
+          $value = html_entity_decode($value, ENT_QUOTES, 'UTF-8');
+        }
+
+        // Unset the reference to avoid unintended side effects
+        unset($value);
       }
+
       return $response;
     }, 10, 3);
     return $this;
   }
 
-
-
-  /*
-  Change the JWT token issuer:
-  */
-  public function modifyJwtIssuer(): static
+  /**
+   * Enable authentication via JWT
+   */
+  public function enableAuthViaJWT(): static
   {
-    // Note: 06/26/2023 I can't remember why this filter was added or if it's really needed
-    add_filter('jwt_auth_iss', function () {
-      // Default value is get_bloginfo( 'url' );
-      return site_url();
-    });
+    // initialize the JWT Auth class, which registers JWT auth routes, enables CORS support, and more
+    JWTAuth::getInstance();
     return $this;
   }
 
@@ -761,89 +611,40 @@ class DecoupledCMS extends CMS
    * Authentication for WP-API" plugin). Defaults to setting it 500,000 days into the 
    * future -- customize this by passing in an integer.
    */
-  public function extendJwtExpiryDate($days_into_future = 500000): static
+  public function extendExpiryDateForJWT($days_into_future = 500000): static
   {
     add_filter('jwt_auth_expire', function () use ($days_into_future) {
-      $seconds_in_a_day = 86400;
-      $exp = time() + ($seconds_in_a_day * $days_into_future);
-      return $exp;
+      return time() + (DAY_IN_SECONDS * $days_into_future);
     }, 10, 1);
+
     return $this;
-  }
+  }  
 
-  // Give editors access to the Menu tab
-  public function enableMenuEditingForEditors(): static
-  {
-    add_action('admin_init', function () {
-      $role = get_role('editor');
-      $role->add_cap('edit_theme_options');
-    });
-    return $this;
-  }
-
-  /*
-    Remove "Comments" from wp-admin sidebar for all roles.
-    Remove "Tools", "Dashboard", and "Yoast SEO" for non-admins
-  */
-  public function removeIrrelevantAdminPages(): static
-  {
-    add_action('admin_menu', function () {
-      remove_menu_page('edit-comments.php');
-
-      if (!current_user_can('administrator')) { // remove certain pages for non-administrators
-        remove_menu_page('tools.php'); // remove "Tools"
-        remove_menu_page('index.php'); // remove "Dashboard"
-
-        // remove Yoast SEO
-        remove_menu_page('wpseo_dashboard');
-        remove_menu_page('wpseo_workouts');
-      }
-    });
-    return $this;
-  }
-
-  /*
-    Function to remove various options in wp-admin top toolbar (not sidebar)
-    Currently used to remove the "Comments" and "View Posts" menu items
-  */
-  public function removeAdminToolbarOptions(): static
-  {
-    add_action('wp_before_admin_bar_render', function () {
-      global $wp_admin_bar;
-      $wp_admin_bar->remove_menu('comments');
-      $wp_admin_bar->remove_menu('archive');
-    });
-    return $this;
-  }
-
+  
   /**
-   * By default, when you search for a block in the Gutenberg Block Inserter, recommendations for 
-   * 3rd party block plugins come up, asking if you want to install them; it's annoying, creates
-   * the possibility for plugin hell caused by non-developers, and most 3rd party plugins will
-   * be incompatible with headless/CloakWP anyway... so this method removes this feature. 
+   * By default, posts fetched within ACF (using its internal `acf_get_posts` function) suppress filters like "the_posts",
+   * preventing CloakWP Virtual Fields from affecting ACF relational fields data, for example. This can be a problem 
+   * for decoupled frontends that expect these virtual fields to be present in ACF relations -- this method fixes this.
    */
-  public function disableBlockPluginRecommendations(): static
+  public function enablePostFiltersForACF(): static
   {
-    remove_action('enqueue_block_editor_assets', 'wp_enqueue_editor_block_directory_assets');
-    return $this;
-  }
-  /**
-   * By default, Yoast SEO's metabox gets displayed above ACF Field Groups when editing a post (not ideal).
-   * This method pushes it below any ACF Field Groups.
-   */
-  public function deprioritizeYoastSeoMetabox(): static
-  {
-    add_action('wpseo_metabox_prio', function () {
-      return 'low';
-    });
+    add_filter('acf/acf_get_posts/args', function($args) {
+      return wp_parse_args(
+        $args,
+        array(
+          'suppress_filters' => false
+        )
+      );
+    }, 10, 1);
+
     return $this;
   }
 
   /**
+   * Enable cross-origin requests from the decoupled frontend
    */
   public function enableCors(): static
   {
-    // enable cross-origin requests from the decoupled frontend
     remove_filter('rest_pre_serve_request', 'rest_send_cors_headers');
     add_filter('rest_pre_serve_request', function ($value) {
       $allowed_origin = $this->getActiveFrontend()->getUrl() ?? '*';
@@ -875,92 +676,13 @@ class DecoupledCMS extends CMS
     return $this;
   }
 
-
   /**
-   * Hides certain wp-admin notices created by plugins that aren't relevant for headless use-case
+   * Ignore search engine indexing warnings because that's not a concern for decoupled/headless WordPress.
    */
-  public function cleanAdminNotices(): static
+  public function disableSearchEngineIndexingWarnings(): static
   {
-    // hide Bedrock warning about search engine indexing:
     add_filter('roots/bedrock/disallow_indexing_admin_notice', '__return_false');
-
-    // disable WP core, plugin, and theme update notices (because we manage these via Composer not wp-admin):
-    $updateFilters = ['pre_site_transient_update_core', 'pre_site_transient_update_plugins', 'pre_site_transient_update_themes'];
-    foreach ($updateFilters as $filter) {
-      add_filter($filter, function () {
-        global $wp_version;
-        return (object) array('last_checked' => time(), 'version_checked' => $wp_version);
-      });
-    }
-    
-    remove_action('admin_notices', 'update_nag');
-
     return $this;
-  }
-
-
-  /**
-   * Remove and add certain theme support
-   */
-  public function applyRecommendedThemeSupports(): static
-  {
-    // We use the after_setup_theme hook with a priority of 11 to load after the parent theme, which will fire on the default priority of 10
-    add_action('after_setup_theme', function () {
-      remove_theme_support('core-block-patterns'); // disable default Gutenberg Patterns
-      add_theme_support('post-thumbnails'); // enable featured images
-      add_post_type_support('page', 'excerpt'); // enable page excerpts
-    }, 11);
-
-    return $this;
-  }
-
-  /**
-   * After running into migration errors when pushing media files from local to production using the 
-   * WP Migrate DB Pro plugin, modifying these values via the plugin filters fixed the issues.
-   */
-  public function tweakWpMigrateDbPro(): static {
-    // increase the file transfer request size bottleneck to reduce number of requests/chunks (may need to increase your production server's php.ini upload_max_filesize limit) 
-    add_filter('wpmdb_transfers_push_bottleneck', function ($bottleneck) {
-      return 10000000;
-    });
-
-    // turn off high performance transfers for unknown reason -- just fixed things.
-    add_filter('wpmdb_force_high_performance_transfers', function ($bottleneck) {
-      return false;
-    });
-
-    return $this;
-  }
-
-
-  /**
-   * Provide an array of PostType class instances, defining your Custom Post Types and their configurations.
-   */
-  public function postTypes(array $postTypes): static
-  {
-    $validPostTypes = [];
-
-    // validate & register each post type
-    foreach ($postTypes as $postType) {
-      if (!is_object($postType) || !method_exists($postType, 'register')) continue; // invalid post type
-
-      $validPostTypes[] = $postType;
-      $postType->register();
-    }
-
-    // save all valid PostType objects into the CloakWP singleton's state, so anyone can access/process them
-    $this->postTypes = array_merge($this->postTypes, $validPostTypes); // todo: might need a custom merge method here to handle duplicates?
-
-    return $this;
-  }
-
-  public function getPostType(string $postTypeSlug)
-  {
-    return array_filter($this->postTypes, fn ($postType) => $postType->slug == $postTypeSlug);
-  }
-  public function getPostTypeByPostId(int $postId)
-  {
-    return $this->getPostType(get_post_type($postId));
   }
 
   /**
@@ -1015,10 +737,10 @@ class DecoupledCMS extends CMS
   }
 
   /**
-   * getActiveFrontend returns the currently selected Frontend instance. 
-   * For now, it just returns the first instance provided to CloakWP->frontends([...]),
+   * getActiveFrontend returns the currently selected DecoupledFrontend instance. 
+   * For now, it just returns the first instance provided to DecoupledCMS->frontends([...]),
    * but the intention for the future is to provide a "Frontend Switcher" in the wp-admin UI
-   * that allows switching between any of the frontends provided to CloakWP->frontends([...]),
+   * that allows switching between any of the frontends provided to DecoupledCMS->frontends([...]),
    * and this method will return that currently active frontend. All wp-admin links referencing 
    * the frontend will point to the "active" frontend's URL.
    */
@@ -1027,98 +749,62 @@ class DecoupledCMS extends CMS
     // TODO: in future, need to build a "frontend switcher" as described above, and return the currently selected frontend here
     if (!empty($this->frontends)) return $this->frontends[0];
     return DecoupledFrontend::make('wp', get_site_url());
-    // return null;
   }
 
   /**
-   * registerAuthEndpoint creates a REST Endpoint that our frontend can ping to determine if the
-   * current site visitor is logged in to WP. The `cloakwp` NPM package provides a helper for properly
-   * passing cookies to determine the auth status.
+   * enableLoginStatusEndpoint creates a REST Endpoint that our frontend can ping to determine if the
+   * current site visitor is logged in to WP. The `cloakwp` NPM package provides a `isUserLoggedIn()` helper
+   * the properly passes cookies which is necessary to determine the auth status. The `@cloakwp/react` package
+   * includes an AdminBar component that you can conditionally render based on this endpoint's response, for example.
    */
-  public function registerAuthEndpoint(): static
+  public function enableLoginStatusEndpoint(): static
   {
     add_action('rest_api_init', function () {
-      register_rest_route('jwt-auth/v1', '/is-logged-in', array(
+      register_rest_route('cloakwp', '/is-logged-in', [
         'methods' => 'GET',
-        'callback' => function () {
-          $isLoggedIn = false;
-          if ($_COOKIE && is_array($_COOKIE)) {
-            if (array_key_exists(LOGGED_IN_COOKIE, $_COOKIE))
-              $isLoggedIn = true;
-          }
-          Utils::write_log("Is user logged into WP? $isLoggedIn");
-          return rest_ensure_response($isLoggedIn);
-        },
-        'permission_callback' => function ($request) {
-          $auth_header = ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) ? sanitize_text_field( $_SERVER['HTTP_AUTHORIZATION'] ) : false;
-
-          /* Double check for different auth header string (server dependent) */
-          if ( ! $auth_header ) {
-            $auth_header = ! empty( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) ? sanitize_text_field( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ) : false;
-          }
-
-          if ( ! $auth_header ) {
-            return false; // no token provided, don't give access
-          }
-
-          /**
-           * Check if the auth header is not bearer, if so, return false
-           */
-          if ( strpos( $auth_header, 'Bearer' ) !== 0 ) {
-            return false;
-          }
-
-          /**
-           * Check the token from the headers.
-           */
-          $JWT = new \Jwt_Auth_Public('jwt_auth', '2');
-          $token = $JWT->validate_token( new \WP_REST_Request(), $auth_header );
-
-          if ( is_wp_error( $token ) ) {
-            return $token; // return error
-          }
-
-          // User provided valid JWT token, so we return true to let them in:
-          return true;
-
-
-          /*
-            if JWT is passed as header, is_user_logged_in() should return true, otherwise false;
-            but for some reason this only works if the route namespace is 'jwt-auth/v1'.
-            TODO: look into making this work on routes with custom namespaces -- might need to fork the JWT Auth WP plugin
-          */
-          // Utils::write_log("In permission callback");
-          // Utils::write_log($request);
-          // return is_user_logged_in();
-        }
-      ));
+        'callback' => [self::class, 'isMySessionActive'],
+        'permission_callback' => [self::class, 'isAuthenticated']
+      ]);
     });
 
     return $this;
   }
 
   /**
-   * There are many dashboard widgets that are annoying, rarely/never used, confusing for 
-   * clients, and that add performance bloat via additional DB/external requests. This 
-   * opinionated method removes them all.
+   * Check if your own WP user is logged in by looking for the presence of the LOGGED_IN_COOKIE in the global $_COOKIE array.
+   * This is designed to be exposed via a WP REST API endpoint that your frontend can call to determine if your own WP user is 
+   * logged in (eg. to conditionally render a decoupled WP Admin Bar). In such situations, we can't just call the `is_user_logged_in()`
+   * function because it's a cross-origin request (would always return false), or because if the REST endpoint requires JWT authentication, 
+   * that would always return true (because the JWT validation process essentially logs you in to WP). We must rely on cookies.
+   * 
+   * @return WP_Error|WP_REST_Response a boolean wrapped by WP_REST_Response -- i.e. `true` if the user is logged in, `false` otherwise.
    */
-  public function removeDashboardWidgets(): static {
-    add_action('admin_init', function () {
-      remove_meta_box('dashboard_incoming_links', ['dashboard', 'dashboard-network'], 'normal'); // 'Incoming links'
-      remove_meta_box('dashboard_plugins', ['dashboard', 'dashboard-network'], 'normal'); // 'Plugins'
-      remove_meta_box('dashboard_primary', ['dashboard', 'dashboard-network'], 'normal'); // 'WordPress News'
-      remove_meta_box('dashboard_secondary', ['dashboard', 'dashboard-network'], 'normal'); // 'Other WordPress News'
-      remove_meta_box('dashboard_quick_press', ['dashboard', 'dashboard-network'], 'side'); // 'Quick Draft'
-      remove_meta_box('dashboard_recent_drafts', ['dashboard', 'dashboard-network'], 'side'); // 'Recent Drafts'
-      remove_meta_box('dashboard_recent_comments', ['dashboard', 'dashboard-network'], 'normal'); // 'Recent Comments'
-      remove_meta_box('dashboard_right_now', ['dashboard', 'dashboard-network'], 'normal'); // 'At a Glance'
-      remove_meta_box('dashboard_activity', ['dashboard', 'dashboard-network'], 'normal'); // 'Activity'
-      remove_meta_box('dashboard_site_health', ['dashboard', 'dashboard-network'], 'normal'); // 'Site Health Status'
-      remove_meta_box('wpseo-dashboard-overview', ['dashboard', 'dashboard-network'], 'normal'); // 'Yoast SEO metabox'
-      remove_action('welcome_panel', 'wp_welcome_panel'); // 'Welcome to WordPress'
-    });
+  public static function isMySessionActive(): WP_Error|WP_REST_Response
+  {
+    $isLoggedIn = false;
 
-    return $this;
+    if ($_COOKIE && is_array($_COOKIE)) {
+      if (array_key_exists(LOGGED_IN_COOKIE, $_COOKIE))
+        $isLoggedIn = true;
+    }
+
+    return rest_ensure_response($isLoggedIn);
+  }
+
+  /**
+   * Validate the JWT token from the current request headers.
+   */
+  public static function isAuthenticated(): bool
+  {
+    $auth = new Auth();
+
+    $payload = $auth->validate_token( false );
+
+    if ( $auth->is_error_response( $payload ) ) {
+      return false;
+    }
+    
+    return true;
   }
 
   public function getBlocks()
