@@ -14,8 +14,8 @@ use CloakWP\API\FrontpageEndpoint;
 use CloakWP\API\MenusEndpoint;
 use CloakWP\API\OptionsEndpoint;
 
-use JWTAuth\Setup as JWTAuth;
-use JWTAuth\Auth;
+use CloakWP\JWTAuth\JWTAuthRegistrar;
+use CloakWP\JWTAuth\JWTAuth;
 use WP_Error;
 use WP_REST_Response;
 
@@ -600,8 +600,8 @@ class DecoupledCMS extends CMS
    */
   public function enableAuthViaJWT(): static
   {
-    // initialize the JWT Auth class, which registers JWT auth routes, enables CORS support, and more
-    JWTAuth::getInstance();
+    // initialize the JWT Setup class, which registers JWT auth routes, enables CORS support, and more
+    JWTAuthRegistrar::getInstance();
     return $this;
   }
 
@@ -796,7 +796,7 @@ class DecoupledCMS extends CMS
    */
   public static function isAuthenticated(): bool
   {
-    $auth = new Auth();
+    $auth = new JWTAuth();
 
     $payload = $auth->validate_token( false );
 
