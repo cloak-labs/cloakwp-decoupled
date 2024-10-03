@@ -15,12 +15,26 @@
   "require-dev": {
     "franzl/studio": "^0.16"
   },
+  "repositories": [
+    {
+      "type": "package",
+      "package": {
+        "name": "usefulteam/jwt-auth",
+        "version": "3.0.2",
+        "type": "library",
+        "dist": {
+          "url": "https://api.github.com/repos/usefulteam/jwt-auth/zipball/deac107a3b66207feb8ef2e082e32d65e21328bb",
+          "type": "zip"
+        }
+      }
+    }
+  ],
   "autoload": {
     "psr-4": {
       "CloakWP\\": "src"
     },
     "classmap": [
-      "vendor/jwt-auth"
+      "vendor/usefulteam/jwt-auth"
     ]
   },
   "extra": {
