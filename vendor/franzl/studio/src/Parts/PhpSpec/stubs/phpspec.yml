@@ -1,4 +1,0 @@
-suites:
-  library_suite:
-    namespace: Foo\Bar
-    psr4_prefix: Foo\Bar

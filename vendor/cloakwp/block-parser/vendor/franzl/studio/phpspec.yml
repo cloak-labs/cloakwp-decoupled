@@ -1,4 +1,0 @@
-suites:
-  studio_suite:
-    namespace: Studio
-    psr4_prefix: Studio
