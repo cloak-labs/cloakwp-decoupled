@@ -76,7 +76,7 @@ class DecoupledCMS extends CMS
       Stylesheet::make("cloakwp_gutenberg_styles")
         ->hook('enqueue_block_editor_assets')
         ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
-        ->version(\WP_ENV != "production" ? uniqid() : '1.1.22')
+        ->version(\WP_ENV != "production" ? uniqid() : '1.1.23')
     ]);
 
     $this->bootstrap();
@@ -568,26 +568,7 @@ class DecoupledCMS extends CMS
       $properties = apply_filters('cloakwp/decode_properties', ['title.rendered'], $response, $post, $request);
 
       foreach ($properties as $property) {
-        // Handle dot notation in property names
-        $parts = explode('.', $property);
-        $value = &$response->data;
-        
-        // Traverse the data structure
-        foreach ($parts as $part) {
-          if (!isset($value[$part])) {
-            $value = null;
-            break;
-          }
-          $value = &$value[$part];
-        }
-        
-        // Apply html_entity_decode if a string value is found
-        if (is_string($value)) {
-          $value = html_entity_decode($value, ENT_QUOTES, 'UTF-8');
-        }
-
-        // Unset the reference to avoid unintended side effects
-        unset($value);
+        $this->decodeProperty($response->data, $property);
       }
 
       return $response;
@@ -595,6 +576,22 @@ class DecoupledCMS extends CMS
     return $this;
   }
 
+  private function decodeProperty(&$data, $property) {
+    $parts = explode('.', $property);
+    $current = &$data;
+
+    foreach ($parts as $part) {
+      if (!is_array($current) || !isset($current[$part])) {
+        // Property doesn't exist in the response, so we can't decode it
+        return;
+      }
+      $current = &$current[$part];
+    }
+
+    if (is_string($current)) {
+      $current = html_entity_decode($current, ENT_QUOTES, 'UTF-8');
+    }
+  }
   /**
    * Enable authentication via JWT
    */
@@ -804,7 +801,8 @@ class DecoupledCMS extends CMS
       return false;
     }
     
-    return true;
+    // return true;
+    return false; // TEMPORARY while JWTAuth is under construction
   }
 
   public function getBlocks()
