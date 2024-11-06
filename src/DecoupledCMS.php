@@ -168,7 +168,29 @@ class DecoupledCMS extends CMS
    * (enableImageFormattingForACF(), enableImageFormattingForAttachments(), etc.) hook into the necessary places to modify image data using this method.
    */
   public static function formatImage(mixed $imageId) {
-    if (!$imageId || is_array($imageId)) return $imageId;
+    if (!$imageId) return $imageId;
+    if (is_array($imageId)) return $imageId;
+
+    // Handle case where $imageId is actually an image URL
+    if (is_string($imageId) && filter_var($imageId, FILTER_VALIDATE_URL)) {
+        // Convert URL to post ID
+        $found_id = attachment_url_to_postid($imageId);
+        if ($found_id) {
+            $imageId = $found_id;
+        } else {
+            // If we couldn't find a matching attachment, return a minimal format
+            $imageSize = @getimagesize($imageId);
+            return [
+                'full' => [
+                    'src' => $imageId,
+                    'width' => $imageSize[0],
+                    'height' => $imageSize[1]
+                ],
+                'alt' => null,
+                'caption' => null
+            ];
+        }
+    }
 
     $imageId = intval($imageId); // coerces strings into integers if they start with numeric data
 
@@ -801,8 +823,8 @@ class DecoupledCMS extends CMS
       return false;
     }
     
-    // return true;
-    return false; // TEMPORARY while JWTAuth is under construction
+    return true;
+    // return false; // TEMPORARY while JWTAuth is under construction
   }
 
   public function getBlocks()
