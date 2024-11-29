@@ -677,8 +677,7 @@ class DecoupledCMS extends CMS
         }
       }
 
-      $access_control_allow_origin = sprintf('Access-Control-Allow-Origin: %s', $allowed_origin);
-      header($access_control_allow_origin);
+      header('Access-Control-Allow-Origin: ' . $allowed_origin);
       header('Access-Control-Allow-Credentials: true');
       header('Access-Control-Allow-Headers: cache-control, X-WP-Nonce, Content-Type, Authorization, Access-Control-Allow-Headers, Accept');
       header('Access-Control-Expose-Headers: X-WP-Total, X-WP-TotalPages', false);
