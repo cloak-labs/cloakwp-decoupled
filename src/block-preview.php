@@ -1,5 +1,6 @@
 <?php
 
+use CloakWP\BlockParser\BlockParser;
 use CloakWP\BlockParser\Transformers\ACFBlockTransformer;
 use CloakWP\DecoupledCMS;
 use CloakWP\Core\Utils;
@@ -73,8 +74,9 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
     }
   }
 
-  $blockTransformer = new ACFBlockTransformer();
-  $blockData = $blockTransformer->transform(new WP_Block($formattedData), $post_id);
+  // $blockTransformer = new ACFBlockTransformer();
+  $blockTransformer = new BlockParser();
+  $blockData = $blockTransformer->transformBlock($formattedData, $post_id);
   $json = wp_json_encode($blockData ?? null);
   $postPathname = Utils::get_post_pathname($post_id);
 
