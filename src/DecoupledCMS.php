@@ -112,6 +112,7 @@ class DecoupledCMS extends CMS
       ->enableAuthViaJWT()
       ->enableStandardRestFormatForACF()
       ->enablePostFiltersForACF()
+      ->enableSVGsForACF()
       ->enableCleanParamForRestApi()
       ->enableMenusForEditors()
       ->enableFeaturedImages()
@@ -249,7 +250,7 @@ class DecoupledCMS extends CMS
     $image = Attachment::find($imageId);
 
     $filteredResult['alt'] = $alt_desc;
-    $filteredResult['caption'] = $image->post_excerpt;
+    if ($image) $filteredResult['caption'] = $image->post_excerpt;
 
     return $filteredResult;
   }
@@ -260,7 +261,8 @@ class DecoupledCMS extends CMS
    */
   public function enableImageFormattingForACF(): static {
     add_filter('acf/format_value/type=image', function($value, $post_id, $field) {
-      return $this->formatImage($value);
+      if (is_array($value)) return $this->formatImage($value['ID']);
+      return $value;
     }, 20, 3);
 
     add_filter('acf/format_value/type=gallery', function($value, $post_id, $field) {
@@ -320,23 +322,23 @@ class DecoupledCMS extends CMS
          * responses only include the image ID); prevents having to make a separate/additional REST API request.
          */
         VirtualField::make('featured_image')
-        ->value(function ($post) {
-          if ($post === null) return;
-          $post_id = is_array($post) ? $post['id'] : $post->ID;
-          $image_id = get_post_thumbnail_id($post_id);  
-          return $this->formatImage($image_id);
-        }),
+          ->value(function ($post) {
+            if ($post === null) return;
+            $post_id = is_array($post) ? $post['id'] : $post->ID;
+            $image_id = get_post_thumbnail_id($post_id);  
+            return $this->formatImage($image_id);
+          }),
 
         /**
          * `author` -- makes it easy for frontends to access a post's full author data (the default REST responses
          *  only include the author ID); prevents having to make a separate/additional REST API request.
          */
         VirtualField::make('author')
-        ->value(function ($post) {
-          if ($post === null) return;
-          $authorId = is_array($post) ? $post['author'] : $post->post_author;
-          return Utils::get_pretty_author($authorId);
-        }),
+          ->value(function ($post) {
+            if ($post === null) return;
+            $authorId = is_array($post) ? $post['author'] : $post->post_author;
+            return Utils::get_pretty_author($authorId);
+          }),
         
         /**
          * `acf` -- makes it easy for frontends to access a post's ACF field values;
