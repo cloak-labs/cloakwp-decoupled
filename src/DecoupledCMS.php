@@ -269,8 +269,8 @@ class DecoupledCMS extends CMS
       if (!is_array($value)) return $value;
 
       $gallery = [];
-      foreach($value as $imageId) {
-        $gallery[] = $this->formatImage($imageId);
+      foreach($value as $image) {
+        $gallery[] = $this->formatImage($image['ID']);
       }
       return $gallery;
     }, 99, 3);
