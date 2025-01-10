@@ -76,7 +76,7 @@ class DecoupledCMS extends CMS
       Stylesheet::make("cloakwp_gutenberg_styles")
         ->hook('enqueue_block_editor_assets')
         ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
-        ->version(\WP_ENV != "production" ? uniqid() : '1.1.23')
+        ->version(\WP_ENV != "production" ? filemtime(WP_PLUGIN_DIR .'/decoupled/css/editor.css') : '1.1.23')
     ]);
 
     $this->bootstrap();
