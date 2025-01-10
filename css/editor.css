@@ -2,10 +2,6 @@
   --cloakwp-block-inserter-preview-height: 500px;
 }
 
-/* Make ACF Block Previews full-width -- makes headless iFrame preview strategy better/more accurate */
-.wp-block.acf-block-preview {
-  max-width: none !important;
-}
 .decoupled-block-preview-ctnr {
   position: relative;
 }
