@@ -140,9 +140,11 @@ class DecoupledFrontend
    */
   public function enableDefaultOnDemandISR(): static
   {
-    add_action('save_post', function ($postId) {
-      $this->revalidatePages([$postId]);
-    }, 10, 1);
+    if (\WP_ENV != "development") {
+      add_action('save_post', function ($postId) {
+        $this->revalidatePages([$postId]);
+      }, 10, 1);
+    }
 
     return $this;
   }
