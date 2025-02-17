@@ -89,10 +89,10 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   $isPageDark = in_array('dark', explode(" ", $bodyClasses));
 
   ?>
-  <div class="decoupled-block-preview-ctnr">
+  <div class="decoupled-block-preview-ctnr" style="background-color: white;">
     <!-- Block selector icon overlay on hover (note: we don't render this icon for block inserter previews, only within Editor) -->
     <?php if (!$is_block_inserter): ?>
-      <div class="cloakwp-block-selector">
+      <div class="cloakwp-block-selector" style="display: none; max-width: 32px; max-height: 32px;">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
           class="cloakwp-block-selector-icon">
           <path stroke-linecap="round" stroke-linejoin="round"
@@ -151,6 +151,14 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
         });
 
         sendAllInfo();
+
+        // remove display: none from .cloakwp-block-selector
+        setTimeout(() => {
+          const blockSelector = iframe.parentNode.querySelector('.cloakwp-block-selector');
+          if (blockSelector) {
+            blockSelector.style.display = 'block';
+          }
+        }, 2000);
       })();
     </script>
   </div>
