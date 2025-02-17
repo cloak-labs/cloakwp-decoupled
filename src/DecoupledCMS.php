@@ -58,8 +58,10 @@ class DecoupledCMS extends CMS
    */
   public function __construct()
   {
-    // Set up the default BlockParser and its filters
-    $this->blockParser = new BlockParser();
+    add_action('init', function () {
+      // Set up the default BlockParser and its filters
+      $this->blockParser = new BlockParser();
+    });
 
     HookModifiers::make(['post_type'])
       ->forFilter('cloakwp/eloquent/posts')
@@ -76,7 +78,7 @@ class DecoupledCMS extends CMS
       Stylesheet::make("cloakwp_gutenberg_styles")
         ->hook('enqueue_block_editor_assets')
         ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
-        ->version(\WP_ENV != "production" ? filemtime(WP_PLUGIN_DIR .'/decoupled/css/editor.css') : '1.1.23')
+        ->version(\WP_ENV == "development" ? filemtime(WP_PLUGIN_DIR .'/decoupled/css/editor.css') : '1.1.23')
     ]);
 
     $this->bootstrap();
@@ -104,6 +106,7 @@ class DecoupledCMS extends CMS
     // TODO: some of these methods are too opinionated; we should extend DecoupledCMS in our _base_theme and move those methods there, so they only apply to Pillar Labs' own projects.
     $this
       ->replaceFrontendLinks()
+      ->replaceLoginLogoLink()
       ->registerVirtualFields()
       ->extendExpiryDateForJWT()
       ->enableLoginStatusEndpoint()
@@ -121,20 +124,33 @@ class DecoupledCMS extends CMS
       ->enableXdebugInfoPage()
       ->enableCors()
       ->enableHtmlEntityDecodingForRestApi()
+      ->disableWpTexturize()
+      ->disableCapitalPDangit()
       ->disableBlockPluginRecommendations()
       ->disableLegacyCustomizer()
       ->disableWidgets()
       ->disableComments()
+      ->disableEmojis()
+      ->disableSvgFilters()
+      ->disableAssetUrlVersioning()
+      ->disableRoles()
+      ->disableFontLibrary()
+      ->disableOpenVerse()
+      ->disableJpegCompression()
       ->disableDashboard()
+      ->disableLazyLoading()
       ->disableDefaultPatterns()
       ->disableToolsForEditors()
       ->disableYoastForEditors()
+      ->disableYoastSitemap()
+      ->disableYoastBlocks()
       ->disableYoastToolbarMenu()
       ->disablePostsArchiveToolbarMenu()
       ->disableUpdateNotices()
       ->disableDashboardWidgets()
       ->disableSearchEngineIndexingWarnings()
-      ->deprioritizeYoastMetabox();
+      ->deprioritizeYoastMetabox()
+      ->streamlineYoastInDevelopment();
   }
 
   /**
