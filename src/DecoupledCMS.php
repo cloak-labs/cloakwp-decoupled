@@ -76,7 +76,7 @@ class DecoupledCMS extends CMS
     $this->assets([
       // some style improvements for the Gutenberg editor, including styles for the decoupled ACF Block Iframe previewer
       Stylesheet::make("cloakwp_gutenberg_styles")
-        ->hook('enqueue_block_editor_assets')
+        ->hooks(['enqueue_block_editor_assets'])
         ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
         ->version(\WP_ENV == "development" ? filemtime(WP_PLUGIN_DIR .'/decoupled/css/editor.css') : '1.1.23')
     ]);
@@ -115,6 +115,7 @@ class DecoupledCMS extends CMS
       ->enableAuthViaJWT()
       ->enableStandardRestFormatForACF()
       ->enablePostFiltersForACF()
+      ->enableSvgUploads()
       ->enableSVGsForACF()
       ->enableCleanParamForRestApi()
       ->enableMenusForEditors()
@@ -317,10 +318,10 @@ class DecoupledCMS extends CMS
   public function registerVirtualFields(): static
   {
     add_action("init", function () {
-      $customPostTypes = Utils::get_custom_post_types();
-      $publicPostTypes = Utils::get_public_post_types();
+      $customPostTypes = Utils::getCustomPostTypes();
+      $publicPostTypes = Utils::getPublicPostTypes();
       $allPostTypes = array_merge($customPostTypes, $publicPostTypes);
-      $gutenbergPostTypes = Utils::get_post_types_with_editor();
+      $gutenbergPostTypes = Utils::getEditorPostTypes();
   
       /**
        * `pathname` -- a virtual field on all PUBLIC posts (i.e. all posts that map to a front-end page). This allows
@@ -328,7 +329,7 @@ class DecoupledCMS extends CMS
        */
       register_virtual_fields($publicPostTypes, [
         VirtualField::make('pathname')
-          ->value(fn ($post) => Utils::get_post_pathname(is_array($post) ? $post['id'] : $post->ID))
+          ->value(fn ($post) => Utils::getPostPathname(is_array($post) ? $post['id'] : $post->ID))
       ]);
 
       // add some virtual fields to all CPTs + public built-in post types:
@@ -353,7 +354,7 @@ class DecoupledCMS extends CMS
           ->value(function ($post) {
             if ($post === null) return;
             $authorId = is_array($post) ? $post['author'] : $post->post_author;
-            return Utils::get_pretty_author($authorId);
+            return Utils::getPrettyAuthor($authorId);
           }),
         
         /**
@@ -374,7 +375,7 @@ class DecoupledCMS extends CMS
           ->value(function ($post) {
             if ($post === null) return;
 
-            $post = Utils::get_wp_post_object($post);
+            $post = Utils::asPostObject($post);
 
             // Get all taxonomies attached to the post type
             $taxonomies = get_object_taxonomies($post->post_type);
@@ -477,15 +478,15 @@ class DecoupledCMS extends CMS
     };
 
     add_action("init", function() use($cleanFn) {
-      $publicPostTypes = Utils::get_public_post_types();
-      $customPostTypes = Utils::get_custom_post_types();
+      $publicPostTypes = Utils::getPublicPostTypes();
+      $customPostTypes = Utils::getCustomPostTypes();
       $allPostTypes = array_merge($customPostTypes, $publicPostTypes);
       $allPostTypes[] = 'revision'; // make sure "revisions" responses also get cleaned in same way
   
       foreach ($allPostTypes as $postType) {
         add_filter("rest_prepare_{$postType}", $cleanFn, 50, 3);
       }
-    });
+    }, 99);
 
 
     return $this;
