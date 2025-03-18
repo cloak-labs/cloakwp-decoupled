@@ -97,12 +97,12 @@ class DecoupledFrontend
     foreach ($paths as $path) {
       if (is_object($path)) { // it's a post object
         if ($path->ID) {
-          $path = Utils::get_post_pathname($path->ID);
+          $path = Utils::getPostPathname($path->ID);
         } else {
           continue; // invalid path
         }
       } else if (is_int($path)) { // it's a post ID
-        $path = Utils::get_post_pathname($path);
+        $path = Utils::getPostPathname($path);
       } else if (!is_string($path)) {
         continue; // invalid path
       }
@@ -180,7 +180,7 @@ class DecoupledFrontend
     //   return $post;
     // }
 
-    $path = Utils::get_post_pathname($postId);
+    $path = Utils::getPostPathname($postId);
 
     $postType = get_post_type($postId); // the master/parent post's post type --> important for cloakwp to retrieve the correct revision data  
     return "{$this->getApiRouteUrl()}/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/preview?revisionId=$revisionId&postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}";
@@ -190,7 +190,7 @@ class DecoupledFrontend
   {
     if (isset($_GET["preview"]) && $_GET["preview"] == true) {
       $postId = $_GET["p"] ?? $_GET["preview_id"];
-      $path = Utils::get_post_pathname($postId);
+      $path = Utils::getPostPathname($postId);
       // wp_is_post_revision($postId) // todo: check if it's a revision and if not, get the latest revision and include `?revisionId=$revisionId` in url below:
       $postType = get_post_type($postId); // the master/parent post's post type --> important for cloakwp to retrieve the correct revision data  
       wp_redirect("{$this->getApiRouteUrl()}/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/preview?postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}");
