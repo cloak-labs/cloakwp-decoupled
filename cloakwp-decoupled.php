@@ -41,7 +41,7 @@ if (is_readable(__DIR__ . '/vendor/autoload.php')) {
 /**
  * Define the locale for this plugin for internationalization.
  */
-add_action('plugins_loaded', function () {
+add_action('init', function () {
   load_plugin_textdomain(
     'cloakwp',
     false,
