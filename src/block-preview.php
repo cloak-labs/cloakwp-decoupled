@@ -74,10 +74,10 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   }
 
   // $blockTransformer = new ACFBlockTransformer();
-  $blockTransformer = new BlockParser();
-  $blockData = $blockTransformer->transformBlock($formattedData, $post_id);
+  $blockParser = new BlockParser();
+  $blockData = $blockParser->transformBlock($formattedData, $post_id);
   $json = wp_json_encode($blockData ?? null);
-  $postPathname = Utils::get_post_pathname($post_id);
+  $postPathname = Utils::getPostPathname($post_id);
 
   $CMS = DecoupledCMS::getInstance();
   $frontend = $CMS->getActiveFrontend();
@@ -89,7 +89,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   $isPageDark = in_array('dark', explode(" ", $bodyClasses));
 
   ?>
-  <div class="decoupled-block-preview-ctnr" style="background-color: white;">
+  <div class="decoupled-block-preview-ctnr">
     <!-- Block selector icon overlay on hover (note: we don't render this icon for block inserter previews, only within Editor) -->
     <?php if (!$is_block_inserter): ?>
       <div class="cloakwp-block-selector" style="display: none; max-width: 32px; max-height: 32px;">
