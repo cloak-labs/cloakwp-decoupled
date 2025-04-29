@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "babb9dcbc19e9f9e6ea78c3f8085b047",
+    "content-hash": "15ba1403f9f52eefe298bb1ab3b3fc92",
     "packages": [
         {
             "name": "cloakwp/block-parser",
@@ -37,14 +37,15 @@
         },
         {
             "name": "cloakwp/core",
-            "version": "0.0.7",
+            "version": "0.0.8",
             "dist": {
                 "type": "path",
                 "url": "../cloakwp-core",
-                "reference": "9f9e470a4a98c9a4d26c067578722b66deb230ed"
+                "reference": "92d6336fb8070970e81bf5842aae828e6b2df446"
             },
             "require": {
                 "composer/installers": "^2.2",
+                "inpsyde/wp-context": "^1.5",
                 "myclabs/deep-copy": "^1.11",
                 "snicco/better-wp-api": "^1.9"
             },
@@ -143,11 +144,11 @@
         },
         {
             "name": "cloakwp/virtual-fields",
-            "version": "0.0.6",
+            "version": "0.0.7",
             "dist": {
                 "type": "path",
                 "url": "../wp-virtual-fields",
-                "reference": "b41d7861ced742919c859f46437f6dd702c6e88d"
+                "reference": "c88e43818346d2a258278300b4b3275506e56a44"
             },
             "require": {
                 "cloakwp/core": "^0.0",
@@ -318,16 +319,16 @@
         },
         {
             "name": "firebase/php-jwt",
-            "version": "v6.11.0",
+            "version": "v6.11.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/firebase/php-jwt.git",
-                "reference": "8f718f4dfc9c5d5f0c994cdfd103921b43592712"
+                "reference": "d1e91ecf8c598d073d0995afa8cd5c75c6e19e66"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/firebase/php-jwt/zipball/8f718f4dfc9c5d5f0c994cdfd103921b43592712",
-                "reference": "8f718f4dfc9c5d5f0c994cdfd103921b43592712",
+                "url": "https://api.github.com/repos/firebase/php-jwt/zipball/d1e91ecf8c598d073d0995afa8cd5c75c6e19e66",
+                "reference": "d1e91ecf8c598d073d0995afa8cd5c75c6e19e66",
                 "shasum": ""
             },
             "require": {
@@ -375,9 +376,9 @@
             ],
             "support": {
                 "issues": "https://github.com/firebase/php-jwt/issues",
-                "source": "https://github.com/firebase/php-jwt/tree/v6.11.0"
+                "source": "https://github.com/firebase/php-jwt/tree/v6.11.1"
             },
-            "time": "2025-01-23T05:11:06+00:00"
+            "time": "2025-04-09T20:32:01+00:00"
         },
         {
             "name": "franzl/studio",
@@ -447,6 +448,66 @@
                 }
             ],
             "time": "2022-10-12T10:32:13+00:00"
+        },
+        {
+            "name": "inpsyde/wp-context",
+            "version": "1.5.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/inpsyde/wp-context.git",
+                "reference": "1350ada72517f5d374bff9409b4ea5a02377ec1a"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/inpsyde/wp-context/zipball/1350ada72517f5d374bff9409b4ea5a02377ec1a",
+                "reference": "1350ada72517f5d374bff9409b4ea5a02377ec1a",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=7.1"
+            },
+            "require-dev": {
+                "brain/monkey": "^2.6.1",
+                "inpsyde/php-coding-standards": "^1",
+                "inpsyde/wp-stubs": "dev-main",
+                "mockery/mockery": "~1.3.6",
+                "phpunit/phpunit": "~7.5.20 || ^8",
+                "vimeo/psalm": "^4.27.0"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "1.x-dev"
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Inpsyde\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "gpl-2.0-or-later"
+            ],
+            "authors": [
+                {
+                    "name": "Inpsyde GmbH",
+                    "email": "hello@inpsyde.com",
+                    "homepage": "https://inpsyde.com/",
+                    "role": "Company"
+                },
+                {
+                    "name": "Giuseppe Mazzapica",
+                    "email": "g.mazzapica@inpsyde.com",
+                    "role": "Developer"
+                }
+            ],
+            "description": "A single-class utility to check the running context in WordPress sites.",
+            "support": {
+                "issues": "https://github.com/inpsyde/wp-context/issues",
+                "source": "https://github.com/inpsyde/wp-context/tree/1.5.1"
+            },
+            "time": "2024-10-16T10:44:18+00:00"
         },
         {
             "name": "myclabs/deep-copy",
@@ -668,16 +729,16 @@
         },
         {
             "name": "symfony/console",
-            "version": "v6.4.17",
+            "version": "v6.4.20",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/console.git",
-                "reference": "799445db3f15768ecc382ac5699e6da0520a0a04"
+                "reference": "2e4af9c952617cc3f9559ff706aee420a8464c36"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/console/zipball/799445db3f15768ecc382ac5699e6da0520a0a04",
-                "reference": "799445db3f15768ecc382ac5699e6da0520a0a04",
+                "url": "https://api.github.com/repos/symfony/console/zipball/2e4af9c952617cc3f9559ff706aee420a8464c36",
+                "reference": "2e4af9c952617cc3f9559ff706aee420a8464c36",
                 "shasum": ""
             },
             "require": {
@@ -742,7 +803,7 @@
                 "terminal"
             ],
             "support": {
-                "source": "https://github.com/symfony/console/tree/v6.4.17"
+                "source": "https://github.com/symfony/console/tree/v6.4.20"
             },
             "funding": [
                 {
@@ -758,7 +819,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-12-07T12:07:30+00:00"
+            "time": "2025-03-03T17:16:38+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -1213,16 +1274,16 @@
         },
         {
             "name": "symfony/process",
-            "version": "v6.4.15",
+            "version": "v6.4.20",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/process.git",
-                "reference": "3cb242f059c14ae08591c5c4087d1fe443564392"
+                "reference": "e2a61c16af36c9a07e5c9906498b73e091949a20"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/process/zipball/3cb242f059c14ae08591c5c4087d1fe443564392",
-                "reference": "3cb242f059c14ae08591c5c4087d1fe443564392",
+                "url": "https://api.github.com/repos/symfony/process/zipball/e2a61c16af36c9a07e5c9906498b73e091949a20",
+                "reference": "e2a61c16af36c9a07e5c9906498b73e091949a20",
                 "shasum": ""
             },
             "require": {
@@ -1254,7 +1315,7 @@
             "description": "Executes commands in sub-processes",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/process/tree/v6.4.15"
+                "source": "https://github.com/symfony/process/tree/v6.4.20"
             },
             "funding": [
                 {
@@ -1270,7 +1331,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2024-11-06T14:19:14+00:00"
+            "time": "2025-03-10T17:11:00+00:00"
         },
         {
             "name": "symfony/service-contracts",
