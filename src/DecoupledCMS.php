@@ -58,28 +58,40 @@ class DecoupledCMS extends CMS
    */
   public function __construct()
   {
-    add_action('init', function () {
-      // Set up the default BlockParser and its filters
-      $this->blockParser = new BlockParser();
-    });
+    parent::__construct();
 
-    HookModifiers::make(['post_type'])
-      ->forFilter('cloakwp/eloquent/posts')
-      ->register();
-    
-    // Register CloakWP Decoupled's custom REST API endpoints:
-    MenusEndpoint::register();
-    FrontpageEndpoint::register();
-    OptionsEndpoint::register();
-    
-    // Enqueue CloakWP custom CSS/JS assets:
-    $this->assets([
-      // some style improvements for the Gutenberg editor, including styles for the decoupled ACF Block Iframe previewer
-      Stylesheet::make("cloakwp_gutenberg_styles")
-        ->hooks(['enqueue_block_editor_assets'])
-        ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
-        ->version(\WP_ENV == "development" ? filemtime(WP_PLUGIN_DIR .'/decoupled/css/editor.css') : '1.1.23')
-    ]);
+    $isCore = self::$context->isCore();
+    $isAdmin = self::$context->isBackoffice();
+    $isRest = self::$context->isRest();
+
+    if ($isAdmin) {  
+      // Enqueue CloakWP custom CSS/JS assets:
+      $this->assets([
+        // some style improvements for the Gutenberg editor, including styles for the decoupled ACF Block Iframe previewer
+        Stylesheet::make("cloakwp_gutenberg_styles")
+          ->hooks(['enqueue_block_editor_assets'])
+          ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
+          ->version(\WP_ENV == "development" ? filemtime(WP_PLUGIN_DIR .'/decoupled/css/editor.css') : '1.1.23')
+      ]);
+    }
+
+    if ($isRest) { 
+      // Register CloakWP Decoupled's custom REST API endpoints:
+      MenusEndpoint::register();
+      FrontpageEndpoint::register();
+      OptionsEndpoint::register();
+    }
+
+    if ($isCore) {
+      add_action('init', function () {
+        // Set up the default BlockParser and its filters
+        $this->blockParser = new BlockParser();
+      });
+      
+      HookModifiers::make(['post_type'])
+        ->forFilter('cloakwp/eloquent/posts')
+        ->register();
+    }
 
     $this->bootstrap();
   }
@@ -103,55 +115,138 @@ class DecoupledCMS extends CMS
    */
   private function bootstrap()
   {
+    // Core functionality needed in all contexts
+    if (self::$context->isCore()) {
+      $this
+        ->registerVirtualFields()
+        ->enableCors()
+        ->enableSVGsForACF()
+        ->enableImageFormatting()
+        ->enableDecoupledPreview()
+        ->enablePostFiltersForACF()
+        ->replaceFrontendLinks()
+        ->disableWpTexturize()
+        ->disableCapitalPDangit()
+        ->disableEmojis()
+        // ->disableAssetUrlVersioning()
+        ->disableJpegCompression();
+    }
+
+    // Admin dashboard customizations:
+    if (self::$context->isBackoffice()) {
+      $this
+        ->enableFeaturedImages()
+        ->enableExcerpts()
+        ->enableBrowserSync()
+        ->enableXdebugInfoPage()
+        ->enableMenusForEditors()
+        ->disableLegacyCustomizer()
+        ->disableWidgets()
+        ->disableComments()
+        ->disableRoles()
+        ->disableFontLibrary()
+        ->disableOpenVerse()
+        ->disableDashboard()
+        ->disableToolsForEditors()
+        ->disablePostsArchiveToolbarMenu()
+        ->disableUpdateNotices()
+        ->disableDashboardWidgets()
+        ->disableSearchEngineIndexingWarnings();
+
+      // Reduce default heartbeat interval to prevent overwhelming the server, especially in development:
+      if (WP_ENV == 'development') {
+        $this->throttleHeartbeat(300);
+      } else {
+        $this->throttleHeartbeat(60);
+      }
+
+      // Yoast SEO plugin config:
+      if (function_exists('is_plugin_active')) {
+        if (is_plugin_active('wordpress-seo/wp-seo.php')) {
+          $this->disableYoastForEditors()
+            ->disableYoastSitemap()
+            ->disableYoastBlocks()
+            ->disableYoastToolbarMenu()
+            ->deprioritizeYoastMetabox()
+            ->streamlineYoastInDevelopment(); 
+        }
+      }
+    }
+
+    if (self::$context->isLogin()) {
+      $this->replaceLoginLogoLink();
+    }
+
+    // Block editor customizations:
+    add_action('current_screen', function() {
+      if ($this->isBlockEditor()) {
+        $this
+          ->disableSvgFilters()
+          ->disableBlockPluginRecommendations()
+          ->disableDefaultPatterns();
+      }
+    }, 11);
+
+    // Features only needed for REST API requests
+    if (self::$context->isRest()) {
+      $this
+        ->enableAuthViaJWT()
+        ->extendExpiryDateForJWT()
+        ->enableHtmlEntityDecodingForRestApi()
+        ->enableLoginStatusEndpoint()
+        ->enableStandardRestFormatForACF()
+        ->enableCleanParamForRestApi();
+    }
+    
     // TODO: some of these methods are too opinionated; we should extend DecoupledCMS in our _base_theme and move those methods there, so they only apply to Pillar Labs' own projects.
-    $this
-      ->replaceFrontendLinks()
-      ->replaceLoginLogoLink()
-      ->registerVirtualFields()
-      ->extendExpiryDateForJWT()
-      ->enableLoginStatusEndpoint()
-      ->enableImageFormatting()
-      ->enableDecoupledPreview()
-      ->enableAuthViaJWT()
-      ->enableStandardRestFormatForACF()
-      ->enablePostFiltersForACF()
-      ->enableSvgUploads()
-      ->enableSVGsForACF()
-      ->enableCleanParamForRestApi()
-      ->enableMenusForEditors()
-      ->enableFeaturedImages()
-      ->enableExcerpts()
-      ->enableBrowserSync()
-      ->enableXdebugInfoPage()
-      ->enableCors()
-      ->enableHtmlEntityDecodingForRestApi()
-      ->disableWpTexturize()
-      ->disableCapitalPDangit()
-      ->disableBlockPluginRecommendations()
-      ->disableLegacyCustomizer()
-      ->disableWidgets()
-      ->disableComments()
-      ->disableEmojis()
-      ->disableSvgFilters()
-      ->disableAssetUrlVersioning()
-      ->disableRoles()
-      ->disableFontLibrary()
-      ->disableOpenVerse()
-      ->disableJpegCompression()
-      ->disableDashboard()
-      ->disableLazyLoading()
-      ->disableDefaultPatterns()
-      ->disableToolsForEditors()
-      ->disableYoastForEditors()
-      ->disableYoastSitemap()
-      ->disableYoastBlocks()
-      ->disableYoastToolbarMenu()
-      ->disablePostsArchiveToolbarMenu()
-      ->disableUpdateNotices()
-      ->disableDashboardWidgets()
-      ->disableSearchEngineIndexingWarnings()
-      ->deprioritizeYoastMetabox()
-      ->streamlineYoastInDevelopment();
+    // $this
+    //   ->replaceFrontendLinks()
+    //   ->replaceLoginLogoLink()
+    //   ->registerVirtualFields()
+    //   ->extendExpiryDateForJWT()
+    //   ->enableLoginStatusEndpoint()
+    //   ->enableImageFormatting()
+    //   ->enableDecoupledPreview()
+    //   ->enableAuthViaJWT()
+    //   ->enableStandardRestFormatForACF()
+    //   ->enablePostFiltersForACF()
+    //   ->enableSvgUploads()
+    //   ->enableSVGsForACF()
+    //   ->enableCleanParamForRestApi()
+    //   ->enableMenusForEditors()
+    //   ->enableFeaturedImages()
+    //   ->enableExcerpts()
+    //   ->enableBrowserSync()
+    //   ->enableXdebugInfoPage()
+    //   ->enableCors()
+    //   ->enableHtmlEntityDecodingForRestApi()
+    //   ->disableWpTexturize()
+    //   ->disableCapitalPDangit()
+    //   ->disableBlockPluginRecommendations()
+    //   ->disableLegacyCustomizer()
+    //   ->disableWidgets()
+    //   ->disableComments()
+    //   ->disableEmojis()
+    //   ->disableSvgFilters()
+    //   ->disableAssetUrlVersioning()
+    //   ->disableRoles()
+    //   ->disableFontLibrary()
+    //   ->disableOpenVerse()
+    //   ->disableJpegCompression()
+    //   ->disableDashboard()
+    //   ->disableLazyLoading()
+    //   ->disableDefaultPatterns()
+    //   ->disableToolsForEditors()
+    //   ->disableYoastForEditors()
+    //   ->disableYoastSitemap()
+    //   ->disableYoastBlocks()
+    //   ->disableYoastToolbarMenu()
+    //   ->disablePostsArchiveToolbarMenu()
+    //   ->disableUpdateNotices()
+    //   ->disableDashboardWidgets()
+    //   ->disableSearchEngineIndexingWarnings()
+    //   ->deprioritizeYoastMetabox()
+    //   ->streamlineYoastInDevelopment();
   }
 
   /**
@@ -264,10 +359,8 @@ class DecoupledCMS extends CMS
     }
 
     $alt_desc = get_post_meta($imageId, '_wp_attachment_image_alt', true);
-    $image = Attachment::find($imageId);
-
     $filteredResult['alt'] = $alt_desc;
-    if ($image) $filteredResult['caption'] = $image->post_excerpt;
+    $filteredResult['caption'] = get_post_field('post_excerpt', $imageId);
 
     return $filteredResult;
   }
@@ -502,28 +595,6 @@ class DecoupledCMS extends CMS
     add_filter('post_link', array($this, 'convertToDecoupledUrl'), 10, 2);
     add_filter('post_type_link', array($this, 'convertToDecoupledUrl'), 10, 2);
 
-    // Override the href for the site name & view site links in the wp-admin top toolbar, and open links in new tab:
-    add_action('admin_bar_menu', function (\WP_Admin_Bar $wp_admin_bar) {
-      // Get references to the 'view-site' and 'site-name' nodes to modify.
-      $view_site_node = $wp_admin_bar->get_node('view-site');
-      $site_name_node = $wp_admin_bar->get_node('site-name');
-
-      if ($view_site_node && $site_name_node) {
-        // Change targets
-        $view_site_node->meta['target'] = '_blank';
-        $site_name_node->meta['target'] = '_blank';
-  
-        // Change hrefs to our frontend URL
-        $url = $this->getActiveFrontend()->getUrl();
-        $view_site_node->href = $url;
-        $site_name_node->href = $url;
-  
-        // Update Nodes
-        $wp_admin_bar->add_node((array)$view_site_node);
-        $wp_admin_bar->add_node((array)$site_name_node);
-      }
-    }, 80);
-
     // chop off domain portion of internal links within menu items:
     add_filter('cloakwp/eloquent/model/menu_item/formatted_meta', function($meta) {
       if ($meta['link_type'] != 'custom') {
@@ -535,6 +606,30 @@ class DecoupledCMS extends CMS
       
       return $meta;
     }, 10, 2);
+
+    if (self::$context->isBackoffice()) {
+      // Override the href for the site name & view site links in the wp-admin top toolbar, and open links in new tab:
+      add_action('admin_bar_menu', function (\WP_Admin_Bar $wp_admin_bar) {
+        // Get references to the 'view-site' and 'site-name' nodes to modify.
+        $view_site_node = $wp_admin_bar->get_node('view-site');
+        $site_name_node = $wp_admin_bar->get_node('site-name');
+  
+        if ($view_site_node && $site_name_node) {
+          // Change targets
+          $view_site_node->meta['target'] = '_blank';
+          $site_name_node->meta['target'] = '_blank';
+    
+          // Change hrefs to our frontend URL
+          $url = $this->getActiveFrontend()->getUrl();
+          $view_site_node->href = $url;
+          $site_name_node->href = $url;
+    
+          // Update Nodes
+          $wp_admin_bar->add_node((array)$view_site_node);
+          $wp_admin_bar->add_node((array)$site_name_node);
+        }
+      }, 80);
+    }
 
     return $this;
   }
