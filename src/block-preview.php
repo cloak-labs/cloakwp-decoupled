@@ -44,10 +44,10 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   $field_values = [];
   foreach ($block['data'] as $key => $value) {
     if (strpos($key, 'field_') === 0) {
-      /* when previewing ACF Block where data has been updated, the $block value is very 
-        different from when the data hasn't been updated -- the code below transforms the ACF data
-        so that it's always in the same shape no matter whether the block's data has been changed 
-        or not. This ensures previews don't break after making field changes.
+      /* when previewing an ACF Block where data has been updated via AJAX request, the $block value is very 
+        different from when the data hasn't been updated (i.e. on initial page load) -- the code below transforms 
+        the ACF data so that it's always in the same shape no matter the context. This ensures previews don't 
+        break after making field changes.
       */
       $field_object = get_field_object($key);
       if ($field_object) {
@@ -104,7 +104,8 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
 
     <iframe id="<?php echo esc_attr($iframeId); ?>"
       class="block-preview-iframe <?php echo $is_block_inserter ? 'in-block-inserter' : ''; ?>"
-      src="<?php echo $iframeUrl; ?>" title="Block Preview" width="100%" scrolling="no" allow="same-origin"></iframe>
+      src="<?php echo $iframeUrl; ?>" title="Block Preview" width="100%" scrolling="no" allow="same-origin"
+      loading="lazy"></iframe>
 
     <script>
       (function () {
