@@ -94,30 +94,33 @@ class DecoupledFrontend
    */
   public function revalidatePages(array $paths)
   {
-    foreach ($paths as $path) {
-      if (is_object($path)) { // it's a post object
-        if ($path->ID) {
-          $path = Utils::getPostPathname($path->ID);
-        } else {
+    // only allow revalidation in non-development environments and when not in maintenance mode
+    if (\WP_ENV != "development" && !DecoupledCMS::$isMaintenanceMode) {
+      foreach ($paths as $path) {
+        if (is_object($path)) { // it's a post object
+          if ($path->ID) {
+            $path = Utils::getPostPathname($path->ID);
+          } else {
+            continue; // invalid path
+          }
+        } else if (is_int($path)) { // it's a post ID
+          $path = Utils::getPostPathname($path);
+        } else if (!is_string($path)) {
           continue; // invalid path
         }
-      } else if (is_int($path)) { // it's a post ID
-        $path = Utils::getPostPathname($path);
-      } else if (!is_string($path)) {
-        continue; // invalid path
-      }
 
-      $urlsToRevalidate = [$this->url, ...$this->settings['deployments']];
+        $urlsToRevalidate = [$this->url, ...$this->settings['deployments']];
 
-      foreach ($urlsToRevalidate as $url) {
-        if (!is_string($url))
-          continue; // invalid deployment url
+        foreach ($urlsToRevalidate as $url) {
+          if (!is_string($url))
+            continue; // invalid deployment url
 
-        try {
-          wp_remote_get("$url/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/revalidate/?pathname=$path&secret={$this->settings['authSecret']}");
-        } catch (Exception $e) {
-          // todo: is echo the right thing to do here? perhaps save the error in an array and process it after we've finished revalidating all paths/environments, then throw an exception?
-          echo 'Error while regenerating static page for frontend "', $this->url, '" -- error message: ', $e->getMessage(), "\n";
+          try {
+            wp_remote_get("$url/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/revalidate/?pathname=$path&secret={$this->settings['authSecret']}");
+          } catch (Exception $e) {
+            // todo: is echo the right thing to do here? perhaps save the error in an array and process it after we've finished revalidating all paths/environments, then throw an exception?
+            echo 'Error while regenerating static page for frontend "', $this->url, '" -- error message: ', $e->getMessage(), "\n";
+          }
         }
       }
     }
