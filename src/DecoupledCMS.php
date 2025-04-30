@@ -54,6 +54,11 @@ class DecoupledCMS extends CMS
   protected array $blocks = [];
 
   /**
+   * Stores the maintenance mode state.
+   */
+  public static bool $isMaintenanceMode = false;
+
+  /**
    * Define the core functionality of the plugin.
    */
   public function __construct()
@@ -64,18 +69,18 @@ class DecoupledCMS extends CMS
     $isAdmin = self::$context->isBackoffice();
     $isRest = self::$context->isRest();
 
-    if ($isAdmin) {  
+    if ($isAdmin) {
       // Enqueue CloakWP custom CSS/JS assets:
       $this->assets([
         // some style improvements for the Gutenberg editor, including styles for the decoupled ACF Block Iframe previewer
         Stylesheet::make("cloakwp_gutenberg_styles")
           ->hooks(['enqueue_block_editor_assets'])
           ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
-          ->version(\WP_ENV == "development" ? filemtime(WP_PLUGIN_DIR .'/decoupled/css/editor.css') : '1.1.23')
+          ->version(\WP_ENV == "development" ? filemtime(WP_PLUGIN_DIR . '/decoupled/css/editor.css') : '1.1.23')
       ]);
     }
 
-    if ($isRest) { 
+    if ($isRest) {
       // Register CloakWP Decoupled's custom REST API endpoints:
       MenusEndpoint::register();
       FrontpageEndpoint::register();
@@ -87,7 +92,7 @@ class DecoupledCMS extends CMS
         // Set up the default BlockParser and its filters
         $this->blockParser = new BlockParser();
       });
-      
+
       HookModifiers::make(['post_type'])
         ->forFilter('cloakwp/eloquent/posts')
         ->register();
@@ -168,7 +173,7 @@ class DecoupledCMS extends CMS
             ->disableYoastBlocks()
             ->disableYoastToolbarMenu()
             ->deprioritizeYoastMetabox()
-            ->streamlineYoastInDevelopment(); 
+            ->streamlineYoastInDevelopment();
         }
       }
     }
@@ -178,7 +183,7 @@ class DecoupledCMS extends CMS
     }
 
     // Block editor customizations:
-    add_action('current_screen', function() {
+    add_action('current_screen', function () {
       if ($this->isBlockEditor()) {
         $this
           ->disableSvgFilters()
@@ -197,7 +202,7 @@ class DecoupledCMS extends CMS
         ->enableStandardRestFormatForACF()
         ->enableCleanParamForRestApi();
     }
-    
+
     // TODO: some of these methods are too opinionated; we should extend DecoupledCMS in our _base_theme and move those methods there, so they only apply to Pillar Labs' own projects.
     // $this
     //   ->replaceFrontendLinks()
@@ -250,6 +255,53 @@ class DecoupledCMS extends CMS
   }
 
   /**
+   * Enable decoupled maintenance mode. When enabled, the REST API will only allow requests from within wp-admin (ensuring
+   * the editor still works) or localhost (enabling you to work on the frontend locally while in maintenance mode). This
+   * ensures that production ISR requests from your decoupled frontend fail during maintenance, preventing static 
+   * pages from being regenerated, which is useful when purposefully breaking things in WordPress for a temporary period.
+   */
+  public function enableMaintenanceMode(): static
+  {
+    self::$isMaintenanceMode = true;
+
+    add_action('rest_api_init', function () {
+      add_filter('rest_pre_dispatch', function ($result, $server, $request) {
+        // Allow internal WP requests (those with a valid nonce)
+        $headers = getallheaders();
+        if (!empty($headers['X-WP-Nonce'])) {
+          return $result;
+        }
+
+        // Allow requests from authenticated WordPress users
+        if (!empty($headers['Cookie']) && (
+          strpos($headers['Cookie'], 'wordpress_logged_in_') !== false ||
+          strpos($headers['Cookie'], 'wordpress_sec_') !== false
+        )) {
+          return $result;
+        }
+
+        // Optionally allow requests from your WordPress domain itself
+        if (!empty($headers['Origin']) && strpos($headers['Origin'], home_url()) !== false) {
+          return $result;
+        }
+
+        // Allow requests from localhost for local development
+        if (!empty($headers['Host']) && (
+          strpos($headers['Host'], 'localhost') !== false ||
+          strpos($headers['Host'], '127.0.0.1') !== false
+        )) {
+          return $result;
+        }
+
+        // Otherwise, kill the external request
+        return new WP_Error('maintenance_mode', 'Site under maintenance', ['status' => 503]);
+      }, 10, 3);
+    });
+
+    return $this;
+  }
+
+  /**
    * Sets the BlockParser instance to be used for parsing blocks.
    *
    * @param \CloakWP\BlockParser\BlockParser $blockParser The BlockParser instance to set.
@@ -267,7 +319,7 @@ class DecoupledCMS extends CMS
    * 
    * See the description of the formatImage() method for more information on why image formatting is necessary for decoupled apps.
    */
-  public function enableImageFormatting(): static 
+  public function enableImageFormatting(): static
   {
     $this->enableImageFormattingForAttachments();
     $this->enableImageFormattingForACF();
@@ -280,29 +332,30 @@ class DecoupledCMS extends CMS
    * our source-of-truth for formatting all image data for the REST API. On its own, it does not modify REST API responses -- other methods
    * (enableImageFormattingForACF(), enableImageFormattingForAttachments(), etc.) hook into the necessary places to modify image data using this method.
    */
-  public static function formatImage(mixed $imageId) {
+  public static function formatImage(mixed $imageId)
+  {
     if (!$imageId) return $imageId;
     if (is_array($imageId)) return $imageId;
 
     // Handle case where $imageId is actually an image URL
     if (is_string($imageId) && filter_var($imageId, FILTER_VALIDATE_URL)) {
-        // Convert URL to post ID
-        $found_id = attachment_url_to_postid($imageId);
-        if ($found_id) {
-            $imageId = $found_id;
-        } else {
-            // If we couldn't find a matching attachment, return a minimal format
-            $imageSize = @getimagesize($imageId);
-            return [
-                'full' => [
-                    'src' => $imageId,
-                    'width' => $imageSize[0],
-                    'height' => $imageSize[1]
-                ],
-                'alt' => null,
-                'caption' => null
-            ];
-        }
+      // Convert URL to post ID
+      $found_id = attachment_url_to_postid($imageId);
+      if ($found_id) {
+        $imageId = $found_id;
+      } else {
+        // If we couldn't find a matching attachment, return a minimal format
+        $imageSize = @getimagesize($imageId);
+        return [
+          'full' => [
+            'src' => $imageId,
+            'width' => $imageSize[0],
+            'height' => $imageSize[1]
+          ],
+          'alt' => null,
+          'caption' => null
+        ];
+      }
     }
 
     $imageId = intval($imageId); // coerces strings into integers if they start with numeric data
@@ -311,7 +364,7 @@ class DecoupledCMS extends CMS
 
     // IMPORTANT: the array of sizes must be ordered from smallest to largest in order for exclusion logic further below to work properly: 
     $sizes = apply_filters('cloakwp/image_format/sizes', ['medium', 'large', 'full'], $imageId);
-    
+
     foreach ($sizes as $size) {
       $img = wp_get_attachment_image_src($imageId, $size);
       if (is_array($img)) {
@@ -369,17 +422,18 @@ class DecoupledCMS extends CMS
   /**
    * Ensures ACF images are formatted using our `formatImage()` method so they can be consumed more easily by decoupled frontends.
    */
-  public function enableImageFormattingForACF(): static {
-    add_filter('acf/format_value/type=image', function($value, $post_id, $field) {
+  public function enableImageFormattingForACF(): static
+  {
+    add_filter('acf/format_value/type=image', function ($value, $post_id, $field) {
       if (is_array($value)) return $this->formatImage($value['ID']);
       return $value;
     }, 20, 3);
 
-    add_filter('acf/format_value/type=gallery', function($value, $post_id, $field) {
+    add_filter('acf/format_value/type=gallery', function ($value, $post_id, $field) {
       if (!is_array($value)) return $value;
 
       $gallery = [];
-      foreach($value as $image) {
+      foreach ($value as $image) {
         $gallery[] = $this->formatImage($image['ID']);
       }
       return $gallery;
@@ -392,10 +446,11 @@ class DecoupledCMS extends CMS
    * Ensures Attachment post types (aka Media Library images) are formatted using our `formatImage()` 
    * method, so that they can be consumed more easily by decoupled frontends.
    */
-  public function enableImageFormattingForAttachments(): static {
-    add_filter('cloakwp/eloquent/posts/post_type=attachment', function($attachments) {
+  public function enableImageFormattingForAttachments(): static
+  {
+    add_filter('cloakwp/eloquent/posts/post_type=attachment', function ($attachments) {
       $formatted = [];
-      foreach($attachments as $attachment) {
+      foreach ($attachments as $attachment) {
         $formatted[] = $this->formatImage($attachment['ID']);
       }
 
@@ -415,14 +470,14 @@ class DecoupledCMS extends CMS
       $publicPostTypes = Utils::getPublicPostTypes();
       $allPostTypes = array_merge($customPostTypes, $publicPostTypes);
       $gutenbergPostTypes = Utils::getEditorPostTypes();
-  
+
       /**
        * `pathname` -- a virtual field on all PUBLIC posts (i.e. all posts that map to a front-end page). This allows
        * frontends to more easily determine the full URL path of a post by simply accessing the `pathname` property. 
        */
       register_virtual_fields($publicPostTypes, [
         VirtualField::make('pathname')
-          ->value(fn ($post) => Utils::getPostPathname(is_array($post) ? $post['id'] : $post->ID))
+          ->value(fn($post) => Utils::getPostPathname(is_array($post) ? $post['id'] : $post->ID))
       ]);
 
       // add some virtual fields to all CPTs + public built-in post types:
@@ -435,7 +490,7 @@ class DecoupledCMS extends CMS
           ->value(function ($post) {
             if ($post === null) return;
             $post_id = is_array($post) ? $post['id'] : $post->ID;
-            $image_id = get_post_thumbnail_id($post_id);  
+            $image_id = get_post_thumbnail_id($post_id);
             return $this->formatImage($image_id);
           }),
 
@@ -449,7 +504,7 @@ class DecoupledCMS extends CMS
             $authorId = is_array($post) ? $post['author'] : $post->post_author;
             return Utils::getPrettyAuthor($authorId);
           }),
-        
+
         /**
          * `acf` -- makes it easy for frontends to access a post's ACF field values;
          */
@@ -473,13 +528,13 @@ class DecoupledCMS extends CMS
             // Get all taxonomies attached to the post type
             $taxonomies = get_object_taxonomies($post->post_type);
             $taxonomies_data = array();
-  
+
             // Iterate through each taxonomy
             foreach ($taxonomies as $taxonomy) {
               // Get the terms for the current taxonomy
               $terms = wp_get_post_terms($post->ID, $taxonomy);
               $terms_data = array();
-  
+
               // Iterate through each term
               foreach ($terms as $term) {
                 // Build the term data array
@@ -488,22 +543,22 @@ class DecoupledCMS extends CMS
                   'slug' => $term->slug,
                   'id' => $term->term_id,
                 );
-  
+
                 // Add the term data to the terms array
                 $terms_data[] = $term_data;
               }
-  
+
               // Add the taxonomy slug to its own object
               $taxonomies_data[$taxonomy]['slug'] = $taxonomy;
-  
+
               // Add the terms data to the taxonomies data array
               $taxonomies_data[$taxonomy]['terms'] = $terms_data;
             }
-  
+
             return $taxonomies_data;
           })
       ]);
-    
+
       // add the Gutenberg-related virtual fields to all post types that utilize Gutenberg
       if ($gutenbergPostTypes) {
         register_virtual_fields($gutenbergPostTypes, [
@@ -570,12 +625,12 @@ class DecoupledCMS extends CMS
       return $response;
     };
 
-    add_action("init", function() use($cleanFn) {
+    add_action("init", function () use ($cleanFn) {
       $publicPostTypes = Utils::getPublicPostTypes();
       $customPostTypes = Utils::getCustomPostTypes();
       $allPostTypes = array_merge($customPostTypes, $publicPostTypes);
       $allPostTypes[] = 'revision'; // make sure "revisions" responses also get cleaned in same way
-  
+
       foreach ($allPostTypes as $postType) {
         add_filter("rest_prepare_{$postType}", $cleanFn, 50, 3);
       }
@@ -596,14 +651,14 @@ class DecoupledCMS extends CMS
     add_filter('post_type_link', array($this, 'convertToDecoupledUrl'), 10, 2);
 
     // chop off domain portion of internal links within menu items:
-    add_filter('cloakwp/eloquent/model/menu_item/formatted_meta', function($meta) {
+    add_filter('cloakwp/eloquent/model/menu_item/formatted_meta', function ($meta) {
       if ($meta['link_type'] != 'custom') {
         $url = $meta['url'];
         $frontendUrl = DecoupledCMS::getInstance()->getActiveFrontend()->getUrl();
         $url = str_replace($frontendUrl, "", $url);
         $meta['url'] = untrailingslashit($url);
       }
-      
+
       return $meta;
     }, 10, 2);
 
@@ -613,17 +668,17 @@ class DecoupledCMS extends CMS
         // Get references to the 'view-site' and 'site-name' nodes to modify.
         $view_site_node = $wp_admin_bar->get_node('view-site');
         $site_name_node = $wp_admin_bar->get_node('site-name');
-  
+
         if ($view_site_node && $site_name_node) {
           // Change targets
           $view_site_node->meta['target'] = '_blank';
           $site_name_node->meta['target'] = '_blank';
-    
+
           // Change hrefs to our frontend URL
           $url = $this->getActiveFrontend()->getUrl();
           $view_site_node->href = $url;
           $site_name_node->href = $url;
-    
+
           // Update Nodes
           $wp_admin_bar->add_node((array)$view_site_node);
           $wp_admin_bar->add_node((array)$site_name_node);
@@ -660,7 +715,7 @@ class DecoupledCMS extends CMS
   public function enableDecoupledPreview(): static
   {
     // Modify 'preview' links on posts/pages to point to this frontend URL
-    add_filter('preview_post_link', function($preview_link, $post) {
+    add_filter('preview_post_link', function ($preview_link, $post) {
       return $this->getActiveFrontend()->getPostPreviewUrl($post);
     }, 10, 2);
 
@@ -669,7 +724,7 @@ class DecoupledCMS extends CMS
       page --> this is in addition to our 'preview_post_link' filter above that changes the 
       preview link (which doesn't work all the time due to known bugs).
    */
-    add_action('template_redirect', function() {
+    add_action('template_redirect', function () {
       $this->getActiveFrontend()->redirectToFrontendPreview();
     });
 
@@ -694,7 +749,8 @@ class DecoupledCMS extends CMS
    * in React. It's easiest to decode the strings "at the source" (i.e. server-side rather than client-side), which also 
    * ensures consistency in cases where you might have multiple clients/frontends.
    */
-  public function enableHtmlEntityDecodingForRestApi(): static {
+  public function enableHtmlEntityDecodingForRestApi(): static
+  {
     add_filter('rest_prepare_post', function ($response, $post, $request) {
       /* 
         This filter allows you to specify which properties of a post should be decoded using html_entity_decode.
@@ -712,7 +768,8 @@ class DecoupledCMS extends CMS
     return $this;
   }
 
-  private function decodeProperty(&$data, $property) {
+  private function decodeProperty(&$data, $property)
+  {
     $parts = explode('.', $property);
     $current = &$data;
 
@@ -751,9 +808,9 @@ class DecoupledCMS extends CMS
     }, 10, 1);
 
     return $this;
-  }  
+  }
 
-  
+
   /**
    * By default, posts fetched within ACF (using its internal `acf_get_posts` function) suppress filters like "the_posts",
    * preventing CloakWP Virtual Fields from affecting ACF relational fields data, for example. This can be a problem 
@@ -761,7 +818,7 @@ class DecoupledCMS extends CMS
    */
   public function enablePostFiltersForACF(): static
   {
-    add_filter('acf/acf_get_posts/args', function($args) {
+    add_filter('acf/acf_get_posts/args', function ($args) {
       return wp_parse_args(
         $args,
         array(
@@ -833,7 +890,7 @@ class DecoupledCMS extends CMS
       ]);
 
       if (!$block->emptyFieldsMessage) $block->emptyFieldsMessage('This block has no fields/controls. Simply drop it wherever you wish to display it.');
-      
+
       // now register each block
       $block->register();
     }
@@ -930,12 +987,12 @@ class DecoupledCMS extends CMS
   {
     $auth = new JWTAuth();
 
-    $payload = $auth->validate_token( false );
+    $payload = $auth->validate_token(false);
 
-    if ( $auth->is_error_response( $payload ) ) {
+    if ($auth->is_error_response($payload)) {
       return false;
     }
-    
+
     return true;
     // return false; // TEMPORARY while JWTAuth is under construction
   }
