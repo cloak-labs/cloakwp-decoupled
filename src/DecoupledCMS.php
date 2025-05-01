@@ -286,10 +286,22 @@ class DecoupledCMS extends CMS
         }
 
         // Allow requests from localhost for local development
-        if (!empty($headers['Host']) && (
-          strpos($headers['Host'], 'localhost') !== false ||
-          strpos($headers['Host'], '127.0.0.1') !== false
-        )) {
+        $isLocalhost = false;
+
+        // Check common server variables for localhost
+        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
+        $httpHost = $_SERVER['HTTP_HOST'] ?? '';
+        $serverName = $_SERVER['SERVER_NAME'] ?? '';
+
+        $isLocalhost = (
+          $remoteAddr === '127.0.0.1' ||
+          $remoteAddr === '::1' ||
+          strpos($remoteAddr, '::ffff:127.0.0.1') !== false ||
+          strpos($httpHost, 'localhost') !== false ||
+          strpos($serverName, 'localhost') !== false
+        );
+
+        if ($isLocalhost) {
           return $result;
         }
 
