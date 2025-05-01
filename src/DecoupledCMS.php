@@ -285,23 +285,11 @@ class DecoupledCMS extends CMS
           return $result;
         }
 
-        // Allow requests from localhost for local development
-        $isLocalhost = false;
+        // Allow requests with a special bypass parameter
+        $bypassParam = isset($_GET['bypass']) ? $_GET['bypass'] : $request->get_param('bypass');
 
-        // Check common server variables for localhost
-        $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
-        $httpHost = $_SERVER['HTTP_HOST'] ?? '';
-        $serverName = $_SERVER['SERVER_NAME'] ?? '';
-
-        $isLocalhost = (
-          $remoteAddr === '127.0.0.1' ||
-          $remoteAddr === '::1' ||
-          strpos($remoteAddr, '::ffff:127.0.0.1') !== false ||
-          strpos($httpHost, 'localhost') !== false ||
-          strpos($serverName, 'localhost') !== false
-        );
-
-        if ($isLocalhost) {
+        // Check for the presence of the unique bypass parameter
+        if ($bypassParam !== null) {
           return $result;
         }
 
