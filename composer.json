@@ -2,7 +2,7 @@
   "name": "cloakwp/decoupled",
   "description": "Transform WordPress into a headless CMS.",
   "type": "wordpress-plugin",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "license": "LGPL-3.0-only",
   "require": {
     "cloakwp/block-parser": "^0.0",
