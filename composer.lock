@@ -4,15 +4,21 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "15ba1403f9f52eefe298bb1ab3b3fc92",
+    "content-hash": "41bd8fcb2dd0f80eee32ce18ecf0926e",
     "packages": [
         {
             "name": "cloakwp/block-parser",
-            "version": "0.0.7",
+            "version": "0.0.8",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-block-parser.git",
+                "reference": "dc7ebabed282e92853ec8f6ed807388af6256e0f"
+            },
             "dist": {
-                "type": "path",
-                "url": "../cloakwp-block-parser",
-                "reference": "5531a01423a0a83e86c3fecf89da5488cb0bb1ce"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-block-parser/zipball/dc7ebabed282e92853ec8f6ed807388af6256e0f",
+                "reference": "dc7ebabed282e92853ec8f6ed807388af6256e0f",
+                "shasum": ""
             },
             "require": {
                 "cloakwp/hook-modifiers": "*",
@@ -27,21 +33,30 @@
                     "CloakWP\\BlockParser\\": "src/"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Parse Gutenberg + ACF Blocks into structured objects.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-block-parser/issues",
+                "source": "https://github.com/cloak-labs/wp-block-parser/tree/v0.0.8"
+            },
+            "time": "2025-04-29T05:46:33+00:00"
         },
         {
             "name": "cloakwp/core",
-            "version": "0.0.8",
+            "version": "0.0.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/cloakwp-core.git",
+                "reference": "279b41ead51fe207171e8cf1f073554d11b7ea88"
+            },
             "dist": {
-                "type": "path",
-                "url": "../cloakwp-core",
-                "reference": "92d6336fb8070970e81bf5842aae828e6b2df446"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/cloakwp-core/zipball/279b41ead51fe207171e8cf1f073554d11b7ea88",
+                "reference": "279b41ead51fe207171e8cf1f073554d11b7ea88",
+                "shasum": ""
             },
             "require": {
                 "composer/installers": "^2.2",
@@ -55,21 +70,30 @@
                     "CloakWP\\Core\\": "src"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "A set of OOP abstractions around WordPress core to improve developer experience.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/cloakwp-core/issues",
+                "source": "https://github.com/cloak-labs/cloakwp-core/tree/v0.0.10"
+            },
+            "time": "2025-05-01T22:02:11+00:00"
         },
         {
             "name": "cloakwp/hook-modifiers",
             "version": "0.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-hook-modifiers.git",
+                "reference": "2cd38a79eef0aa3b72ab87b863be8efa1b998fa1"
+            },
             "dist": {
-                "type": "path",
-                "url": "../wp-hook-modifiers",
-                "reference": "94cd1c62d45af06d48289000a20590f73e14b38c"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-hook-modifiers/zipball/2cd38a79eef0aa3b72ab87b863be8efa1b998fa1",
+                "reference": "2cd38a79eef0aa3b72ab87b863be8efa1b998fa1",
+                "shasum": ""
             },
             "require": {
                 "composer/installers": "^2.2",
@@ -81,21 +105,30 @@
                     "CloakWP\\": "src/"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Extend WordPress hooks with modifiers for more granular filters and actions",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-hook-modifiers/issues",
+                "source": "https://github.com/cloak-labs/wp-hook-modifiers/tree/v0.0.3"
+            },
+            "time": "2024-09-09T22:57:13+00:00"
         },
         {
             "name": "cloakwp/jwt-auth",
             "version": "0.0.1",
-            "dist": {
-                "type": "path",
-                "url": "../jwt-auth",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/jwt-auth.git",
                 "reference": "10a7b2b9a68a869b7de6fd69251ef1fe2c9f7bf0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/jwt-auth/zipball/10a7b2b9a68a869b7de6fd69251ef1fe2c9f7bf0",
+                "reference": "10a7b2b9a68a869b7de6fd69251ef1fe2c9f7bf0",
+                "shasum": ""
             },
             "require": {
                 "firebase/php-jwt": "^6.3"
@@ -113,17 +146,7 @@
                     "CloakWP\\JWTAuth\\": "src"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "CloakWP\\Tests\\JwtAuth\\": "tests/src/",
-                    "CloakWP\\Tests\\JwtAuth\\Fixtures\\": "tests/fixtures/"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "./vendor/bin/phpunit"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "GPL-3.0-only"
             ],
@@ -138,17 +161,24 @@
                 }
             ],
             "description": "JWT Auth",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "source": "https://github.com/cloak-labs/jwt-auth/tree/v0.0.1"
+            },
+            "time": "2024-10-03T18:09:40+00:00"
         },
         {
             "name": "cloakwp/virtual-fields",
-            "version": "0.0.7",
+            "version": "0.0.8",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-virtual-fields.git",
+                "reference": "23e9eeacc0a9f697e411f550b041e9f1192c7345"
+            },
             "dist": {
-                "type": "path",
-                "url": "../wp-virtual-fields",
-                "reference": "c88e43818346d2a258278300b4b3275506e56a44"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-virtual-fields/zipball/23e9eeacc0a9f697e411f550b041e9f1192c7345",
+                "reference": "23e9eeacc0a9f697e411f550b041e9f1192c7345",
+                "shasum": ""
             },
             "require": {
                 "cloakwp/core": "^0.0",
@@ -156,20 +186,23 @@
             },
             "type": "library",
             "autoload": {
-                "psr-4": {
-                    "CloakWP\\VirtualFields\\": "src"
-                },
                 "files": [
                     "src/register.php"
-                ]
+                ],
+                "psr-4": {
+                    "CloakWP\\VirtualFields\\": "src"
+                }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Simple API for creating virtual fields on WordPress posts.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-virtual-fields/issues",
+                "source": "https://github.com/cloak-labs/wp-virtual-fields/tree/v0.0.8"
+            },
+            "time": "2025-04-29T16:29:41+00:00"
         },
         {
             "name": "composer/installers",
@@ -511,16 +544,16 @@
         },
         {
             "name": "myclabs/deep-copy",
-            "version": "1.13.0",
+            "version": "1.13.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/myclabs/DeepCopy.git",
-                "reference": "024473a478be9df5fdaca2c793f2232fe788e414"
+                "reference": "1720ddd719e16cf0db4eb1c6eca108031636d46c"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/myclabs/DeepCopy/zipball/024473a478be9df5fdaca2c793f2232fe788e414",
-                "reference": "024473a478be9df5fdaca2c793f2232fe788e414",
+                "url": "https://api.github.com/repos/myclabs/DeepCopy/zipball/1720ddd719e16cf0db4eb1c6eca108031636d46c",
+                "reference": "1720ddd719e16cf0db4eb1c6eca108031636d46c",
                 "shasum": ""
             },
             "require": {
@@ -559,7 +592,7 @@
             ],
             "support": {
                 "issues": "https://github.com/myclabs/DeepCopy/issues",
-                "source": "https://github.com/myclabs/DeepCopy/tree/1.13.0"
+                "source": "https://github.com/myclabs/DeepCopy/tree/1.13.1"
             },
             "funding": [
                 {
@@ -567,7 +600,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-02-12T12:17:51+00:00"
+            "time": "2025-04-29T12:36:36+00:00"
         },
         {
             "name": "psr/container",
