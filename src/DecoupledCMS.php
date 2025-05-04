@@ -5,7 +5,6 @@ namespace CloakWP;
 use CloakWP\Core\CMS;
 use CloakWP\Core\Utils;
 use CloakWP\Core\Enqueue\Stylesheet;
-use CloakWP\Eloquent\Model\Attachment;
 use CloakWP\BlockParser\BlockParser;
 use CloakWP\VirtualFields\VirtualField;
 use CloakWP\HookModifiers;
@@ -142,7 +141,7 @@ class DecoupledCMS extends CMS
       $this
         ->enableFeaturedImages()
         ->enableExcerpts()
-        ->enableBrowserSync()
+        // ->enableBrowserSync()
         ->enableXdebugInfoPage()
         ->enableMenusForEditors()
         ->disableLegacyCustomizer()
