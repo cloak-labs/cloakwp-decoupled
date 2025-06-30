@@ -124,6 +124,7 @@ class DecoupledCMS extends CMS
       $this
         ->registerVirtualFields()
         ->enableCors()
+        ->enableSvgUploads()
         ->enableSVGsForACF()
         ->enableImageFormatting()
         ->enableDecoupledPreview()
