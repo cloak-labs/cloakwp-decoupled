@@ -201,6 +201,12 @@ class DecoupledCMS extends CMS
         ->enableLoginStatusEndpoint()
         ->enableStandardRestFormatForACF()
         ->enableCleanParamForRestApi();
+
+      // Yoast SEO Schema config:
+      $this
+        ->disableYoastBreadcrumbSchema()
+        ->disableYoastSchemaSearchAction()
+        ->fixYoastSchema();
     }
 
     // TODO: some of these methods are too opinionated; we should extend DecoupledCMS in our _base_theme and move those methods there, so they only apply to Pillar Labs' own projects.
@@ -875,6 +881,61 @@ class DecoupledCMS extends CMS
   public function disableSearchEngineIndexingWarnings(): static
   {
     add_filter('roots/bedrock/disallow_indexing_admin_notice', '__return_false');
+    return $this;
+  }
+
+  public function disableYoastSchemaSearchAction(): static
+  {
+    add_filter('disable_wpseo_json_ld_search', '__return_true');
+    return $this;
+  }
+
+  public function fixYoastSchema(): static
+  {
+    // Make URL of "WebSite" schema object point to the decoupled frontend URL
+    add_filter(
+      'wpseo_schema_website',
+      /**
+       * Changes Website Schema data output, overwriting the name and alternateName.
+       *
+       * @param array $data Schema.org Website data array.
+       *
+       * @return array Schema.org Website data array.
+       */
+      function ($data) {
+        $data['url'] = $this->getActiveFrontend()->getUrl();
+
+        return $data;
+      }
+    );
+
+    // Change the "SearchAction" url to point to the decoupled frontend URL
+    add_filter(
+      'wpseo_json_ld_search_url',
+      function () {
+        return $this->getActiveFrontend()->getUrl() . '/?s={search_term_string}';
+      }
+    );
+
+    // Make URL of "Organization" schema object point to the decoupled frontend URL
+    add_filter(
+      'wpseo_schema_organization',
+      /**
+       * Add extra properties to the Yoast SEO Organization
+       *
+       * @param array             $data    The Schema Organization data.
+       * @param Meta_Tags_Context $context Context value object.
+       *
+       * @return array $data The Schema Organization data.
+       */
+      function ($data, $context) {
+        $data['url'] = $this->getActiveFrontend()->getUrl();
+        return $data;
+      },
+      11,
+      2
+    );
+
     return $this;
   }
 
