@@ -205,7 +205,7 @@ class DecoupledCMS extends CMS
       // Yoast SEO Schema config:
       $this
         ->disableYoastBreadcrumbSchema()
-        ->disableYoastSchemaSearchAction()
+        ->disableYoastSearchActionSchema()
         ->fixYoastSchema();
     }
 
@@ -884,16 +884,8 @@ class DecoupledCMS extends CMS
     return $this;
   }
 
-  public function disableYoastSchemaSearchAction(): static
-  {
-    add_filter('disable_wpseo_json_ld_search', '__return_true');
-    return $this;
-  }
-
   public function fixYoastSchema(): static
   {
-    $frontendUrl = $this->getActiveFrontend()->getUrl();
-
     // Make URL of "WebSite" schema object point to the decoupled frontend URL
     add_filter(
       'wpseo_schema_website',
@@ -904,8 +896,8 @@ class DecoupledCMS extends CMS
        *
        * @return array Schema.org Website data array.
        */
-      function ($data) use ($frontendUrl) {
-        $data['url'] = $frontendUrl;
+      function ($data) {
+        $data['url'] = $this->getActiveFrontend()->getUrl();;
 
         return $data;
       }
@@ -914,8 +906,8 @@ class DecoupledCMS extends CMS
     // Change the "SearchAction" url to point to the decoupled frontend URL
     add_filter(
       'wpseo_json_ld_search_url',
-      function () use ($frontendUrl) {
-        return $frontendUrl . '/?s={search_term_string}';
+      function () {
+        return $this->getActiveFrontend()->getUrl() . '/?s={search_term_string}';
       }
     );
 
@@ -930,8 +922,8 @@ class DecoupledCMS extends CMS
        *
        * @return array $data The Schema Organization data.
        */
-      function ($data, $context) use ($frontendUrl) {
-        $data['url'] = $frontendUrl;
+      function ($data, $context) {
+        $data['url'] = $this->getActiveFrontend()->getUrl();
         return $data;
       },
       11,
@@ -948,7 +940,7 @@ class DecoupledCMS extends CMS
        *
        * @return array The altered Schema.org graph.
        */
-      function ($data, $context) use ($frontendUrl) {
+      function ($data, $context) {
         $wpUrl = get_home_url();
 
         // When json_encode is used, slashes are escaped, so we need to replace both escaped and unescaped forms.
@@ -958,7 +950,7 @@ class DecoupledCMS extends CMS
         $escapedWpUrl = str_replace('/', '\\/', $wpUrl);
 
         // Replace both forms in the JSON string
-        $json = str_replace([$wpUrl, $escapedWpUrl], $frontendUrl, $json);
+        $json = str_replace([$wpUrl, $escapedWpUrl], $this->getActiveFrontend()->getUrl(), $json);
 
         // Decode back to array
         $data = json_decode($json, true);
