@@ -892,6 +892,8 @@ class DecoupledCMS extends CMS
 
   public function fixYoastSchema(): static
   {
+    $frontendUrl = $this->getActiveFrontend()->getUrl();
+
     // Make URL of "WebSite" schema object point to the decoupled frontend URL
     add_filter(
       'wpseo_schema_website',
@@ -902,8 +904,8 @@ class DecoupledCMS extends CMS
        *
        * @return array Schema.org Website data array.
        */
-      function ($data) {
-        $data['url'] = $this->getActiveFrontend()->getUrl();
+      function ($data) use ($frontendUrl) {
+        $data['url'] = $frontendUrl;
 
         return $data;
       }
@@ -912,8 +914,8 @@ class DecoupledCMS extends CMS
     // Change the "SearchAction" url to point to the decoupled frontend URL
     add_filter(
       'wpseo_json_ld_search_url',
-      function () {
-        return $this->getActiveFrontend()->getUrl() . '/?s={search_term_string}';
+      function () use ($frontendUrl) {
+        return $frontendUrl . '/?s={search_term_string}';
       }
     );
 
@@ -928,11 +930,42 @@ class DecoupledCMS extends CMS
        *
        * @return array $data The Schema Organization data.
        */
-      function ($data, $context) {
-        $data['url'] = $this->getActiveFrontend()->getUrl();
+      function ($data, $context) use ($frontendUrl) {
+        $data['url'] = $frontendUrl;
         return $data;
       },
       11,
+      2
+    );
+
+    add_filter(
+      'wpseo_schema_graph',
+      /**
+       * Replaces WP URLs with decoupled frontend's URLs in all SEO Schema (excluding image URLs).  
+       *
+       * @param array             $data    Schema.org graph.
+       * @param Meta_Tags_Context $context Context object.
+       *
+       * @return array The altered Schema.org graph.
+       */
+      function ($data, $context) use ($frontendUrl) {
+        $wpUrl = get_home_url();
+
+        // When json_encode is used, slashes are escaped, so we need to replace both escaped and unescaped forms.
+        $json = json_encode($data);
+
+        // Replace both "http://example.com" and "http:\/\/example.com"
+        $escapedWpUrl = str_replace('/', '\\/', $wpUrl);
+
+        // Replace both forms in the JSON string
+        $json = str_replace([$wpUrl, $escapedWpUrl], $frontendUrl, $json);
+
+        // Decode back to array
+        $data = json_decode($json, true);
+
+        return $data;
+      },
+      99,
       2
     );
 
