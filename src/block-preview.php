@@ -88,7 +88,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   $bodyClasses = apply_filters('admin_body_class', '');
   $isPageDark = in_array('dark', explode(" ", $bodyClasses));
 
-  ?>
+?>
   <div class="decoupled-block-preview-ctnr">
     <!-- Block selector icon overlay on hover (note: we don't render this icon for block inserter previews, only within Editor) -->
     <?php if (!$is_block_inserter): ?>
@@ -108,7 +108,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
       loading="lazy"></iframe>
 
     <script>
-      (function () {
+      (function() {
         const blockData = <?php echo $json; ?>;
         const isPageDark = <?php echo $isPageDark ? 'true' : 'false'; ?>;
         const bodyClassNames = isPageDark ? ['dark', 'dark:darker'] : [];
@@ -135,11 +135,13 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
         const sendAllInfo = () => {
           sendDataToIframe(blockData);
           if (bodyClassNames.length) {
-            sendDataToIframe({ bodyClassName: bodyClassNames.join(' ') });
+            sendDataToIframe({
+              bodyClassName: bodyClassNames.join(' ')
+            });
           }
         };
 
-        window.addEventListener("message", function (event) {
+        window.addEventListener("message", function(event) {
           if (event.source === iframe.contentWindow) {
             if (event.data === "ready") {
               sendAllInfo();
@@ -163,5 +165,5 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
       })();
     </script>
   </div>
-  <?php
+<?php
 }
