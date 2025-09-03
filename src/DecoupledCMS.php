@@ -419,7 +419,10 @@ class DecoupledCMS extends CMS
 
     $alt_desc = get_post_meta($imageId, '_wp_attachment_image_alt', true);
     $filteredResult['alt'] = $alt_desc;
-    $filteredResult['caption'] = get_post_field('post_excerpt', $imageId);
+
+    // Get caption safely without modifying global post object
+    $post = get_post($imageId);
+    $filteredResult['caption'] = $post ? $post->post_excerpt : null;
 
     return $filteredResult;
   }
@@ -430,12 +433,13 @@ class DecoupledCMS extends CMS
    */
   public function enableImageFormattingForACF(): static
   {
-    add_filter('acf/format_value/type=image', function ($value, $post_id, $field) {
+    add_filter('acf/format_value/type=image', function ($value, $postId, $field) {
       if (is_array($value)) return $this->formatImage($value['ID']);
+
       return $value;
     }, 20, 3);
 
-    add_filter('acf/format_value/type=gallery', function ($value, $post_id, $field) {
+    add_filter('acf/format_value/type=gallery', function ($value, $postId, $field) {
       if (!is_array($value)) return $value;
 
       $gallery = [];
@@ -446,6 +450,11 @@ class DecoupledCMS extends CMS
           $gallery[] = $this->formatImage($image);
         }
       }
+
+      // manually reset GLOBAL post object as formatImage() causes it to change to the last processed image (causes bugs elsewhere)
+      $post = get_post($postId);
+      $GLOBALS['post'] = $post;
+
       return $gallery;
     }, 99, 3);
 
