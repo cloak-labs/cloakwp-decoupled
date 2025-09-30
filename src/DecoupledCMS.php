@@ -145,6 +145,7 @@ class DecoupledCMS extends CMS
         // ->enableBrowserSync()
         ->enableXdebugInfoPage()
         ->enableMenusForEditors()
+        ->enableSlugsForDrafts()
         ->disableLegacyCustomizer()
         ->disableWidgets()
         ->disableComments()
@@ -598,6 +599,41 @@ class DecoupledCMS extends CMS
   }
 
   /**
+   * Ensures that drafts generate a slug (which isn't the default behaviour), so that 
+   * they can be fetched via their slug from the decoupled frontend for previewing.
+   */
+  public function enableSlugsForDrafts(): static
+  {
+    add_action('save_post', 'enable_slugs_for_drafts', 10, 3);
+    function enable_slugs_for_drafts($post_id, $post, $update)
+    {
+      // Don't run on autosaves/revisions or when not a proper post type
+      if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
+      if (! in_array($post->post_status, ['draft', 'pending'], true)) return;
+
+      // Already has a slug? bail.
+      if (! empty($post->post_name)) return;
+
+      // Need some basis for the slug
+      $basis = $post->post_title ?: 'untitled';
+      $slug  = sanitize_title($basis);
+
+      // Make it unique the WordPress way
+      $slug  = wp_unique_post_slug($slug, $post_id, $post->post_status, $post->post_type, $post->post_parent);
+
+      // Update without causing an infinite loop
+      remove_action('save_post', 'enable_slugs_for_drafts', 10);
+      wp_update_post([
+        'ID'        => $post_id,
+        'post_name' => $slug,
+      ]);
+      add_action('save_post', 'enable_slugs_for_drafts', 10, 3);
+    }
+
+    return $this;
+  }
+
+  /**
    * This method allows you to add a URL parameter `clean` to any WP REST API request, which will 
    * remove fields that are usually unused by decoupled frontends. It makes REST responses
    * nicer to look at and quicker to mentally parse when debugging in the browser.
@@ -983,10 +1019,12 @@ class DecoupledCMS extends CMS
     foreach ($blocks as $block) {
       if (!is_object($block) || !method_exists($block, 'getFieldGroupSettings')) continue; // invalid block
 
-      // Make each ACF block use CloakWP's iframe preview render template
-      $block->args([
-        'render_callback' => array($this, 'renderBlockIframePreview') // idea here is to remove/abstract the need for dev to specify { ... "renderCallback": "function_name" ... } in block.json
-      ]);
+      // Make each ACF block use CloakWP's decoupled iframe preview render template, unless the block specifies its own render template
+      if (!isset($block->parsedBlockJson['render_callback']) && !isset($block->parsedBlockJson['acf']['renderTemplate'])) {
+        $block->args([
+          'render_callback' => array($this, 'renderBlockIframePreview') // idea here is to remove/abstract the need for dev to specify { ... "renderCallback": "function_name" ... } in block.json
+        ]);
+      }
 
       if (!$block->emptyFieldsMessage) $block->emptyFieldsMessage('This block has no fields/controls. Simply drop it wherever you wish to display it.');
 
