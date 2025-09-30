@@ -604,33 +604,33 @@ class DecoupledCMS extends CMS
    */
   public function enableSlugsForDrafts(): static
   {
-    add_action('save_post', 'enable_slugs_for_drafts', 10, 3);
-    function enable_slugs_for_drafts($post_id, $post, $update)
-    {
-      // Don't run on autosaves/revisions or when not a proper post type
-      if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
-      if (! in_array($post->post_status, ['draft', 'pending'], true)) return;
-
-      // Already has a slug? bail.
-      if (! empty($post->post_name)) return;
-
-      // Need some basis for the slug
-      $basis = $post->post_title ?: 'untitled';
-      $slug  = sanitize_title($basis);
-
-      // Make it unique the WordPress way
-      $slug  = wp_unique_post_slug($slug, $post_id, $post->post_status, $post->post_type, $post->post_parent);
-
-      // Update without causing an infinite loop
-      remove_action('save_post', 'enable_slugs_for_drafts', 10);
-      wp_update_post([
-        'ID'        => $post_id,
-        'post_name' => $slug,
-      ]);
-      add_action('save_post', 'enable_slugs_for_drafts', 10, 3);
-    }
-
+    add_action('save_post', [$this, 'handleSlugsForDrafts'], 10, 3);
     return $this;
+  }
+
+  public function handleSlugsForDrafts($post_id, $post, $update)
+  {
+    // Don't run on autosaves/revisions or when not a proper post type
+    if (wp_is_post_revision($post_id) || wp_is_post_autosave($post_id)) return;
+    if (! in_array($post->post_status, ['draft', 'pending'], true)) return;
+
+    // Already has a slug? bail.
+    if (! empty($post->post_name)) return;
+
+    // Need some basis for the slug
+    $basis = $post->post_title ?: 'untitled';
+    $slug  = sanitize_title($basis);
+
+    // Make it unique the WordPress way
+    $slug  = wp_unique_post_slug($slug, $post_id, $post->post_status, $post->post_type, $post->post_parent);
+
+    // Update without causing an infinite loop
+    remove_action('save_post', [$this, 'handleSlugsForDrafts'], 10);
+    wp_update_post([
+      'ID'        => $post_id,
+      'post_name' => $slug,
+    ]);
+    add_action('save_post', [$this, 'handleSlugsForDrafts'], 10, 3);
   }
 
   /**
