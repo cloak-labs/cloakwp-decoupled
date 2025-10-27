@@ -360,7 +360,8 @@ class DecoupledCMS extends CMS
             'height' => $imageSize[1]
           ],
           'alt' => null,
-          'caption' => null
+          'caption' => null,
+          'title' => null
         ];
       }
     }
@@ -424,6 +425,8 @@ class DecoupledCMS extends CMS
     // Get caption safely without modifying global post object
     $post = get_post($imageId);
     $filteredResult['caption'] = $post ? $post->post_excerpt : null;
+
+    $filteredResult['title'] = $post ? $post->post_title : null;
 
     return $filteredResult;
   }
