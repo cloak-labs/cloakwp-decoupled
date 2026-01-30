@@ -167,15 +167,20 @@ class DecoupledCMS extends CMS
       }
 
       // Yoast SEO plugin config:
-      if (function_exists('is_plugin_active')) {
-        if (is_plugin_active('wordpress-seo/wp-seo.php')) {
-          $this->disableYoastForEditors()
-            ->disableYoastSitemap()
-            ->disableYoastBlocks()
-            ->disableYoastToolbarMenu()
-            ->deprioritizeYoastMetabox()
-            ->streamlineYoastInDevelopment();
-        }
+      // `is_plugin_active()` is a global WP function (not namespaced) and is not always loaded on non-admin requests.
+      if (!function_exists('is_plugin_active') && defined('ABSPATH')) {
+        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+      }
+
+      if (\function_exists('is_plugin_active') && \is_plugin_active('wordpress-seo/wp-seo.php')) {
+        $this->disableYoastForEditors()
+          ->disableYoastSitemap()
+          ->disableYoastBlocks()
+          ->disableYoastToolbarMenu()
+          ->deprioritizeYoastMetabox()
+          ->streamlineYoastInDevelopment();
+      } else {
+        Utils::log('Yoast SEO plugin is not active');
       }
     }
 
