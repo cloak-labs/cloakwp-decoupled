@@ -538,11 +538,68 @@ class DecoupledCMS extends CMS
          * Limited to 1 recursive layer to avoid bidirectional relationship fields including the parent again.
          */
         VirtualField::make('acf')
-          ->maxRecursiveDepth(1)
-          ->value(function ($post) {
+          ->value(function ($post, array $state = []) {
             if ($post === null) return;
             $postId = is_array($post) ? $post['id'] : $post->ID;
-            return get_fields($postId);
+            $fields = get_fields($postId);
+
+            if (!is_array($fields) || !$fields) {
+              return $fields;
+            }
+
+            foreach ($fields as $fieldName => $fieldValue) {
+              // Only apply this guard to ACF relationship-like fields.
+              if (!is_string($fieldName) || stripos($fieldName, 'relationship') === false) {
+                continue;
+              }
+
+              $containsProcessingId = function ($value) use ($state, &$containsProcessingId): bool {
+                if ($value instanceof \WP_Post) {
+                  $id = $value->ID ?? null;
+                  if (!is_int($id)) {
+                    return false;
+                  }
+                  $status = $state[$id] ?? null;
+                  return $status === 'processing' || $status === 'processed';
+                }
+
+                if (is_array($value)) {
+                  // Common ACF "post object" array shape
+                  $id = $value['ID'] ?? $value['id'] ?? null;
+                  if (is_numeric($id)) {
+                    $id = (int) $id;
+                    $status = $state[$id] ?? null;
+                    if ($status === 'processing' || $status === 'processed') {
+                      return true;
+                    }
+                  }
+
+                  foreach ($value as $v) {
+                    if ($containsProcessingId($v)) {
+                      return true;
+                    }
+                  }
+                }
+
+                if (is_object($value)) {
+                  // Generic object shape
+                  $id = $value->ID ?? $value->id ?? null;
+                  if (is_numeric($id)) {
+                    $id = (int) $id;
+                    $status = $state[$id] ?? null;
+                    return $status === 'processing' || $status === 'processed';
+                  }
+                }
+
+                return false;
+              };
+
+              if ($containsProcessingId($fieldValue)) {
+                unset($fields[$fieldName]);
+              }
+            }
+
+            return $fields;
           }),
 
         /**
