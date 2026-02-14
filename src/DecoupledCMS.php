@@ -534,9 +534,11 @@ class DecoupledCMS extends CMS
           }),
 
         /**
-         * `acf` -- makes it easy for frontends to access a post's ACF field values;
+         * `acf` -- makes it easy for frontends to access a post's ACF field values.
+         * Limited to 1 recursive layer to avoid bidirectional relationship fields including the parent again.
          */
         VirtualField::make('acf')
+          ->maxRecursiveDepth(1)
           ->value(function ($post) {
             if ($post === null) return;
             $postId = is_array($post) ? $post['id'] : $post->ID;
