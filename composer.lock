@@ -4,15 +4,21 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e51a5ce53864282ebcca2004ab2bdae9",
+    "content-hash": "12e99c88f308ee644230c2f9fee563d6",
     "packages": [
         {
             "name": "cloakwp/block-parser",
-            "version": "0.0.10",
+            "version": "0.0.16",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-block-parser.git",
+                "reference": "5c4fd2219a7c9ca7bd62243215c92b980ed85cd1"
+            },
             "dist": {
-                "type": "path",
-                "url": "../cloakwp-block-parser",
-                "reference": "e9ed7771ed563a932d2d2562d76f17cfff7bc3e4"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-block-parser/zipball/5c4fd2219a7c9ca7bd62243215c92b980ed85cd1",
+                "reference": "5c4fd2219a7c9ca7bd62243215c92b980ed85cd1",
+                "shasum": ""
             },
             "require": {
                 "cloakwp/hook-modifiers": "*",
@@ -27,21 +33,30 @@
                     "CloakWP\\BlockParser\\": "src/"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Parse Gutenberg + ACF Blocks into structured objects.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-block-parser/issues",
+                "source": "https://github.com/cloak-labs/wp-block-parser/tree/v0.0.16"
+            },
+            "time": "2026-03-17T23:09:26+00:00"
         },
         {
             "name": "cloakwp/core",
             "version": "0.0.15",
-            "dist": {
-                "type": "path",
-                "url": "../cloakwp-core",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/cloakwp-core.git",
                 "reference": "76d9af1c02b3dd3329a185cbc6efff1e6b276667"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/cloakwp-core/zipball/76d9af1c02b3dd3329a185cbc6efff1e6b276667",
+                "reference": "76d9af1c02b3dd3329a185cbc6efff1e6b276667",
+                "shasum": ""
             },
             "require": {
                 "composer/installers": "^2.2",
@@ -55,21 +70,30 @@
                     "CloakWP\\Core\\": "src"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "A set of OOP abstractions around WordPress core to improve developer experience.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/cloakwp-core/issues",
+                "source": "https://github.com/cloak-labs/cloakwp-core/tree/v0.0.15"
+            },
+            "time": "2025-08-18T23:37:19+00:00"
         },
         {
             "name": "cloakwp/hook-modifiers",
             "version": "0.0.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-hook-modifiers.git",
+                "reference": "2cd38a79eef0aa3b72ab87b863be8efa1b998fa1"
+            },
             "dist": {
-                "type": "path",
-                "url": "../wp-hook-modifiers",
-                "reference": "94cd1c62d45af06d48289000a20590f73e14b38c"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-hook-modifiers/zipball/2cd38a79eef0aa3b72ab87b863be8efa1b998fa1",
+                "reference": "2cd38a79eef0aa3b72ab87b863be8efa1b998fa1",
+                "shasum": ""
             },
             "require": {
                 "composer/installers": "^2.2",
@@ -81,24 +105,33 @@
                     "CloakWP\\": "src/"
                 }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Extend WordPress hooks with modifiers for more granular filters and actions",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-hook-modifiers/issues",
+                "source": "https://github.com/cloak-labs/wp-hook-modifiers/tree/v0.0.3"
+            },
+            "time": "2024-09-09T22:57:13+00:00"
         },
         {
             "name": "cloakwp/jwt-auth",
-            "version": "0.0.1",
+            "version": "0.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/jwt-auth.git",
+                "reference": "3c0c663ca6467d945a025021e07df369e413989a"
+            },
             "dist": {
-                "type": "path",
-                "url": "../jwt-auth",
-                "reference": "10a7b2b9a68a869b7de6fd69251ef1fe2c9f7bf0"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/jwt-auth/zipball/3c0c663ca6467d945a025021e07df369e413989a",
+                "reference": "3c0c663ca6467d945a025021e07df369e413989a",
+                "shasum": ""
             },
             "require": {
-                "firebase/php-jwt": "^6.3"
+                "firebase/php-jwt": "^7.0"
             },
             "require-dev": {
                 "ext-curl": "*",
@@ -113,17 +146,7 @@
                     "CloakWP\\JWTAuth\\": "src"
                 }
             },
-            "autoload-dev": {
-                "psr-4": {
-                    "CloakWP\\Tests\\JwtAuth\\": "tests/src/",
-                    "CloakWP\\Tests\\JwtAuth\\Fixtures\\": "tests/fixtures/"
-                }
-            },
-            "scripts": {
-                "test": [
-                    "./vendor/bin/phpunit"
-                ]
-            },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "GPL-3.0-only"
             ],
@@ -138,17 +161,24 @@
                 }
             ],
             "description": "JWT Auth",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "source": "https://github.com/cloak-labs/jwt-auth/tree/v0.0.2"
+            },
+            "time": "2026-03-17T23:53:19+00:00"
         },
         {
             "name": "cloakwp/virtual-fields",
-            "version": "0.0.8",
+            "version": "0.0.10",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/cloak-labs/wp-virtual-fields.git",
+                "reference": "938d8490e25d6673ead3f1c889e65566c0e9e485"
+            },
             "dist": {
-                "type": "path",
-                "url": "../wp-virtual-fields",
-                "reference": "23e9eeacc0a9f697e411f550b041e9f1192c7345"
+                "type": "zip",
+                "url": "https://api.github.com/repos/cloak-labs/wp-virtual-fields/zipball/938d8490e25d6673ead3f1c889e65566c0e9e485",
+                "reference": "938d8490e25d6673ead3f1c889e65566c0e9e485",
+                "shasum": ""
             },
             "require": {
                 "cloakwp/core": "^0.0",
@@ -156,20 +186,23 @@
             },
             "type": "library",
             "autoload": {
-                "psr-4": {
-                    "CloakWP\\VirtualFields\\": "src"
-                },
                 "files": [
                     "src/register.php"
-                ]
+                ],
+                "psr-4": {
+                    "CloakWP\\VirtualFields\\": "src"
+                }
             },
+            "notification-url": "https://packagist.org/downloads/",
             "license": [
                 "LGPL-3.0-only"
             ],
             "description": "Simple API for creating virtual fields on WordPress posts.",
-            "transport-options": {
-                "relative": true
-            }
+            "support": {
+                "issues": "https://github.com/cloak-labs/wp-virtual-fields/issues",
+                "source": "https://github.com/cloak-labs/wp-virtual-fields/tree/v0.0.10"
+            },
+            "time": "2026-02-14T02:47:23+00:00"
         },
         {
             "name": "composer/installers",
@@ -319,16 +352,16 @@
         },
         {
             "name": "firebase/php-jwt",
-            "version": "v6.11.1",
+            "version": "v7.0.3",
             "source": {
                 "type": "git",
                 "url": "https://github.com/firebase/php-jwt.git",
-                "reference": "d1e91ecf8c598d073d0995afa8cd5c75c6e19e66"
+                "reference": "28aa0694bcfdfa5e2959c394d5a1ee7a5083629e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/firebase/php-jwt/zipball/d1e91ecf8c598d073d0995afa8cd5c75c6e19e66",
-                "reference": "d1e91ecf8c598d073d0995afa8cd5c75c6e19e66",
+                "url": "https://api.github.com/repos/firebase/php-jwt/zipball/28aa0694bcfdfa5e2959c394d5a1ee7a5083629e",
+                "reference": "28aa0694bcfdfa5e2959c394d5a1ee7a5083629e",
                 "shasum": ""
             },
             "require": {
@@ -376,9 +409,9 @@
             ],
             "support": {
                 "issues": "https://github.com/firebase/php-jwt/issues",
-                "source": "https://github.com/firebase/php-jwt/tree/v6.11.1"
+                "source": "https://github.com/firebase/php-jwt/tree/v7.0.3"
             },
-            "time": "2025-04-09T20:32:01+00:00"
+            "time": "2026-02-25T22:16:40+00:00"
         },
         {
             "name": "franzl/studio",
@@ -729,16 +762,16 @@
         },
         {
             "name": "symfony/console",
-            "version": "v6.4.24",
+            "version": "v6.4.35",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/console.git",
-                "reference": "59266a5bf6a596e3e0844fd95e6ad7ea3c1d3350"
+                "reference": "49257c96304c508223815ee965c251e7c79e614e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/console/zipball/59266a5bf6a596e3e0844fd95e6ad7ea3c1d3350",
-                "reference": "59266a5bf6a596e3e0844fd95e6ad7ea3c1d3350",
+                "url": "https://api.github.com/repos/symfony/console/zipball/49257c96304c508223815ee965c251e7c79e614e",
+                "reference": "49257c96304c508223815ee965c251e7c79e614e",
                 "shasum": ""
             },
             "require": {
@@ -803,7 +836,7 @@
                 "terminal"
             ],
             "support": {
-                "source": "https://github.com/symfony/console/tree/v6.4.24"
+                "source": "https://github.com/symfony/console/tree/v6.4.35"
             },
             "funding": [
                 {
@@ -823,7 +856,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-30T10:38:54+00:00"
+            "time": "2026-03-06T13:31:08+00:00"
         },
         {
             "name": "symfony/deprecation-contracts",
@@ -894,16 +927,16 @@
         },
         {
             "name": "symfony/filesystem",
-            "version": "v6.4.24",
+            "version": "v6.4.34",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/filesystem.git",
-                "reference": "75ae2edb7cdcc0c53766c30b0a2512b8df574bd8"
+                "reference": "01ffe0411b842f93c571e5c391f289c3fdd498c3"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/filesystem/zipball/75ae2edb7cdcc0c53766c30b0a2512b8df574bd8",
-                "reference": "75ae2edb7cdcc0c53766c30b0a2512b8df574bd8",
+                "url": "https://api.github.com/repos/symfony/filesystem/zipball/01ffe0411b842f93c571e5c391f289c3fdd498c3",
+                "reference": "01ffe0411b842f93c571e5c391f289c3fdd498c3",
                 "shasum": ""
             },
             "require": {
@@ -940,7 +973,7 @@
             "description": "Provides basic utilities for the filesystem",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/filesystem/tree/v6.4.24"
+                "source": "https://github.com/symfony/filesystem/tree/v6.4.34"
             },
             "funding": [
                 {
@@ -960,7 +993,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-10T08:14:14+00:00"
+            "time": "2026-02-24T17:51:06+00:00"
         },
         {
             "name": "symfony/polyfill-ctype",
@@ -1299,16 +1332,16 @@
         },
         {
             "name": "symfony/process",
-            "version": "v6.4.24",
+            "version": "v6.4.33",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/process.git",
-                "reference": "8eb6dc555bfb49b2703438d5de65cc9f138ff50b"
+                "reference": "c46e854e79b52d07666e43924a20cb6dc546644e"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/process/zipball/8eb6dc555bfb49b2703438d5de65cc9f138ff50b",
-                "reference": "8eb6dc555bfb49b2703438d5de65cc9f138ff50b",
+                "url": "https://api.github.com/repos/symfony/process/zipball/c46e854e79b52d07666e43924a20cb6dc546644e",
+                "reference": "c46e854e79b52d07666e43924a20cb6dc546644e",
                 "shasum": ""
             },
             "require": {
@@ -1340,7 +1373,7 @@
             "description": "Executes commands in sub-processes",
             "homepage": "https://symfony.com",
             "support": {
-                "source": "https://github.com/symfony/process/tree/v6.4.24"
+                "source": "https://github.com/symfony/process/tree/v6.4.33"
             },
             "funding": [
                 {
@@ -1360,20 +1393,20 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-10T08:14:14+00:00"
+            "time": "2026-01-23T16:02:12+00:00"
         },
         {
             "name": "symfony/service-contracts",
-            "version": "v3.6.0",
+            "version": "v3.6.1",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/service-contracts.git",
-                "reference": "f021b05a130d35510bd6b25fe9053c2a8a15d5d4"
+                "reference": "45112560a3ba2d715666a509a0bc9521d10b6c43"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/service-contracts/zipball/f021b05a130d35510bd6b25fe9053c2a8a15d5d4",
-                "reference": "f021b05a130d35510bd6b25fe9053c2a8a15d5d4",
+                "url": "https://api.github.com/repos/symfony/service-contracts/zipball/45112560a3ba2d715666a509a0bc9521d10b6c43",
+                "reference": "45112560a3ba2d715666a509a0bc9521d10b6c43",
                 "shasum": ""
             },
             "require": {
@@ -1427,7 +1460,7 @@
                 "standards"
             ],
             "support": {
-                "source": "https://github.com/symfony/service-contracts/tree/v3.6.0"
+                "source": "https://github.com/symfony/service-contracts/tree/v3.6.1"
             },
             "funding": [
                 {
@@ -1439,30 +1472,35 @@
                     "type": "github"
                 },
                 {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
                     "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-04-25T09:37:31+00:00"
+            "time": "2025-07-15T11:30:57+00:00"
         },
         {
             "name": "symfony/string",
-            "version": "v7.3.2",
+            "version": "v7.4.6",
             "source": {
                 "type": "git",
                 "url": "https://github.com/symfony/string.git",
-                "reference": "42f505aff654e62ac7ac2ce21033818297ca89ca"
+                "reference": "9f209231affa85aa930a5e46e6eb03381424b30b"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/symfony/string/zipball/42f505aff654e62ac7ac2ce21033818297ca89ca",
-                "reference": "42f505aff654e62ac7ac2ce21033818297ca89ca",
+                "url": "https://api.github.com/repos/symfony/string/zipball/9f209231affa85aa930a5e46e6eb03381424b30b",
+                "reference": "9f209231affa85aa930a5e46e6eb03381424b30b",
                 "shasum": ""
             },
             "require": {
                 "php": ">=8.2",
+                "symfony/deprecation-contracts": "^2.5|^3.0",
                 "symfony/polyfill-ctype": "~1.8",
-                "symfony/polyfill-intl-grapheme": "~1.0",
+                "symfony/polyfill-intl-grapheme": "~1.33",
                 "symfony/polyfill-intl-normalizer": "~1.0",
                 "symfony/polyfill-mbstring": "~1.0"
             },
@@ -1470,12 +1508,11 @@
                 "symfony/translation-contracts": "<2.5"
             },
             "require-dev": {
-                "symfony/emoji": "^7.1",
-                "symfony/error-handler": "^6.4|^7.0",
-                "symfony/http-client": "^6.4|^7.0",
-                "symfony/intl": "^6.4|^7.0",
+                "symfony/emoji": "^7.1|^8.0",
+                "symfony/http-client": "^6.4|^7.0|^8.0",
+                "symfony/intl": "^6.4|^7.0|^8.0",
                 "symfony/translation-contracts": "^2.5|^3.0",
-                "symfony/var-exporter": "^6.4|^7.0"
+                "symfony/var-exporter": "^6.4|^7.0|^8.0"
             },
             "type": "library",
             "autoload": {
@@ -1514,7 +1551,7 @@
                 "utf8"
             ],
             "support": {
-                "source": "https://github.com/symfony/string/tree/v7.3.2"
+                "source": "https://github.com/symfony/string/tree/v7.4.6"
             },
             "funding": [
                 {
@@ -1534,7 +1571,7 @@
                     "type": "tidelift"
                 }
             ],
-            "time": "2025-07-10T08:47:49+00:00"
+            "time": "2026-02-09T09:33:46+00:00"
         },
         {
             "name": "tburry/pquery",
@@ -1596,10 +1633,10 @@
     "packages-dev": [],
     "aliases": [],
     "minimum-stability": "stable",
-    "stability-flags": [],
+    "stability-flags": {},
     "prefer-stable": true,
     "prefer-lowest": false,
-    "platform": [],
-    "platform-dev": [],
-    "plugin-api-version": "2.3.0"
+    "platform": {},
+    "platform-dev": {},
+    "plugin-api-version": "2.9.0"
 }
