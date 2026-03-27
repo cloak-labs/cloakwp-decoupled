@@ -728,17 +728,22 @@ class DecoupledCMS extends CMS
         $modified_data['comment_status'],
         $modified_data['ping_status'],
         $modified_data['guid'],
-        $modified_data['content'],
         // Remove categories & tags in favour of "taxonomies" virtual field added in registerVirtualFields() method:
         $modified_data['categories'],
         $modified_data['tags'],
       );
+
+      // Only unset 'content' if 'blocks_data' is empty or not set
+      if (!empty($modified_data['blocks_data'])) {
+        unset($modified_data['content']);
+      }
 
       // Remove footnotes if it's empty:
       if (isset($modified_data['meta']) && $modified_data['meta']['footnotes'] == "") unset($modified_data['meta']);
 
       if (isset($response->data['title'])) $modified_data['title'] = html_entity_decode($response->data['title']['rendered'], ENT_QUOTES, 'UTF-8');
       if (isset($modified_data['excerpt']['rendered'])) $modified_data['excerpt'] = html_entity_decode($response->data['excerpt']['rendered'], ENT_QUOTES, 'UTF-8');
+      if (isset($modified_data['content']['rendered'])) $modified_data['content'] = html_entity_decode($response->data['content']['rendered'], ENT_QUOTES, 'UTF-8');
 
       // Apply a filter to the final modified data so users can customize further (eg. they can remove more fields, and/or add back in some that we removed above)
       $final_data = apply_filters('cloakwp/clean_rest_response', $modified_data, $original_data);
