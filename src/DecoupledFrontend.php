@@ -115,11 +115,20 @@ class DecoupledFrontend
           if (!is_string($url))
             continue; // invalid deployment url
 
-          try {
-            wp_remote_get("$url/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/revalidate/?pathname=$path&secret={$this->settings['authSecret']}");
-          } catch (Exception $e) {
-            // todo: is echo the right thing to do here? perhaps save the error in an array and process it after we've finished revalidating all paths/environments, then throw an exception?
-            echo 'Error while regenerating static page for frontend "', $this->url, '" -- error message: ', $e->getMessage(), "\n";
+          $revalidateUrl = "$url/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/revalidate/?pathname=" . rawurlencode($path) . "&secret=" . rawurlencode($this->settings['authSecret']);
+
+          // Fire-and-forget: use blocking=false to avoid blocking the WP save_post request on revalidation.
+          $response = wp_remote_get($revalidateUrl, [
+            'timeout' => 0.01,
+            'blocking' => false,
+            'headers' => [
+              'Connection' => 'close',
+            ],
+          ]);
+
+          // With non-blocking requests, this only catches immediate client-side failures.
+          if (is_wp_error($response)) {
+            error_log('Error while triggering frontend revalidate for "' . $revalidateUrl . '" -- error message: ' . $response->get_error_message());
           }
         }
       }
@@ -144,9 +153,18 @@ class DecoupledFrontend
   public function enableDefaultOnDemandISR(): static
   {
     if (\WP_ENV != "development") {
-      add_action('save_post', function ($postId) {
+      add_action('save_post', function ($postId, $post, $update) {
+        // Only revalidate if this is *not* an autosave or a WP background/system update
+        if (
+          defined('DOING_AUTOSAVE') && DOING_AUTOSAVE
+          || (defined('DOING_AJAX') && DOING_AJAX)
+          || (defined('REST_REQUEST') && REST_REQUEST)
+          || (isset($post->post_status) && $post->post_status === 'auto-draft')
+        ) {
+          return;
+        }
         $this->revalidatePages([$postId]);
-      }, 10, 1);
+      }, 10, 3);
     }
 
     return $this;
