@@ -127,14 +127,14 @@ class DecoupledCMS extends CMS
         ->enableSvgUploads()
         ->enableSVGsForACF()
         ->enableImageFormatting()
-        ->enableDecoupledPreview()
         ->enablePostFiltersForACF()
-        ->replaceFrontendLinks()
+        ->enableDecoupledPreview() // TODO: maybe move to admin context?
+        ->replaceFrontendLinks() // TODO: maybe move to admin context?
         ->disableWpTexturize()
         ->disableCapitalPDangit()
         ->disableEmojis()
         // ->disableAssetUrlVersioning()
-        ->disableJpegCompression();
+        ->disableJpegCompression(); // TODO: maybe move to admin context? I guess uploads via REST API might need this enabled?
     }
 
     // Admin dashboard customizations:
@@ -166,9 +166,19 @@ class DecoupledCMS extends CMS
         $this->throttleHeartbeat(60);
       }
 
+      // Block editor customizations:
+      add_action('current_screen', function () {
+        if ($this->isBlockEditor()) {
+          $this
+            ->disableSvgFilters()
+            ->disableBlockPluginRecommendations()
+            ->disableDefaultPatterns();
+        }
+      }, 11);
+
       // Yoast SEO plugin config:
-      // `is_plugin_active()` is a global WP function (not namespaced) and is not always loaded on non-admin requests.
       if (!function_exists('is_plugin_active') && defined('ABSPATH')) {
+        // `is_plugin_active()` is a global WP function (not namespaced) and is not always loaded on non-admin requests.
         require_once ABSPATH . 'wp-admin/includes/plugin.php';
       }
 
@@ -188,16 +198,6 @@ class DecoupledCMS extends CMS
       $this->replaceLoginLogoLink();
     }
 
-    // Block editor customizations:
-    add_action('current_screen', function () {
-      if ($this->isBlockEditor()) {
-        $this
-          ->disableSvgFilters()
-          ->disableBlockPluginRecommendations()
-          ->disableDefaultPatterns();
-      }
-    }, 11);
-
     // Features only needed for REST API requests
     if (self::$context->isRest()) {
       $this
@@ -214,56 +214,6 @@ class DecoupledCMS extends CMS
         ->disableYoastSearchActionSchema()
         ->fixYoastSchema();
     }
-
-    // TODO: some of these methods are too opinionated; we should extend DecoupledCMS in our _base_theme and move those methods there, so they only apply to Pillar Labs' own projects.
-    // $this
-    //   ->replaceFrontendLinks()
-    //   ->replaceLoginLogoLink()
-    //   ->registerVirtualFields()
-    //   ->extendExpiryDateForJWT()
-    //   ->enableLoginStatusEndpoint()
-    //   ->enableImageFormatting()
-    //   ->enableDecoupledPreview()
-    //   ->enableAuthViaJWT()
-    //   ->enableStandardRestFormatForACF()
-    //   ->enablePostFiltersForACF()
-    //   ->enableSvgUploads()
-    //   ->enableSVGsForACF()
-    //   ->enableCleanParamForRestApi()
-    //   ->enableMenusForEditors()
-    //   ->enableFeaturedImages()
-    //   ->enableExcerpts()
-    //   ->enableBrowserSync()
-    //   ->enableXdebugInfoPage()
-    //   ->enableCors()
-    //   ->enableHtmlEntityDecodingForRestApi()
-    //   ->disableWpTexturize()
-    //   ->disableCapitalPDangit()
-    //   ->disableBlockPluginRecommendations()
-    //   ->disableLegacyCustomizer()
-    //   ->disableWidgets()
-    //   ->disableComments()
-    //   ->disableEmojis()
-    //   ->disableSvgFilters()
-    //   ->disableAssetUrlVersioning()
-    //   ->disableRoles()
-    //   ->disableFontLibrary()
-    //   ->disableOpenVerse()
-    //   ->disableJpegCompression()
-    //   ->disableDashboard()
-    //   ->disableLazyLoading()
-    //   ->disableDefaultPatterns()
-    //   ->disableToolsForEditors()
-    //   ->disableYoastForEditors()
-    //   ->disableYoastSitemap()
-    //   ->disableYoastBlocks()
-    //   ->disableYoastToolbarMenu()
-    //   ->disablePostsArchiveToolbarMenu()
-    //   ->disableUpdateNotices()
-    //   ->disableDashboardWidgets()
-    //   ->disableSearchEngineIndexingWarnings()
-    //   ->deprioritizeYoastMetabox()
-    //   ->streamlineYoastInDevelopment();
   }
 
   /**
@@ -364,9 +314,9 @@ class DecoupledCMS extends CMS
             'width' => $imageSize[0],
             'height' => $imageSize[1]
           ],
-          'alt' => null,
-          'caption' => null,
-          'title' => null
+          // 'alt' => null,
+          // 'caption' => null,
+          // 'title' => null
         ];
       }
     }
@@ -424,14 +374,17 @@ class DecoupledCMS extends CMS
       $filteredResult[$size] = $result[$size];
     }
 
-    $alt_desc = get_post_meta($imageId, '_wp_attachment_image_alt', true);
-    $filteredResult['alt'] = $alt_desc;
+    if ($alt = get_post_meta($imageId, '_wp_attachment_image_alt', true))
+      $filteredResult['alt'] = $alt;
 
     // Get caption safely without modifying global post object
     $post = get_post($imageId);
-    $filteredResult['caption'] = $post ? $post->post_excerpt : null;
-
-    $filteredResult['title'] = $post ? $post->post_title : null;
+    if ($post) {
+      if ($caption = $post->post_excerpt)
+        $filteredResult['caption'] = $caption;
+      if ($title = $post->post_title)
+        $filteredResult['title'] = $title;
+    }
 
     return $filteredResult;
   }
