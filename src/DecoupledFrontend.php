@@ -114,15 +114,15 @@ class DecoupledFrontend
           if (!is_string($url))
             continue; // invalid deployment url
 
-          $revalidateUrl = "$url/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/revalidate/?pathname=" . rawurlencode($path) . "&secret=" . rawurlencode($this->settings['authSecret']);
+          $revalidateUrl = "{$this->getApiRouterUrl($url)}/revalidate/?pathname=" . rawurlencode($path) . "&secret=" . rawurlencode($this->settings['authSecret']);
 
           // Fire-and-forget: use blocking=false to avoid blocking the WP save_post request on revalidation.
           $response = wp_remote_get($revalidateUrl, [
-            'timeout' => 0.01,
-            'blocking' => false,
-            'headers' => [
-              'Connection' => 'close',
-            ],
+            'timeout' => 20,
+            // 'blocking' => false,
+            // 'headers' => [
+            //   'Connection' => 'close',
+            // ],
           ]);
 
           // With non-blocking requests, this only catches immediate client-side failures.
@@ -151,7 +151,7 @@ class DecoupledFrontend
    */
   public function enableDefaultOnDemandISR(): static
   {
-    if (\WP_ENV != "development") {
+    // if (\WP_ENV != "development") {
       add_action('save_post', function ($postId, $post, $update) {
         // Only revalidate if this is *not* an autosave or a WP background/system update
         if (
@@ -163,7 +163,7 @@ class DecoupledFrontend
         }
         $this->revalidatePages([$postId]);
       }, 10, 3);
-    }
+    // }
 
     return $this;
   }
@@ -202,7 +202,7 @@ class DecoupledFrontend
     $path = Utils::getPostPathname($postId);
 
     $postType = get_post_type($postId); // the master/parent post's post type --> important for cloakwp to retrieve the correct revision data  
-    return "{$this->getApiRouteUrl()}/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/preview?revisionId=$revisionId&postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}";
+    return "{$this->getApiRouterUrl()}/preview?revisionId=$revisionId&postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}";
   }
 
   public function redirectToFrontendPreview()
@@ -212,7 +212,7 @@ class DecoupledFrontend
       $path = Utils::getPostPathname($postId);
       // wp_is_post_revision($postId) // todo: check if it's a revision and if not, get the latest revision and include `?revisionId=$revisionId` in url below:
       $postType = get_post_type($postId); // the master/parent post's post type --> important for cloakwp to retrieve the correct revision data  
-      wp_redirect("{$this->getApiRouteUrl()}/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}/preview?postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}");
+      wp_redirect("{$this->getApiRouterUrl()}/preview?postId=$postId&postType=$postType&pathname=$path&secret={$this->settings['authSecret']}");
       exit();
     }
   }
@@ -223,22 +223,28 @@ class DecoupledFrontend
     return $this;
   }
 
-  public function getApiRouteUrl()
+  public function getApiRouteUrl(): string
   {
     return $this->settings['apiRouteUrl'] ?? $this->url;
   }
 
-  public function getUrl()
+  public function getApiRouterUrl(?string $baseUrl = null): string
+  {
+    $base = $baseUrl ?? $this->getApiRouteUrl();
+    return "{$base}/{$this->settings['apiBasePath']}/{$this->settings['apiRouterBasePath']}";
+  }
+
+  public function getUrl(): string
   {
     return $this->url;
   }
 
-  public function getKey()
+  public function getKey(): string
   {
     return $this->key;
   }
 
-  public function getSettings(string $setting = null)
+  public function getSettings(?string $setting = null): array | string | null
   {
     if ($setting) {
       if (isset($this->settings[$setting]))
