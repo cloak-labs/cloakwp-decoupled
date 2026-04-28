@@ -3,7 +3,6 @@
 namespace CloakWP;
 
 use CloakWP\Core\Utils;
-use Exception;
 use WP_Post;
 
 class DecoupledFrontend
@@ -141,8 +140,8 @@ class DecoupledFrontend
    * you want to revalidate other pages when a particular post type is updated, you'll have to do that 
    * yourself, doing something like:
    *    
-   *    PostType::make('testimonial')
-   *      ->onSave(function ($postId) {
+   *    ContentType::make('testimonial')
+   *      ->afterChange(function ($postId) {
    *        myFrontendInstance->revalidatePages([$postId, '/testimonials', '/']);
    *      })
    * 
@@ -158,7 +157,6 @@ class DecoupledFrontend
         if (
           defined('DOING_AUTOSAVE') && DOING_AUTOSAVE
           || (defined('DOING_AJAX') && DOING_AJAX)
-          || (defined('REST_REQUEST') && REST_REQUEST)
           || (isset($post->post_status) && $post->post_status === 'auto-draft')
         ) {
           return;
