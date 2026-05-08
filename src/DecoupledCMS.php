@@ -3,6 +3,7 @@
 namespace CloakWP;
 
 use CloakWP\Core\CMS;
+use CloakWP\Core\Content\ContentModel;
 use CloakWP\Core\Utils;
 use CloakWP\Core\Enqueue\Stylesheet;
 use CloakWP\BlockParser\BlockParser;
@@ -1044,6 +1045,8 @@ class DecoupledCMS extends CMS
     foreach ($blocks as $block) {
       if (!is_object($block) || !method_exists($block, 'getFieldGroupSettings')) continue; // invalid block
 
+      if (!$this->blockContentTypeDependenciesAreRegistered($block)) continue;
+
       // Make each ACF block use CloakWP's decoupled iframe preview render template, unless the block specifies its own render template
       if (!isset($block->parsedBlockJson['render_callback']) && !isset($block->parsedBlockJson['acf']['renderTemplate'])) {
         $block->args([
@@ -1060,6 +1063,41 @@ class DecoupledCMS extends CMS
     $this->blocks = array_merge($this->blocks, $blocks); // todo: might need a custom merge method here to handle duplicates?
 
     return $this;
+  }
+
+  private function blockContentTypeDependenciesAreRegistered(object $block): bool
+  {
+    $dependencies = [];
+
+    if (method_exists($block, 'getContentTypeDependencies')) {
+      $dependencies = $block->getContentTypeDependencies();
+    } else if (isset($block->contentTypeDependencies)) {
+      $dependencies = $block->contentTypeDependencies;
+    }
+
+    if (!is_array($dependencies) || empty($dependencies)) {
+      return true;
+    }
+
+    $contentModel = ContentModel::getInstance();
+    $missingDependencies = array_filter(
+      $dependencies,
+      fn($dependency) => is_string($dependency) && !$contentModel->hasType($dependency)
+    );
+
+    if (empty($missingDependencies)) {
+      return true;
+    }
+
+    if ((defined('WP_ENV') && \WP_ENV === 'development') || \is_admin()) {
+      $blockName = $block->parsedBlockJson['name'] ?? get_class($block);
+      trigger_error(
+        'Skipping block "' . $blockName . '" because these content type dependencies are not registered: ' . implode(', ', $missingDependencies),
+        E_USER_WARNING
+      );
+    }
+
+    return false;
   }
 
   public static function renderBlockIframePreview($block, $content, $is_preview, $post_id, $wp_block, $context)
@@ -1162,10 +1200,5 @@ class DecoupledCMS extends CMS
   public function getBlocks()
   {
     return $this->blocks;
-  }
-
-  public function getPostTypes()
-  {
-    return $this->postTypes;
   }
 }
