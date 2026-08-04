@@ -6,7 +6,20 @@ use CloakWP\Core\Utils;
 
 /**
  * ACF Block Decoupled Preview Template.
- * Uses an iframe to preview the block's UI from your decoupled frontend.
+ *
+ * Renders an iframe pointing at the frontend block-preview route, plus JSON
+ * block data for the editor. Companion script `js/block-preview.js` owns the
+ * live update path:
+ * - Keeps the iframe mounted across ACF `fetch-block` AJAX re-renders
+ * - Delivers block data via postMessage after a `cloakwp-preview-ready` handshake
+ * - Applies optimistic field edits immediately; authoritative AJAX JSON follows
+ *   and is skipped when stale relative to newer local edits
+ *
+ * This PHP template always emits the iframe shell (including on fetch-block
+ * AJAX — new blocks first-paint exclusively via AJAX) plus a stable
+ * `previewKey` (from `$block['id']`) so JS can correlate iframe ↔ payload.
+ * Once mounted, block-preview.js returns cached iframe HTML so ACF setHtml
+ * no-ops and the live iframe is reused across edits.
  *
  * The following variables are made available by WP/Gutenberg for use in this template
  * @var   array $block The block settings and attributes.
@@ -34,29 +47,137 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   }
 
   echo '<img src="' . esc_url($image_path) . '" style="width:100%; height:auto;" alt="Block Preview">';
-} elseif (isset($block['data']) && !empty($block['data'])) {
-  // Handle regular Gutenberg Editor ACF Block iframe preview rendering
+} elseif (isset($block['data'])) {
+  // Handle regular Gutenberg Editor ACF Block iframe preview rendering.
+  // Include empty `$block['data']` (brand-new inserts often have no field
+  // values yet) so the iframe shell still mounts; postMessage fills data later.
   $is_block_inserter = isset($block['data']['cloakwp_block_inserter_iframe']) && $block['data']['cloakwp_block_inserter_iframe'];
 
   // Remove unnecessary data
   unset($block['style']['spacing'], $block['render_callback']);
 
   $field_values = [];
+  $saw_field_keys = false;
+  $saw_named_keys = false;
   foreach ($block['data'] as $key => $value) {
     if (strpos($key, 'field_') === 0) {
-      /* when previewing an ACF Block where data has been updated via AJAX request, the $block value is very 
-        different from when the data hasn't been updated (i.e. on initial page load) -- the code below transforms 
-        the ACF data so that it's always in the same shape no matter the context. This ensures previews don't 
-        break after making field changes.
-      */
-      $field_object = get_field_object($key);
-      if ($field_object) {
-        $field_values[$field_object['name']] = $field_object['value'];
-      }
+      $saw_field_keys = true;
     } else {
-      $first_render = true;
+      $saw_named_keys = true;
       break;
     }
+  }
+
+  if ($saw_field_keys && !$saw_named_keys) {
+    /* when previewing an ACF Block where data has been updated via AJAX request, the $block value is very 
+      different from when the data hasn't been updated (i.e. on initial page load) -- the code below transforms 
+      the ACF data so that it's always in the same shape no matter the context. This ensures previews don't 
+      break after making field changes.
+
+      Nested group/clone subfields must stay nested (e.g. ken_burns.enable). A flat
+      `$field_values['enable']` breaks routers that read `block.data.ken_burns`.
+
+      Important: only nest under top-level groups/clones (walk the parent chain).
+      Leaves under repeaters/flexible (e.g. cards → card_data → title) must NOT
+      be hoisted — the repeater value already contains them, and hoisting can
+      blank or corrupt cards previews.
+    */
+    $layout_types = ['accordion', 'tab', 'message'];
+    $is_field_key = static function ($key): bool {
+      return is_string($key) && strpos($key, 'field_') === 0;
+    };
+
+    /**
+     * Walk group/clone parents and return a name path under a top-level group
+     * (e.g. ['ken_burns','enable'] or ['link_options','button','enabled']).
+     * Returns null when the leaf lives under a repeater/flexible row — those
+     * values are already inside the parent field's formatted value.
+     */
+    $resolve_group_value_path = static function (array $field_object) use ($is_field_key): ?array {
+      $leaf_name = $field_object['name'] ?? null;
+      if (!$leaf_name) {
+        return null;
+      }
+
+      $parts = [$leaf_name];
+      $parent_key = $field_object['parent'] ?? null;
+      $guard = 0;
+
+      while ($is_field_key($parent_key) && $guard++ < 20) {
+        $parent_field = get_field_object($parent_key);
+        if (!$parent_field || empty($parent_field['name'])) {
+          return null;
+        }
+
+        $parent_type = $parent_field['type'] ?? '';
+        if ($parent_type === 'repeater' || $parent_type === 'flexible_content') {
+          // Nested inside a row — do not hoist to top-level block data.
+          return null;
+        }
+
+        if ($parent_type !== 'group' && $parent_type !== 'clone') {
+          return null;
+        }
+
+        array_unshift($parts, $parent_field['name']);
+        $parent_key = $parent_field['parent'] ?? null;
+      }
+
+      // Path must start at a top-level group (at least group + leaf).
+      return count($parts) >= 2 ? $parts : null;
+    };
+
+    foreach ($block['data'] as $key => $value) {
+      $field_object = get_field_object($key);
+      if (!$field_object || empty($field_object['name'])) {
+        continue;
+      }
+
+      $type = $field_object['type'] ?? '';
+      if (in_array($type, $layout_types, true)) {
+        continue;
+      }
+
+      $name = $field_object['name'];
+      $val = $field_object['value'];
+      $parent_key = $field_object['parent'] ?? null;
+
+      // Top-level block fields (parent is the field group, not another field).
+      if (!$is_field_key($parent_key)) {
+        if (($type === 'group' || $type === 'clone') && is_array($val)) {
+          $existing = isset($field_values[$name]) && is_array($field_values[$name])
+            ? $field_values[$name]
+            : [];
+          // Subfield patches (written below) win over a possibly-stale group blob.
+          $field_values[$name] = array_merge($val, $existing);
+          continue;
+        }
+
+        $field_values[$name] = $val;
+        continue;
+      }
+
+      $path = $resolve_group_value_path($field_object);
+      if ($path === null) {
+        // Under repeater/flexible, or not a group nest we understand — skip leaf.
+        continue;
+      }
+
+      // Write leaf into nested group path (mutates $field_values by reference walk).
+      $cursor = &$field_values;
+      $last = count($path) - 1;
+      for ($i = 0; $i < $last; $i++) {
+        $segment = $path[$i];
+        if (!isset($cursor[$segment]) || !is_array($cursor[$segment])) {
+          $cursor[$segment] = [];
+        }
+        $cursor = &$cursor[$segment];
+      }
+      $cursor[$path[$last]] = $val;
+      unset($cursor);
+    }
+  } else {
+    $first_render = true;
   }
 
   $formattedData = [
@@ -73,7 +194,6 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
     }
   }
 
-  // $blockTransformer = new ACFBlockTransformer();
   $blockParser = new BlockParser();
   $blockData = $blockParser->transformBlock($formattedData, $post_id);
   $json = wp_json_encode($blockData ?? null);
@@ -83,14 +203,33 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   $frontend = $CMS->getActiveFrontend();
   $frontendUrl = $frontend->getUrl();
   $settings = $frontend->getSettings();
-  $iframeUrl = esc_url("$frontendUrl/{$settings['blockPreviewPath']}?secret={$settings['authSecret']}&pathname=$postPathname");
-  $iframeId = uniqid('block-preview-');
+  // Stable key across ACF AJAX re-renders (AJAX sets $block['id'] to block_{clientId}).
+  // Prefer this over uniqid so editor JS can reuse the live iframe via postMessage.
+  $previewKey = !empty($block['id'])
+    ? sanitize_html_class((string) $block['id'])
+    : sanitize_html_class('block-preview-' . uniqid());
+
+  // Include previewKey in the iframe URL so the frontend preview can identify itself in
+  // postMessage ("ready") even when the editor canvas document is not queryable
+  // from the outer window (common with the iframed block editor).
+  $iframeUrl = esc_url("$frontendUrl/{$settings['blockPreviewPath']}?secret={$settings['authSecret']}&pathname=$postPathname&previewKey=$previewKey");
+
   $bodyClasses = apply_filters('admin_body_class', '');
   $isPageDark = in_array('dark', explode(" ", $bodyClasses));
 
+  // Always emit the iframe shell — including on ACF fetch-block AJAX.
+  // New blocks first paint exclusively via AJAX; skipping the iframe there
+  // left them with JSON-only markup and no preview until a full editor reload.
+  // block-preview.js still returns cached iframe HTML once mounted so ACF's
+  // setHtml early-returns and the live iframe is not remounted on each edit.
+
 ?>
-  <div class="decoupled-block-preview-ctnr">
-    <!-- Block selector icon overlay on hover (note: we don't render this icon for block inserter previews, only within Editor) -->
+  <div
+    class="decoupled-block-preview-ctnr"
+    data-cloakwp-preview-key="<?php echo esc_attr($previewKey); ?>"
+    data-cloakwp-is-page-dark="<?php echo $isPageDark ? '1' : '0'; ?>"
+  >
+    <!-- Block selector icon overlay on hover (editor only) -->
     <?php if (!$is_block_inserter): ?>
       <div class="cloakwp-block-selector" style="display: none; max-width: 32px; max-height: 32px;">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
@@ -102,21 +241,33 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
       </div>
     <?php endif; ?>
 
-    <iframe id="<?php echo esc_attr($iframeId); ?>"
+    <iframe id="<?php echo esc_attr($previewKey); ?>"
+      data-cloakwp-preview-key="<?php echo esc_attr($previewKey); ?>"
       class="block-preview-iframe <?php echo $is_block_inserter ? 'in-block-inserter' : ''; ?>"
-      src="<?php echo $iframeUrl; ?>" title="Block Preview" width="100%" scrolling="no" allow="same-origin"
-      loading="lazy"></iframe>
+      src="<?php echo $iframeUrl; ?>" title="Block Preview" width="100%" scrolling="no" allow="same-origin"></iframe>
+
+    <script type="application/json" class="cloakwp-block-data"><?php echo $json; ?></script>
+    <script type="application/json" class="cloakwp-preview-meta"><?php echo wp_json_encode([
+      'isPageDark' => $isPageDark,
+    ]); ?></script>
 
     <script>
       (function() {
-        const blockData = <?php echo $json; ?>;
-        const isPageDark = <?php echo $isPageDark ? 'true' : 'false'; ?>;
+        const root = document.querySelector('.decoupled-block-preview-ctnr[data-cloakwp-preview-key="<?php echo esc_js($previewKey); ?>"]');
+        if (!root || root.dataset.cloakwpBound === "1") return;
+        root.dataset.cloakwpBound = "1";
+
+        const blockDataEl = root.querySelector("script.cloakwp-block-data");
+        const metaEl = root.querySelector("script.cloakwp-preview-meta");
+        const blockData = blockDataEl ? JSON.parse(blockDataEl.textContent || "null") : null;
+        const meta = metaEl ? JSON.parse(metaEl.textContent || "{}") : {};
+        const isPageDark = !!meta.isPageDark;
         const bodyClassNames = isPageDark ? ['dark', 'dark:darker'] : [];
 
-        const iframe = document.getElementById("<?php echo esc_js($iframeId); ?>");
+        const iframe = root.querySelector("iframe.block-preview-iframe");
         if (!iframe) return;
 
-        const sendDataToIframe = (data) => iframe.contentWindow.postMessage(JSON.stringify(data), "*");
+        const sendDataToIframe = (data) => iframe.contentWindow?.postMessage(JSON.stringify(data), "*");
 
         if (!isPageDark) {
           let wpBlockAncestor = iframe.closest('.wp-block');
@@ -133,7 +284,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
         }
 
         const sendAllInfo = () => {
-          sendDataToIframe(blockData);
+          if (blockData) sendDataToIframe(blockData);
           if (bodyClassNames.length) {
             sendDataToIframe({
               bodyClassName: bodyClassNames.join(' ')
@@ -142,14 +293,25 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
         };
 
         window.addEventListener("message", function(event) {
-          if (event.source === iframe.contentWindow) {
-            if (event.data === "ready") {
-              sendAllInfo();
-            } else {
-              const height = parseInt(event.data) + 1 + "px";
-              iframe.style.height = height;
-              iframe.parentNode.style.height = height;
-            }
+          if (event.source !== iframe.contentWindow) return;
+
+          if (event.data === "ready") {
+            sendAllInfo();
+            return;
+          }
+
+          // Height reports are numeric. Ignore JSON protocol messages
+          // (e.g. cloakwp-preview-ready). Do not add +1 — that feedback-loops
+          // with iframe content measurement and grows 1px per edit.
+          if (typeof event.data !== "number") return;
+          const next = Math.round(event.data);
+          if (!Number.isFinite(next) || next < 0) return;
+
+          const height = next + "px";
+          if (iframe.style.height === height) return;
+          iframe.style.height = height;
+          if (iframe.parentNode && iframe.parentNode.style) {
+            iframe.parentNode.style.height = height;
           }
         });
 
@@ -157,7 +319,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
 
         // remove display: none from .cloakwp-block-selector
         setTimeout(() => {
-          const blockSelector = iframe.parentNode.querySelector('.cloakwp-block-selector');
+          const blockSelector = root.querySelector('.cloakwp-block-selector');
           if (blockSelector) {
             blockSelector.style.display = 'block';
           }
