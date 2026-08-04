@@ -6,6 +6,7 @@ use CloakWP\Core\CMS;
 use CloakWP\Core\Content\ContentModel;
 use CloakWP\Core\Utils;
 use CloakWP\Core\Enqueue\Stylesheet;
+use CloakWP\Core\Enqueue\Script;
 use CloakWP\BlockParser\BlockParser;
 use CloakWP\VirtualFields\VirtualField;
 use CloakWP\HookModifiers;
@@ -71,12 +72,27 @@ class DecoupledCMS extends CMS
 
     if ($isAdmin) {
       // Enqueue CloakWP custom CSS/JS assets:
+      $blockPreviewJs = WP_PLUGIN_DIR . '/decoupled/js/block-preview.js';
       $this->assets([
-        // some style improvements for the Gutenberg editor, including styles for the decoupled ACF Block Iframe previewer
+        // Editor chrome only (block-preview iframe chrome, drag handle, etc.) —
+        // must stay on enqueue_block_editor_assets, not the canvas iframe hook.
         Stylesheet::make("cloakwp_gutenberg_styles")
           ->hooks(['enqueue_block_editor_assets'])
           ->src(WP_PLUGIN_URL . "/decoupled/css/editor.css")
-          ->version(\WP_ENV == "development" ? filemtime(WP_PLUGIN_DIR . '/decoupled/css/editor.css') : '1.1.23')
+          ->version(\WP_ENV == "development" ? filemtime(WP_PLUGIN_DIR . '/decoupled/css/editor.css') : '1.1.23'),
+        // Persist preview iframes across ACF AJAX field updates (postMessage-only).
+        // Late priority so `acf-blocks` is registered; JS also retries until `acf` exists.
+        Script::make("cloakwp_block_preview")
+          ->hooks(['enqueue_block_editor_assets'])
+          ->priority(100)
+          ->src(WP_PLUGIN_URL . '/decoupled/js/block-preview.js')
+          ->deps(['acf-input', 'acf-blocks'])
+          ->version(
+            (\WP_ENV == 'development' && file_exists($blockPreviewJs))
+              ? (string) filemtime($blockPreviewJs)
+              : '1.0.1'
+          )
+          ->inFooter(),
       ]);
     }
 
@@ -207,7 +223,8 @@ class DecoupledCMS extends CMS
         ->enableHtmlEntityDecodingForRestApi()
         ->enableLoginStatusEndpoint()
         ->enableStandardRestFormatForACF()
-        ->enableCleanParamForRestApi();
+        ->enableCleanParamForRestApi()
+        ->enableRelativeUrlsForACFLinks();
 
       // Yoast SEO Schema config:
       $this
@@ -290,10 +307,41 @@ class DecoupledCMS extends CMS
   }
 
   /**
+   * Whether formatImage() should emit path-only srcs (e.g. /app/uploads/sites/36/...) instead of absolute URLs.
+   *
+   * Enabled when the REST request includes `?relative_images` (any value other than "false"), or when a
+   * theme/plugin forces it via the `cloakwp/image_format/relative_urls` filter.
+   */
+  protected static function shouldUseRelativeImageUrls(): bool
+  {
+    $fromQuery = isset($_GET['relative_images']) && $_GET['relative_images'] !== 'false';
+    return (bool) apply_filters('cloakwp/image_format/relative_urls', $fromQuery);
+  }
+
+  /**
+   * Optionally convert an absolute image URL to its path component for local-media builds.
+   * Only rewrites URLs whose path contains "/uploads/" so external/CDN URLs stay absolute.
+   */
+  protected static function maybeRelativeImageUrl(string $url): string
+  {
+    if (!self::shouldUseRelativeImageUrls()) return $url;
+
+    $path = wp_parse_url($url, PHP_URL_PATH);
+    if (!$path) return $url;
+
+    if (str_contains($path, '/uploads/')) return $path;
+
+    return $url;
+  }
+
+  /**
    * By default, WordPress exposes images via the REST API as image IDs, which is not very useful for decoupled frontends -- it
    * requires making a separate/additional REST API request for each image to get its URL, size, alt text, etc. This method serves as
    * our source-of-truth for formatting all image data for the REST API. On its own, it does not modify REST API responses -- other methods
    * (enableImageFormattingForACF(), enableImageFormattingForAttachments(), etc.) hook into the necessary places to modify image data using this method.
+   *
+   * Pass `?relative_images=1` on REST requests (or filter `cloakwp/image_format/relative_urls`) to get path-only
+   * upload srcs instead of absolute URLs — useful when syncing WP uploads into a Next.js public/ folder.
    */
   public static function formatImage(mixed $imageId)
   {
@@ -311,7 +359,7 @@ class DecoupledCMS extends CMS
         $imageSize = @getimagesize($imageId);
         return [
           'full' => [
-            'src' => $imageId,
+            'src' => self::maybeRelativeImageUrl($imageId),
             'width' => $imageSize[0],
             'height' => $imageSize[1]
           ],
@@ -338,7 +386,7 @@ class DecoupledCMS extends CMS
 
         // Include URL, width, and height in the result
         $result[$size] = [
-          'src' => $url,
+          'src' => self::maybeRelativeImageUrl($url),
           'width' => $width,
           'height' => $height
         ];
@@ -390,6 +438,76 @@ class DecoupledCMS extends CMS
     return $filteredResult;
   }
 
+
+  /**
+   * Convert an absolute URL to a path-only URL when it points at one of this
+   * project's known frontend origins (active DecoupledFrontend URL + deployments).
+   * External URLs are left unchanged.
+   */
+  public function makeFrontendUrlRelative(string $url): string
+  {
+    if ($url === '') return $url;
+
+    $frontend = $this->getActiveFrontend();
+    if (!$frontend) return $url;
+
+    $bases = [$frontend->getUrl()];
+    $deployments = $frontend->getSettings('deployments');
+    if (is_array($deployments)) {
+      foreach ($deployments as $deploymentUrl) {
+        if (is_string($deploymentUrl) && $deploymentUrl !== '') {
+          $bases[] = $deploymentUrl;
+        }
+      }
+    }
+
+    /**
+     * Allow themes to add more origins to strip (e.g. production URL while WP_ENV is development).
+     *
+     * @param string[] $bases Absolute frontend base URLs (trailing slash optional).
+     */
+    $bases = apply_filters('cloakwp/relative_frontend_urls', $bases);
+
+    foreach ($bases as $base) {
+      if (!is_string($base) || $base === '') continue;
+      $base = rtrim($base, '/');
+      if ($base === '') continue;
+
+      if (strcasecmp($url, $base) === 0 || strcasecmp($url, $base . '/') === 0) {
+        return '/';
+      }
+
+      // Compare origin case-insensitively; keep the original path casing.
+      if (stripos($url, $base . '/') === 0) {
+        return substr($url, strlen($base)) ?: '/';
+      }
+    }
+
+    return $url;
+  }
+
+  /**
+   * Ensure ACF link fields expose relative paths for URLs that point at the
+   * active decoupled frontend (so Next.js can treat them as internal links).
+   * Only registered for REST requests so the WP admin UI keeps absolute URLs.
+   */
+  public function enableRelativeUrlsForACFLinks(): static
+  {
+    add_filter('acf/format_value/type=link', function ($value, $postId, $field) {
+      if (is_array($value) && !empty($value['url']) && is_string($value['url'])) {
+        $value['url'] = $this->makeFrontendUrlRelative($value['url']);
+        return $value;
+      }
+
+      if (is_string($value)) {
+        return $this->makeFrontendUrlRelative($value);
+      }
+
+      return $value;
+    }, 20, 3);
+
+    return $this;
+  }
 
   /**
    * Ensures ACF images are formatted using our `formatImage()` method so they can be consumed more easily by decoupled frontends.
