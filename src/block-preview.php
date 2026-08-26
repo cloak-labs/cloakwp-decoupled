@@ -241,6 +241,10 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
       </div>
     <?php endif; ?>
 
+    <?php /*
+      Initial height is set by JS (see below) to one editor screen minus chrome.
+      The height listener overwrites this inline property on first report.
+    */ ?>
     <iframe id="<?php echo esc_attr($previewKey); ?>"
       data-cloakwp-preview-key="<?php echo esc_attr($previewKey); ?>"
       class="block-preview-iframe <?php echo $is_block_inserter ? 'in-block-inserter' : ''; ?>"
@@ -283,12 +287,49 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
           }
         }
 
+        const EDITOR_CHROME_ESTIMATE_PX = 170;
+
+        const editorChromePx = (owner) => {
+          // Canvas iframe innerHeight is already the editing surface.
+          try {
+            if (owner && window.top && owner !== window.top) return 0;
+          } catch (e) {}
+          return EDITOR_CHROME_ESTIMATE_PX;
+        };
+
+        const getEditorPreviewViewportHeight = () => {
+          // Owner document of this preview (Gutenberg canvas when iframed).
+          const owner = iframe.ownerDocument?.defaultView;
+          const fromOwner = owner && owner.innerHeight ? owner.innerHeight : 0;
+          const raw = fromOwner > 0 ? fromOwner : window.innerHeight || 0;
+          return Math.max(200, Math.round(raw - editorChromePx(fromOwner > 0 ? owner : window)));
+        };
+
+        const applyInitialPreviewIframeHeight = () => {
+          if (<?php echo $is_block_inserter ? 'true' : 'false'; ?>) return;
+          const h = getEditorPreviewViewportHeight();
+          if (h <= 0) return;
+          const height = h + "px";
+          if (iframe.style.height === height) return;
+          iframe.style.height = height;
+          if (iframe.parentNode && iframe.parentNode.style) {
+            iframe.parentNode.style.height = height;
+          }
+        };
+
+        applyInitialPreviewIframeHeight();
+
         const sendAllInfo = () => {
           if (blockData) sendDataToIframe(blockData);
           if (bodyClassNames.length) {
             sendDataToIframe({
               bodyClassName: bodyClassNames.join(' ')
             });
+          }
+          // External reference for viewport-tied blocks (100vh / 100svh).
+          const previewViewportHeight = getEditorPreviewViewportHeight();
+          if (previewViewportHeight > 0) {
+            sendDataToIframe({ previewViewportHeight: previewViewportHeight });
           }
         };
 
@@ -306,6 +347,9 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
           if (typeof event.data !== "number") return;
           const next = Math.round(event.data);
           if (!Number.isFinite(next) || next < 0) return;
+          // Empty `#root` reports getDocumentHeight()'s 20px floor. Applying
+          // that locks the iframe before the block paints.
+          if (next < 48) return;
 
           const height = next + "px";
           if (iframe.style.height === height) return;

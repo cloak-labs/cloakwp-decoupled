@@ -318,6 +318,57 @@
   }
 
   /**
+   * Height of the editor surface that owns the preview iframe — a stable
+   * external reference for viewport-tied frontend content (100vh / 100svh).
+   * Prefer the canvas/owner window over the (often collapsed) preview iframe.
+   *
+   * @param {Window} [source]
+   * @returns {number}
+   */
+  function getEditorPreviewViewportHeight(source) {
+    let raw = 0;
+    if (source) {
+      const iframes = findAllPreviewIframes();
+      for (let i = 0; i < iframes.length; i++) {
+        if (iframes[i].contentWindow !== source) continue;
+        const owner = iframes[i].ownerDocument
+          ? iframes[i].ownerDocument.defaultView
+          : null;
+        const fromOwner = owner && owner.innerHeight ? owner.innerHeight : 0;
+        if (fromOwner > 0) {
+          raw = fromOwner;
+          return Math.max(200, Math.round(raw - editorChromePx(owner)));
+        }
+      }
+    }
+    if (raw <= 0) raw = window.innerHeight || 0;
+    return Math.max(200, Math.round(raw - editorChromePx(window)));
+  }
+
+  /**
+   * Size a preview iframe to one editor screen before the frontend's first
+   * height report. Without this, the browser default (~150px) wins and
+   * min-height viewport heroes measure at their natural content height (~600px)
+   * — a self-consistent trap auto-sizing cannot escape from below.
+   *
+   * @param {HTMLIFrameElement | null | undefined} iframe
+   */
+  function ensureInitialPreviewIframeHeight(iframe) {
+    if (!iframe) return;
+    const key = iframe.getAttribute("data-cloakwp-preview-key");
+    if (key && contentSizedPreviewKeys.has(key)) return;
+
+    const h = getEditorPreviewViewportHeight(iframe.contentWindow);
+    if (h <= 0) return;
+
+    const height = h + "px";
+    if (iframe.style.height === height) return;
+    iframe.style.height = height;
+    const parent = iframe.parentNode;
+    if (parent && parent.style) parent.style.height = height;
+  }
+
+  /**
    * @param {Window} source
    * @param {unknown} blockData
    * @param {boolean} isPageDark
@@ -334,6 +385,38 @@
         "*",
       );
     }
+
+    // Always send — the frontend needs an external "one screen" reference for
+    // viewport-tied content (100vh heroes), whose height is otherwise
+    // self-referential inside an auto-sized iframe.
+    const previewViewportHeight = getEditorPreviewViewportHeight(source);
+    if (previewViewportHeight > 0) {
+      source.postMessage(
+        JSON.stringify({ previewViewportHeight: previewViewportHeight }),
+        "*",
+      );
+    }
+  }
+
+  /**
+   * Rebroadcast the editor viewport reference when the editor window resizes,
+   * so pinned viewport-tied previews track the new "one screen" height.
+   */
+  let editorResizeTimer = null;
+  function broadcastEditorViewportHeight() {
+    if (editorResizeTimer) clearTimeout(editorResizeTimer);
+    editorResizeTimer = setTimeout(function () {
+      editorResizeTimer = null;
+      readySourcesByKey.forEach(function (source) {
+        const h = getEditorPreviewViewportHeight(source);
+        if (h > 0 && source && typeof source.postMessage === "function") {
+          source.postMessage(
+            JSON.stringify({ previewViewportHeight: h }),
+            "*",
+          );
+        }
+      });
+    }, 300);
   }
 
   /**
@@ -426,6 +509,39 @@
 
     return false;
   }
+
+  /**
+   * Estimated WP admin chrome (toolbar / sidebar) on the top wp-admin window.
+   * Do not subtract this from a Gutenberg canvas iframe — its innerHeight is
+   * already the editing surface.
+   */
+  const EDITOR_CHROME_ESTIMATE_PX = 170;
+
+  /**
+   * Toolbar/sidebar chrome only exists on the top wp-admin window. The
+   * Gutenberg canvas iframe's innerHeight is already the editing surface —
+   * subtracting 170 there undersizes 100vh heroes by a large slice.
+   *
+   * @param {Window | null | undefined} owner
+   * @returns {number}
+   */
+  function editorChromePx(owner) {
+    if (!owner) return EDITOR_CHROME_ESTIMATE_PX;
+    try {
+      if (window.top && owner !== window.top) return 0;
+    } catch {
+      /* cross-origin top */
+    }
+    return EDITOR_CHROME_ESTIMATE_PX;
+  }
+
+  /**
+   * Preview keys that have received a content-driven height report from the
+   * iframe. Until then, {@link ensureInitialPreviewIframeHeight} keeps the
+   * iframe at one editor screen so min-height heroes can bind on first measure.
+   * @type {Set<string>}
+   */
+  const contentSizedPreviewKeys = new Set();
 
   /** @type {Map<string, ReturnType<typeof setTimeout>>} */
   const optimisticTimers = new Map();
@@ -1149,6 +1265,10 @@
 
     const next = Math.round(event.data);
     if (!Number.isFinite(next) || next < 0) return false;
+    // Empty preview `#root` reports a ~20px floor. Applying it collapses the
+    // iframe and marks it "content-sized", so the editor-viewport bootstrap
+    // cannot recover — viewport-tied heroes then trap at that min height.
+    if (next < 48) return true;
 
     const iframes = findAllPreviewIframes();
     for (let i = 0; i < iframes.length; i++) {
@@ -1159,6 +1279,8 @@
       iframe.style.height = height;
       const parent = iframe.parentNode;
       if (parent && parent.style) parent.style.height = height;
+      const key = iframe.getAttribute("data-cloakwp-preview-key");
+      if (key) contentSizedPreviewKeys.add(key);
       return true;
     }
     return false;
@@ -1188,6 +1310,8 @@
     if (key) {
       readyKeys.add(key);
       readySourcesByKey.set(key, source);
+      const iframe = findPreviewIframeByKey(key);
+      ensureInitialPreviewIframeHeight(iframe);
       deliverPendingToSource(key, source);
       return;
     }
@@ -1211,6 +1335,7 @@
     initialized = true;
 
     window.addEventListener("message", onWindowMessage);
+    window.addEventListener("resize", broadcastEditorViewportHeight);
 
     // Optimistic preview: don't wait for ~2.5s fetch-block.
     // resolveFieldDataPath walks the ACF parent chain (groups/clones/repeaters/
@@ -1352,6 +1477,10 @@
       const visible = findAllPreviewIframes();
       if (visible.length === 0) return;
 
+      visible.forEach(function (frame) {
+        ensureInitialPreviewIframeHeight(frame);
+      });
+
       const visibleKeys = new Set(
         visible.map(function (frame) {
           return frame.getAttribute("data-cloakwp-preview-key");
@@ -1364,6 +1493,7 @@
           readyKeys.delete(key);
           pendingByKey.delete(key);
           readySourcesByKey.delete(key);
+          contentSizedPreviewKeys.delete(key);
         }
       });
     });
