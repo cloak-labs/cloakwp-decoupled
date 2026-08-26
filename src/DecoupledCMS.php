@@ -176,8 +176,11 @@ class DecoupledCMS extends CMS
         ->disableDashboardWidgets()
         ->disableSearchEngineIndexingWarnings();
 
-      // Reduce default heartbeat interval to prevent overwhelming the server, especially in development:
-      if (WP_ENV == 'development') {
+      // Heartbeat hits admin-ajax (full WP bootstrap + DB) on a timer.
+      // Gutenberg/post.js reset it to 10s unless throttleHeartbeat() sets minimalInterval.
+      if (defined('WP_DB') && WP_DB !== 'local') {
+        $this->throttleHeartbeat(120);
+      } elseif (WP_ENV == 'development') {
         $this->throttleHeartbeat(300);
       } else {
         $this->throttleHeartbeat(60);
