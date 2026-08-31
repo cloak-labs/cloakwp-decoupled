@@ -1,71 +1,255 @@
 # CloakWP Decoupled
 
-A PHP/Composer package with everything you need to turn WordPress into a decoupled/headless CMS.
+CloakWP Decoupled supplies the WordPress-side services needed by a decoupled
+frontend: REST resources, frontend URL mapping, previews, image formatting, and
+on-demand cache revalidation.
 
-CloakWP is a suite of open-source tools that makes it incredibly easy and fast to build high-quality decoupled/headless WordPress websites. Unlike traditional WordPress, you get to build your front-end using the latest and greatest JavaScript frameworks, such as Next.js, and benefit from the vastly better developer experience, productivity, site performance, and ultimately business results for you and/or your clients.
-
-And unlike most existing headless WordPress solutions, you don't have to sacrifice the benefits of the traditional "coupled" approach, such as the Gutenberg editor, post preview mode, ACF block previews within the editor, the front-end admin toolbar, and more. AND you don't have to maintain all of the underlying headless infrastructure yourself (trust us, it's a lot); we've extracted the infrastructure into a maintainable, version-controlled suite of software tools that you can easily upgrade as we release updates over time. These tools include:
-
-- CloakWP Plugin (what you're looking at right now)
-- [CloakWP.js](https://github.com/cloak-labs/cloakwp-js) (NPM package for your decoupled front-end that communicates with this plugin, provides a Gutenberg block rendering framework for React, and so much more)
-- [CloakWP Base Theme](https://github.com/cloak-labs/cloakwp-base-theme) (basic headless-friendly WordPress theme)
-- Optional: [CloakWP Bedrock](https://github.com/cloak-labs/cloakwp-bedrock) (a free production-ready headless WordPress boilerplate for CloakWP projects, extending the popular Bedrock boilerplate, including Spinup Local WP (simple Dockerized WordPress for local development), Composer for dependency management, and a collection of best-practice headless plugins pre-installed)
-- Optional: [CloakWP Inception](https://github.com/cloak-labs/cloakwp-inception-nextjs) (a free, integrated WP child theme + Next.js frontend to jump-start your headless projects)
-
-Headless architecture is the future, but WordPress isn't built for it out-of-the-box. CloakWP is the answer. It's simply the best way to build modern WordPress websites.
-
-## Plugin Features
-
-As mentioned above, the CloakWP plugin is just one piece of the puzzle. It provides the following features:
-
-- Rewrites WordPress URLs to your decoupled front-end URLs
-- Integrates post preview mode with your decoupled front-end
-- Improves/extends the WordPress REST API to be more feature-complete and headless-friendly, including:
-  - Converts & exposes Gutenberg Blocks data as JSON (read more about mapping Gutenberg blocks to your own React components from your decoupled front-end using the block rendering framework in [CloakWP.js](https://github.com/cloak-labs/cloakwp-js))
-  - Extends default post/page routes to include the full data for the post's featured image, taxonomies, ACF relation fields, complete URL path, and more -- solving many headless-specific issues and preventing the need for multiple API requests just to retrieve a single post's data
-  - Provides a custom `/wp-json/wp/v2/frontpage` route to selectively retrieve the page set as the "Homepage" in "WP Admin" > "Settings" > "Reading"
-  - Provides a custom `/wp-json/cloakwp/menus/{menu_slug}` route to make it easier to retrieve WordPress menu data
-- Enables on-demand Incremental Static Regeneration (ISR) of your decoupled front-end; i.e. when you save changes to a WP post, the plugin triggers an immediate rebuild of that particular static page on your decoupled front-end so that the changes are viewable within a couple seconds -- enabling a blazing-fast website thanks to static site generation, but without the usual downside of having to wait minutes/hours for content changes to take effect (that's right, server-side rendering no longer has any advantages over static site generation, for 99% of content/marketing sites)
-- Hides wp-admin pages that are irrelevant in a headless context
-- Keeps your authentication status in sync with your decoupled front-end (eg. enabling you to only render the CloakWP.js `AdminBar` component for logged-in users)
-- Adds custom ACF fields, `ThemeColorPicker` and `Alignment`, for users who follow our recommended approach to ACF field registration (i.e. using [ExtendedACF](https://github.com/vinkla/extended-acf)'s object-oriented PHP)
+It does **not** require Advanced Custom Fields or any other third-party plugin.
+ACF is an optional integration: when it is installed, a few providers format
+ACF values and an `AcfGlobalsRepository` can read ACF Options pages. When it is
+absent, those paths no-op.
 
 ## Installation
 
-If you're not using [CloakWP Bedrock](https://github.com/cloak-labs/cloakwp-bedrock), which pre-installs the CloakWP Plugin for you, you can install the plugin via Composer by running:
-
 ```bash
-composer require cloak-labs/cloakwp-plugin
+composer require cloakwp/decoupled
 ```
 
-Not using Composer? First, strongly consider using Composer. Otherwise, download the plugin's GitHub repo and upload it to WordPress as a .zip
+The Composer package type is `wordpress-muplugin`. It's recommended to load it with `roots/bedrock-autoloader`. Other WordPress installations need an
+MU-plugin loader that requires `decoupled/cloakwp-decoupled.php`.
 
-## Configuration
+The repository can also be installed as a traditional plugin under a folder
+named `decoupled`.
 
-We have made a concerted effort across all CloakWP tooling to embrace "code as configuration". This is why you don't see a configurable plugin settings page in wp-admin; instead, you define PHP constants and use filter and action hooks to configure, extend, and override things.
+## Basic configuration
 
-Why? Unlike saving config in the database via a UI, config defined via code ensures your local dev environment is the source of truth, and enables you to push/merge config changes up to production rather than pulling it down via an arduous database merging methodology, or worse, having to manually redo your config changes in production. It keeps things clean, version-controlled, re-usable, automate-able, etc.
-
-### PHP Constants
-
-Add the following required constant declarations to your `wp-config.php` file, or your .env files if using the CloakWP Bedrock starter or your own implementation of Bedrock:
+Configure the CMS from a theme or application bootstrap:
 
 ```php
-# Required
-define('MY_FRONTEND_URL', 'https://example.com'); // decoupled frontend URL
-define('CLOAKWP_AUTH_SECRET', '1234_CUSTOMIZE_ME'); // secure secret key
+use CloakWP\Core\Enqueue\Stylesheet;
+use CloakWP\Decoupled\CMS;
+use CloakWP\Decoupled\Frontend;
 
-# Optional
-# define('CLOAKWP_API_BASE_PATH', 'custom-route'); // defaults to "cloakwp"; must match your front-end's dynamic API route folder name where you import the CloakWP.js `ApiRouter`
-# define('CLOAKWP_PREVIEW_BLOCK_PATHNAME', '/custom-route'); // defaults to "/preview-block"; must match your front-end's page route where you import the CloakWP.js `BlockPreviewPage`
+CMS::getInstance()
+  ->frontends([
+    Frontend::make('website', $frontendUrl)
+      ->authSecret(CLOAKWP_AUTH_SECRET)
+      ->deployments([$stagingUrl])
+      ->revalidateEntriesOnSave(),
+  ])
+  ->assets([
+    Stylesheet::make('editor-styles')
+      ->hooks(['enqueue_block_assets'])
+      ->adminOnly()
+      ->src(get_theme_file_uri('/assets/css/editor.css')),
+  ]);
 ```
 
-### Hooks
+At least one frontend is required. Configuration is collected before WordPress
+`init`; the CMS boots at priority 20 so **application code** can finish
+registering resources (content types, menus, REST routes, field groups, blocks)
+first. Configuration is immutable after boot.
 
-Our goal in the near-future is to release a version of this plugin that provides all kinds of filter/action hooks to extend/override certain functionalities; for now, you just get the PHP Constants above.
+## Multisite
 
-## Frequently Asked Questions
+CMS instances are isolated by WordPress site ID. `CMS::getInstance()` resolves
+the current site.
 
-### Is there a premium version of the plugin?
+Long-running multisite jobs can configure another site before booting it:
 
-CloakWP's entire suite of tools is completely free and open-source, and we intend to keep it that way. We will eventually look to build complementary paid products/services in order to make this a sustainable project over the long-term, but we will always maintain an open-source-first ideaology, especially for the core infrastructure tooling such as those listed above.
+```php
+switch_to_blog($siteId);
+
+$cms = CMS::forSite($siteId, scheduleBoot: false)
+  ->frontends([
+    Frontend::make('website', $frontendUrl),
+  ]);
+
+$cms->boot();
+```
+
+## Frontends
+
+Each `Frontend` has a stable key and public URL. Optional configuration includes:
+
+- `apiBasePath()` and `apiRouterBasePath()` for frontend API routing
+- `apiRouteUrl()` when API traffic uses a different origin
+- `deployments()` for additional cache-revalidation targets
+- `authSecret()` for signed server-to-server requests
+- `blockPreviewPath()` and `previewTokenTtl()` for editor previews
+- `revalidationTimeout()` for outbound cache-revalidation requests
+- `revalidateEntriesOnSave()` to revalidate an entry when it is saved
+
+Retrieve frontends with `getActiveFrontend()`, `getFrontend($key)`, or
+`getFrontends()`.
+
+## REST resources
+
+The package registers:
+
+- `/wp-json/cloakwp/frontpage`
+- `/wp-json/cloakwp/menus`
+- `/wp-json/cloakwp/menus/{menu_slug}`
+- `/wp-json/cloakwp/globals`
+- `/wp-json/cloakwp/globals/{global_slug}`
+- `/wp-json/cloakwp/auth/authorize`
+- `/wp-json/cloakwp/auth/establish-session`
+- `/wp-json/cloakwp/auth/establish-logout`
+- `/wp-json/cloakwp/auth/logout`
+- `/wp-json/cloakwp/auth/generate` (reserved; returns 501)
+
+Menus use WordPress's native navigation APIs. Replace the implementation with
+`useMenuRepository()` when a project needs another source.
+
+## Globals
+
+**Globals** are site-wide data that any page might need: company details,
+default layout, social links, contact info, and similar. They are not a
+WordPress `get_option()` dump, not per-entry post meta, and not ACF-specific (but often come from ACF Options pages for users of ACF).
+They exist so the frontend can load one shared payload (often alongside menus)
+instead of repeating that content on every document.
+
+Nothing is public until you expose it:
+
+```php
+CMS::getInstance()->exposeGlobals([
+  'company',
+  'layout',
+  'links',
+]);
+
+// Appropriate only when every global field is public content.
+CMS::getInstance()->exposeAllGlobals();
+```
+
+The default globals repository is empty. Plug in a source with
+`useGlobalsRepository()`. Projects that store this data in ACF Options pages
+can use the bundled adapter:
+
+```php
+use CloakWP\Decoupled\Repositories\AcfGlobalsRepository;
+
+CMS::getInstance()->useGlobalsRepository(new AcfGlobalsRepository());
+```
+
+## Authentication
+
+CloakWP splits auth into two jobs:
+
+1. **Machine REST** (drafts, writes): WordPress Application Passwords on the
+   Next.js server. Send HTTP Basic from server-only env vars
+   `WP_APPLICATION_USER` and `WP_APPLICATION_PASSWORD`. Never put these in a
+   browser bundle. Create one with:
+
+   ```bash
+   wp user application-password create admin "CloakWP Next" --porcelain
+   ```
+
+2. **Editor sessions / AdminBar**: a Next.js BFF session (`cloakwp_at` /
+   `cloakwp_rt` httpOnly cookies plus a paint-only `cloakwp_ui` hint) plus a
+   one-time `establish-session` handshake that calls `wp_set_auth_cookie()` so
+   `/wp-admin` recognizes the same login.
+
+Session endpoints are secret-gated with `X-CloakWP-Secret`, using
+`CLOAKWP_SESSION_SECRET` or falling back to `CLOAKWP_AUTH_SECRET` / the
+frontend `authSecret()`. Password grants call `wp_authenticate()` so 2FA
+plugins can hook `authenticate`. Refresh tokens are hashed, rotated on every
+use, and revoked on logout or password change.
+
+`GET /cloakwp/auth/generate` and `LoginForm strategy="redirect"` are reserved
+for a later SSO/2FA bounce through `wp-login.php`. They are not implemented.
+
+### Legacy JWT machine auth
+
+Deployed frontends may still send `Authorization: Bearer $WP_JWT` from the
+optional `cloakwp/jwt-auth` package. Keep `JwtAuthProvider` selected until
+every site has application-password env vars and a production redeploy.
+CloakWP session access tokens are verified first; jwt-auth Bearers still work
+afterward. Removing jwt-auth is a follow-up sweep, not this release.
+
+```php
+use CloakWP\Decoupled\Auth\JwtAuthProvider;
+
+CMS::getInstance()->useAuth(
+  new JwtAuthProvider(expirationSeconds: 3600),
+);
+```
+
+Selecting `JwtAuthProvider` without `cloakwp/jwt-auth` installed throws an
+actionable exception. Custom integrations can implement `AuthProvider` and pass
+it to `useAuth()`. Preview/ISR HMAC (`CLOAKWP_AUTH_SECRET`) is unchanged.
+
+## Image formatting
+
+Registered attachments include each available size's URL, width, and height,
+plus alt text, caption, and title where present.
+
+When ACF is active, image and gallery field values are formatted with the same
+pipeline. Unknown external image URLs are returned as URLs without fetching
+them from the WordPress server. This avoids server-side requests to untrusted
+hosts.
+
+Replace the formatter with `useImageFormatter()`.
+
+## Preview URLs
+
+Define a shared signing secret:
+
+```php
+define('CLOAKWP_AUTH_SECRET', '…');
+```
+
+Post and block-preview URLs contain an HMAC-signed token rather than the raw
+secret. Tokens carry a preview key, pathname, and expiry; the default lifetime
+is 12 hours. Configure it with `Frontend::previewTokenTtl()`.
+
+The frontend must verify the token, expiry, pathname, and preview key. Editor
+iframe messaging should also validate the exact origin, source window, message
+type, and preview key (CloakWP's JS packages solve all of this).
+
+## Cache revalidation
+
+Trigger revalidation explicitly:
+
+```php
+CMS::getInstance()
+  ->getActiveFrontend()
+  ->revalidatePaths([$entryId, '/portfolio', '/']);
+```
+
+The package sends one blocking JSON `POST` per unique deployment. Requests use:
+
+- `X-CloakWP-Timestamp`: the current Unix timestamp
+- `X-CloakWP-Signature`: HMAC-SHA256 of `<timestamp>.<raw-body>`
+- `{ "paths": [...] }`: the request body
+
+The frontend returns `{"ok":true,"results":[...]}` only when every path
+revalidates. Failed requests are stored in a per-site WordPress option and
+retried through WP-Cron with bounded exponential backoff.
+
+The package does not infer behavior from an environment name. Applications can
+pause outbound requests explicitly without blocking REST:
+
+```php
+CMS::getInstance()->pauseOutboundRevalidation();
+```
+
+Public REST lockdown is a separate opt-in:
+
+```php
+CMS::getInstance()->enableRestMaintenanceLockdown();
+```
+
+## Providers and replacements
+
+`CMS` is a composition root. Behavior is divided into providers for configured
+resources, REST endpoints, previews, image formatting, CORS, URL rewriting, and
+revalidation.
+
+ACF-only filters (image/gallery formatting, REST link rewriting, relational
+post-query args, the virtual `acf` field on REST documents, Gutenberg block
+preview scripts) attach only when the ACF plugin is active (`get_field` exists).
+
+Use `withProviders()`, `replaceProvider()`, `removeProvider()`,
+`moveProviderBefore()`, and `moveProviderAfter()` before boot to change the
+provider collection.

@@ -64,9 +64,6 @@
   /** @type {Map<string, Window>} */
   const readySourcesByKey = new Map();
 
-  /** @type {Window[]} */
-  const unboundReadySources = [];
-
   /** @type {Map<string, number>} previewKey -> optimistic epoch (monotonic) */
   const lastOptimisticEpochByKey = new Map();
 
@@ -201,6 +198,37 @@
       }
     }
     return out;
+  }
+
+  /**
+   * @param {HTMLIFrameElement} iframe
+   * @returns {string}
+   */
+  function getPreviewOrigin(iframe) {
+    const root = iframe.closest(".decoupled-block-preview-ctnr");
+    const configured =
+      root && root.getAttribute("data-cloakwp-preview-origin");
+    if (configured) return configured;
+    try {
+      return new URL(iframe.src, window.location.href).origin;
+    } catch {
+      return "";
+    }
+  }
+
+  /**
+   * Resolve an exact iframe binding. A source cannot claim another preview key.
+   *
+   * @param {Window} source
+   * @param {string} key
+   * @returns {{ iframe: HTMLIFrameElement, origin: string } | null}
+   */
+  function resolvePreviewBinding(source, key) {
+    if (!source || !key) return null;
+    const iframe = findPreviewIframeByKey(key);
+    if (!iframe || iframe.contentWindow !== source) return null;
+    const origin = getPreviewOrigin(iframe);
+    return origin ? { iframe, origin, key } : null;
   }
 
   /**
@@ -375,27 +403,24 @@
    * @param {string} [key]
    */
   function sendUpdateToSource(source, blockData, isPageDark, key) {
-    if (!source || typeof source.postMessage !== "function") return;
-
-    if (blockData) source.postMessage(JSON.stringify(blockData), "*");
-
-    if (isPageDark) {
-      source.postMessage(
-        JSON.stringify({ bodyClassName: "dark dark:darker" }),
-        "*",
-      );
-    }
+    const binding = resolvePreviewBinding(source, key || "");
+    if (!binding || typeof source.postMessage !== "function") return;
 
     // Always send — the frontend needs an external "one screen" reference for
     // viewport-tied content (100vh heroes), whose height is otherwise
     // self-referential inside an auto-sized iframe.
     const previewViewportHeight = getEditorPreviewViewportHeight(source);
-    if (previewViewportHeight > 0) {
-      source.postMessage(
-        JSON.stringify({ previewViewportHeight: previewViewportHeight }),
-        "*",
-      );
-    }
+    source.postMessage(
+      {
+        type: "cloakwp-preview-update",
+        previewKey: binding.key,
+        blockData: blockData || null,
+        bodyClassName: isPageDark ? "dark dark:darker" : undefined,
+        previewViewportHeight:
+          previewViewportHeight > 0 ? previewViewportHeight : undefined,
+      },
+      binding.origin,
+    );
   }
 
   /**
@@ -407,12 +432,18 @@
     if (editorResizeTimer) clearTimeout(editorResizeTimer);
     editorResizeTimer = setTimeout(function () {
       editorResizeTimer = null;
-      readySourcesByKey.forEach(function (source) {
+      readySourcesByKey.forEach(function (source, key) {
+        const binding = resolvePreviewBinding(source, key);
+        if (!binding) return;
         const h = getEditorPreviewViewportHeight(source);
         if (h > 0 && source && typeof source.postMessage === "function") {
           source.postMessage(
-            JSON.stringify({ previewViewportHeight: h }),
-            "*",
+            {
+              type: "cloakwp-preview-update",
+              previewKey: binding.key,
+              previewViewportHeight: h,
+            },
+            binding.origin,
           );
         }
       });
@@ -496,14 +527,6 @@
     const source = readySourcesByKey.get(key);
     if (source) {
       sendUpdateToSource(source, nextBlockData, isPageDark, key);
-      return true;
-    }
-
-    if (unboundReadySources.length === 1 && pendingByKey.size === 1) {
-      const unbound = unboundReadySources[0];
-      readySourcesByKey.set(key, unbound);
-      unboundReadySources.length = 0;
-      sendUpdateToSource(unbound, nextBlockData, isPageDark, key);
       return true;
     }
 
@@ -1234,19 +1257,20 @@
    * @returns {{ previewKey: string } | null}
    */
   function parseReadyMessage(event) {
-    // Ignore bare "ready" (legacy inline script). Handling both caused duplicate
-    // full-payload postMessages when the frontend also sends cloakwp-preview-ready.
-    if (typeof event.data !== "string") return null;
+    let parsed = event.data;
     try {
-      const parsed = JSON.parse(event.data);
-      if (parsed && parsed.type === "cloakwp-preview-ready") {
-        return {
-          previewKey:
-            typeof parsed.previewKey === "string" ? parsed.previewKey : "",
-        };
+      if (typeof parsed === "string") {
+        parsed = JSON.parse(parsed);
       }
     } catch {
       /* not JSON ready */
+      return null;
+    }
+    if (parsed && parsed.type === "cloakwp-preview-ready") {
+      return {
+        previewKey:
+          typeof parsed.previewKey === "string" ? parsed.previewKey : "",
+      };
     }
     return null;
   }
@@ -1259,31 +1283,44 @@
    * @returns {boolean}
    */
   function applyIframeHeightMessage(event) {
-    if (typeof event.data !== "number") return false;
+    let payload = event.data;
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        return false;
+      }
+    }
+    if (
+      !payload ||
+      payload.type !== "cloakwp-preview-height" ||
+      typeof payload.previewKey !== "string" ||
+      typeof payload.height !== "number"
+    ) {
+      return false;
+    }
+
     const source = event.source;
     if (!source) return false;
 
-    const next = Math.round(event.data);
+    const binding = resolvePreviewBinding(source, payload.previewKey);
+    if (!binding || event.origin !== binding.origin) return false;
+
+    const next = Math.round(payload.height);
     if (!Number.isFinite(next) || next < 0) return false;
     // Empty preview `#root` reports a ~20px floor. Applying it collapses the
     // iframe and marks it "content-sized", so the editor-viewport bootstrap
     // cannot recover — viewport-tied heroes then trap at that min height.
     if (next < 48) return true;
 
-    const iframes = findAllPreviewIframes();
-    for (let i = 0; i < iframes.length; i++) {
-      const iframe = iframes[i];
-      if (iframe.contentWindow !== source) continue;
-      const height = next + "px";
-      if (iframe.style.height === height) return true;
-      iframe.style.height = height;
-      const parent = iframe.parentNode;
-      if (parent && parent.style) parent.style.height = height;
-      const key = iframe.getAttribute("data-cloakwp-preview-key");
-      if (key) contentSizedPreviewKeys.add(key);
-      return true;
-    }
-    return false;
+    const iframe = binding.iframe;
+    const height = next + "px";
+    if (iframe.style.height === height) return true;
+    iframe.style.height = height;
+    const parent = iframe.parentNode;
+    if (parent && parent.style) parent.style.height = height;
+    contentSizedPreviewKeys.add(binding.key);
+    return true;
   }
 
   function onWindowMessage(event) {
@@ -1295,36 +1332,14 @@
     const source = event.source;
     if (!source || typeof source.postMessage !== "function") return;
 
-    let key = ready.previewKey;
+    const key = ready.previewKey;
+    const binding = resolvePreviewBinding(source, key);
+    if (!binding || event.origin !== binding.origin) return;
 
-    if (!key) {
-      const iframes = findAllPreviewIframes();
-      for (let i = 0; i < iframes.length; i++) {
-        if (iframes[i].contentWindow === source) {
-          key = iframes[i].getAttribute("data-cloakwp-preview-key") || "";
-          break;
-        }
-      }
-    }
-
-    if (key) {
-      readyKeys.add(key);
-      readySourcesByKey.set(key, source);
-      const iframe = findPreviewIframeByKey(key);
-      ensureInitialPreviewIframeHeight(iframe);
-      deliverPendingToSource(key, source);
-      return;
-    }
-
-    if (unboundReadySources.indexOf(source) === -1) {
-      unboundReadySources.push(source);
-    }
-    if (pendingByKey.size === 1) {
-      const onlyKey = pendingByKey.keys().next().value;
-      readySourcesByKey.set(onlyKey, source);
-      unboundReadySources.length = 0;
-      deliverPendingToSource(onlyKey, source);
-    }
+    readyKeys.add(key);
+    readySourcesByKey.set(key, source);
+    ensureInitialPreviewIframeHeight(binding.iframe);
+    deliverPendingToSource(key, source);
   }
 
   function registerAcfHooks() {

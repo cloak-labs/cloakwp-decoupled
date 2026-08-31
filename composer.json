@@ -1,23 +1,39 @@
 {
   "name": "cloakwp/decoupled",
   "description": "Transform WordPress into a headless CMS.",
-  "type": "wordpress-plugin",
+  "type": "wordpress-muplugin",
   "license": "LGPL-3.0-only",
   "require": {
+    "php": ">=8.2",
     "cloakwp/block-parser": "dev-main",
     "cloakwp/core": "dev-main",
     "cloakwp/hook-modifiers": "dev-main",
     "cloakwp/virtual-fields": "dev-main",
-    "cloakwp/jwt-auth": "dev-master",
-    "composer/installers": "^2.2"
+    "composer/installers": "^2.2",
+    "inpsyde/wp-context": "^1.5"
   },
   "require-dev": {
-    "franzl/studio": "^0.16"
+    "franzl/studio": "^0.16",
+    "phpunit/phpunit": "^11.0 || ^12.0"
   },
   "autoload": {
     "psr-4": {
-      "CloakWP\\": "src"
+      "CloakWP\\Decoupled\\": "src/Decoupled/"
     }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "CloakWP\\Decoupled\\Tests\\": "tests/"
+    },
+    "exclude-from-classmap": [
+      "/tests/bootstrap.php"
+    ]
+  },
+  "scripts": {
+    "test": "phpunit"
+  },
+  "extra": {
+    "installer-name": "decoupled"
   },
   "config": {
     "optimize-autoloader": true,

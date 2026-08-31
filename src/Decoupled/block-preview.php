@@ -1,7 +1,6 @@
 <?php
 
 use CloakWP\BlockParser\BlockParser;
-use CloakWP\DecoupledCMS;
 use CloakWP\Core\Utils;
 
 /**
@@ -199,10 +198,9 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   $json = wp_json_encode($blockData ?? null);
   $postPathname = Utils::getPostPathname($post_id);
 
-  $CMS = DecoupledCMS::getInstance();
+  $CMS = \CloakWP\Decoupled\CMS::getInstance();
   $frontend = $CMS->getActiveFrontend();
   $frontendUrl = $frontend->getUrl();
-  $settings = $frontend->getSettings();
   // Stable key across ACF AJAX re-renders (AJAX sets $block['id'] to block_{clientId}).
   // Prefer this over uniqid so editor JS can reuse the live iframe via postMessage.
   $previewKey = !empty($block['id'])
@@ -212,7 +210,13 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   // Include previewKey in the iframe URL so the frontend preview can identify itself in
   // postMessage ("ready") even when the editor canvas document is not queryable
   // from the outer window (common with the iframed block editor).
-  $iframeUrl = esc_url("$frontendUrl/{$settings['blockPreviewPath']}?secret={$settings['authSecret']}&pathname=$postPathname&previewKey=$previewKey");
+  $iframeUrl = esc_url($CMS->previewUrls()->forBlock($frontend, $previewKey, $postPathname));
+  $iframeOriginParts = wp_parse_url($frontendUrl);
+  $iframeOrigin = is_array($iframeOriginParts)
+    && isset($iframeOriginParts['scheme'], $iframeOriginParts['host'])
+      ? $iframeOriginParts['scheme'] . '://' . $iframeOriginParts['host']
+        . (isset($iframeOriginParts['port']) ? ':' . $iframeOriginParts['port'] : '')
+      : '';
 
   $bodyClasses = apply_filters('admin_body_class', '');
   $isPageDark = in_array('dark', explode(" ", $bodyClasses));
@@ -227,6 +231,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   <div
     class="decoupled-block-preview-ctnr"
     data-cloakwp-preview-key="<?php echo esc_attr($previewKey); ?>"
+    data-cloakwp-preview-origin="<?php echo esc_attr($iframeOrigin); ?>"
     data-cloakwp-is-page-dark="<?php echo $isPageDark ? '1' : '0'; ?>"
   >
     <!-- Block selector icon overlay on hover (editor only) -->
@@ -254,122 +259,6 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
     <script type="application/json" class="cloakwp-preview-meta"><?php echo wp_json_encode([
       'isPageDark' => $isPageDark,
     ]); ?></script>
-
-    <script>
-      (function() {
-        const root = document.querySelector('.decoupled-block-preview-ctnr[data-cloakwp-preview-key="<?php echo esc_js($previewKey); ?>"]');
-        if (!root || root.dataset.cloakwpBound === "1") return;
-        root.dataset.cloakwpBound = "1";
-
-        const blockDataEl = root.querySelector("script.cloakwp-block-data");
-        const metaEl = root.querySelector("script.cloakwp-preview-meta");
-        const blockData = blockDataEl ? JSON.parse(blockDataEl.textContent || "null") : null;
-        const meta = metaEl ? JSON.parse(metaEl.textContent || "{}") : {};
-        const isPageDark = !!meta.isPageDark;
-        const bodyClassNames = isPageDark ? ['dark', 'dark:darker'] : [];
-
-        const iframe = root.querySelector("iframe.block-preview-iframe");
-        if (!iframe) return;
-
-        const sendDataToIframe = (data) => iframe.contentWindow?.postMessage(JSON.stringify(data), "*");
-
-        if (!isPageDark) {
-          let wpBlockAncestor = iframe.closest('.wp-block');
-          while (wpBlockAncestor && !wpBlockAncestor.classList.contains('is-root-container')) {
-            if (wpBlockAncestor.classList.contains('wp-block')) {
-              const c = wpBlockAncestor.classList;
-              if (c.contains('is-style-dark') || c.contains('dark')) {
-                bodyClassNames.push('dark', 'dark:darker');
-                break;
-              }
-            }
-            wpBlockAncestor = wpBlockAncestor.parentNode;
-          }
-        }
-
-        const EDITOR_CHROME_ESTIMATE_PX = 170;
-
-        const editorChromePx = (owner) => {
-          // Canvas iframe innerHeight is already the editing surface.
-          try {
-            if (owner && window.top && owner !== window.top) return 0;
-          } catch (e) {}
-          return EDITOR_CHROME_ESTIMATE_PX;
-        };
-
-        const getEditorPreviewViewportHeight = () => {
-          // Owner document of this preview (Gutenberg canvas when iframed).
-          const owner = iframe.ownerDocument?.defaultView;
-          const fromOwner = owner && owner.innerHeight ? owner.innerHeight : 0;
-          const raw = fromOwner > 0 ? fromOwner : window.innerHeight || 0;
-          return Math.max(200, Math.round(raw - editorChromePx(fromOwner > 0 ? owner : window)));
-        };
-
-        const applyInitialPreviewIframeHeight = () => {
-          if (<?php echo $is_block_inserter ? 'true' : 'false'; ?>) return;
-          const h = getEditorPreviewViewportHeight();
-          if (h <= 0) return;
-          const height = h + "px";
-          if (iframe.style.height === height) return;
-          iframe.style.height = height;
-          if (iframe.parentNode && iframe.parentNode.style) {
-            iframe.parentNode.style.height = height;
-          }
-        };
-
-        applyInitialPreviewIframeHeight();
-
-        const sendAllInfo = () => {
-          if (blockData) sendDataToIframe(blockData);
-          if (bodyClassNames.length) {
-            sendDataToIframe({
-              bodyClassName: bodyClassNames.join(' ')
-            });
-          }
-          // External reference for viewport-tied blocks (100vh / 100svh).
-          const previewViewportHeight = getEditorPreviewViewportHeight();
-          if (previewViewportHeight > 0) {
-            sendDataToIframe({ previewViewportHeight: previewViewportHeight });
-          }
-        };
-
-        window.addEventListener("message", function(event) {
-          if (event.source !== iframe.contentWindow) return;
-
-          if (event.data === "ready") {
-            sendAllInfo();
-            return;
-          }
-
-          // Height reports are numeric. Ignore JSON protocol messages
-          // (e.g. cloakwp-preview-ready). Do not add +1 — that feedback-loops
-          // with iframe content measurement and grows 1px per edit.
-          if (typeof event.data !== "number") return;
-          const next = Math.round(event.data);
-          if (!Number.isFinite(next) || next < 0) return;
-          // Empty `#root` reports getDocumentHeight()'s 20px floor. Applying
-          // that locks the iframe before the block paints.
-          if (next < 48) return;
-
-          const height = next + "px";
-          if (iframe.style.height === height) return;
-          iframe.style.height = height;
-          if (iframe.parentNode && iframe.parentNode.style) {
-            iframe.parentNode.style.height = height;
-          }
-        });
-
-        sendAllInfo();
-
-        // remove display: none from .cloakwp-block-selector
-        setTimeout(() => {
-          const blockSelector = root.querySelector('.cloakwp-block-selector');
-          if (blockSelector) {
-            blockSelector.style.display = 'block';
-          }
-        }, 2000);
-      })();
-    </script>
   </div>
 <?php
 }

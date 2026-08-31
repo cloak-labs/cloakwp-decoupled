@@ -8,19 +8,20 @@
  * registers the activation and deactivation functions, and defines a function
  * that starts the plugin.
  *
- * @link              https://https://github.com/cloak-labs
+ * @link              https://github.com/cloak-labs/cloakwp-decoupled
  * @since             0.6.0
  * @package           CloakWP
  *
  * @wordpress-plugin
  * Plugin Name:       CloakWP Decoupled
- * Plugin URI:        https://https://github.com/cloak-labs/cloakwp-plugin
- * Description:       Adds the missing pieces required for headless projects. Designed for use alongside the CloakWP suite of open-source tooling. 
- * Version:           1.0.0
+ * Plugin URI:        https://github.com/cloak-labs/cloakwp-decoupled
+ * Description:       Adds the WordPress services required by decoupled frontends.
+ * Version:           2.0.0
  * Author:            Cloak Labs
- * Author URI:        https://https://github.com/cloak-labs
- * License:           GPL-2.0+
- * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
+ * Author URI:        https://github.com/cloak-labs
+ * License:           LGPL-3.0-only
+ * License URI:       https://www.gnu.org/licenses/lgpl-3.0.html
+ * Requires PHP:      8.2
  * Text Domain:       cloakwp
  * Domain Path:       /languages
  */
@@ -30,8 +31,13 @@ if (!defined('WPINC')) {
   die;
 }
 
-if (!defined('CLOAKWP_DEBUG'))
-  define('CLOAKWP_DEBUG', TRUE);
+if (!defined('CLOAKWP_DEBUG')) {
+  define('CLOAKWP_DEBUG', false);
+}
+
+if (function_exists('wp_register_plugin_realpath')) {
+  wp_register_plugin_realpath(__DIR__);
+}
 
 // Pull in vendor autoloader (for autoloading 3rd party classes such as pQuery)
 if (is_readable(__DIR__ . '/vendor/autoload.php')) {
@@ -52,7 +58,7 @@ add_action('init', function () {
 /**
  * The code that runs during plugin activation.
  */
-function activate_cloakwp()
+function activate_cloakwp_decoupled()
 {
   // in future, do something here when plugin is activated
 }
@@ -60,10 +66,14 @@ function activate_cloakwp()
 /**
  * The code that runs during plugin deactivation.
  */
-function deactivate_cloakwp()
+function deactivate_cloakwp_decoupled()
 {
   // in future, do something here when plugin is deactivated
 }
 
-register_activation_hook(__FILE__, 'activate_cloakwp');
-register_deactivation_hook(__FILE__, 'deactivate_cloakwp');
+register_activation_hook(__FILE__, 'activate_cloakwp_decoupled');
+register_deactivation_hook(__FILE__, 'deactivate_cloakwp_decoupled');
+
+if (class_exists(\CloakWP\Decoupled\CMS::class)) {
+  \CloakWP\Decoupled\CMS::getInstance();
+}
