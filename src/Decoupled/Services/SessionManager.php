@@ -303,7 +303,11 @@ final class SessionManager
     $path = $parts['path'] ?? '/';
     $wordpressOrigin = ($this->wordpressOrigin)();
     if ($wordpressOrigin !== '' && $origin === $wordpressOrigin) {
-      return str_starts_with($path, '/wp-admin');
+      return $this->isWpAdminPath($path);
+    }
+
+    if ($this->isHttpsLocalhostOrigin($origin)) {
+      return true;
     }
 
     return in_array($origin, ($this->allowedOrigins)(), true);
@@ -322,6 +326,31 @@ final class SessionManager
     }
 
     return null;
+  }
+
+  /** True for `/wp-admin` and subdirectory multisite paths like `/hyland02/wp-admin/edit.php`. */
+  private function isWpAdminPath(string $path): bool
+  {
+    return (bool) preg_match('#(?:^|/)wp-admin(?:/|$)#', $path);
+  }
+
+  /**
+   * Local Next.js frontends (`https://{slug}.localhost`) may complete the
+   * session handshake against staging/production WP. `.localhost` is a
+   * loopback TLD (RFC 6761), so this cannot redirect a victim to a remote
+   * host. CORS still uses explicit frontend deployments only — a blanket
+   * `*.localhost` CORS allowlist would let any local HTTPS origin make
+   * credentialed REST calls as a logged-in wp-admin session.
+   */
+  private function isHttpsLocalhostOrigin(string $origin): bool
+  {
+    $parts = parse_url($origin);
+    if (!is_array($parts) || ($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])) {
+      return false;
+    }
+
+    $host = strtolower((string) $parts['host']);
+    return $host === 'localhost' || str_ends_with($host, '.localhost');
   }
 
   private function hash(string $value): string

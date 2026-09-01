@@ -192,6 +192,26 @@ final class SessionAuthTest extends TestCase
     $this->assertSame(401, $replay->data['status']);
   }
 
+  public function testWpAdminRedirectsAllowSubdirectoryMultisite(): void
+  {
+    $manager = $this->manager();
+    $this->assertTrue($manager->isAllowedRedirect('https://wp.example.test/wp-admin/'));
+    $this->assertTrue($manager->isAllowedRedirect('https://wp.example.test/hyland02/wp-admin/post.php?post=1&action=edit'));
+    $this->assertFalse($manager->isAllowedRedirect('https://wp.example.test/hyland02/not-admin'));
+    $this->assertTrue($manager->isAllowedRedirect('https://web.test/after'));
+  }
+
+  public function testHandshakeAllowsHttpsLocalhostFrontends(): void
+  {
+    $manager = $this->manager();
+    $this->assertTrue($manager->isAllowedRedirect('https://hyland02.localhost/'));
+    $this->assertTrue($manager->isAllowedRedirect('https://hyland02.localhost/portfolio'));
+    $this->assertTrue($manager->isAllowedRedirect('https://localhost/'));
+    $this->assertFalse($manager->isAllowedRedirect('http://hyland02.localhost/'));
+    $this->assertFalse($manager->isAllowedRedirect('https://hyland02.localhost.evil.test/'));
+    $this->assertFalse($manager->isAllowedRedirect('https://evil.test/phish'));
+  }
+
   public function testDetermineCurrentUserAcceptsAccessTokenThenJwtAuth(): void
   {
     $cms = CMS::getInstance(WpContext::new()->force(WpContext::REST))
