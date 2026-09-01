@@ -404,6 +404,9 @@
    */
   function sendUpdateToSource(source, blockData, isPageDark, key) {
     const binding = resolvePreviewBinding(source, key || "");
+    // #region agent log
+    fetch('http://127.0.0.1:7911/ingest/b9e95a7a-d039-48b7-9a0d-f086fde5a1ef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eac1a7'},body:JSON.stringify({sessionId:'eac1a7',hypothesisId:'H2',location:'block-preview.js:sendUpdateToSource',message:'WP sending update',data:{hasBinding:!!binding,key:key||null,hasBlockData:!!blockData,bindingOrigin:binding?binding.origin:null},timestamp:Date.now()})}).catch(function(){});
+    // #endregion
     if (!binding || typeof source.postMessage !== "function") return;
 
     // Always send — the frontend needs an external "one screen" reference for
@@ -1334,6 +1337,9 @@
 
     const key = ready.previewKey;
     const binding = resolvePreviewBinding(source, key);
+    // #region agent log
+    fetch('http://127.0.0.1:7911/ingest/b9e95a7a-d039-48b7-9a0d-f086fde5a1ef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eac1a7'},body:JSON.stringify({sessionId:'eac1a7',hypothesisId:'H2',location:'block-preview.js:onWindowMessage',message:'WP received ready',data:{eventOrigin:event.origin,key:key||null,hasBinding:!!binding,bindingOrigin:binding?binding.origin:null,originMatch:binding?event.origin===binding.origin:false,iframeCount:findAllPreviewIframes().length},timestamp:Date.now()})}).catch(function(){});
+    // #endregion
     if (!binding || event.origin !== binding.origin) return;
 
     readyKeys.add(key);

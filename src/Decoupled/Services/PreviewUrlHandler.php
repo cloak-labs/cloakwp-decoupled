@@ -80,11 +80,17 @@ final class PreviewUrlHandler
 
   /**
    * Origin of the WP admin that is embedding the preview iframe.
-   * Bound into the token so the frontend postMessage handshake targets this
-   * window even when NEXT_PUBLIC_WP_ENVIRONMENT points at a different WP.
+   *
+   * Use the current request host, not `home_url()`: local wp-admin against a
+   * staging DB still lives on wp.localhost while `home` is the staging URL.
    */
   private function wpOrigin(): ?string
   {
+    $fromRequest = $this->requestOrigin();
+    if ($fromRequest !== null) {
+      return $fromRequest;
+    }
+
     if (!function_exists('home_url') || !function_exists('wp_parse_url')) {
       return null;
     }
@@ -100,6 +106,22 @@ final class PreviewUrlHandler
     }
 
     return $origin;
+  }
+
+  private function requestOrigin(): ?string
+  {
+    $host = $_SERVER['HTTP_HOST'] ?? '';
+    if (!is_string($host) || $host === '') {
+      return null;
+    }
+
+    $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+    $scheme = 'http';
+    if ((function_exists('is_ssl') && is_ssl()) || $forwarded === 'https') {
+      $scheme = 'https';
+    }
+
+    return $scheme . '://' . $host;
   }
 
   /**
