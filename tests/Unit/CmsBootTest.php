@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CloakWP\Decoupled\Tests\Unit;
 
+use CloakWP\Core\Enqueue\Stylesheet;
 use CloakWP\Decoupled\CMS;
 use CloakWP\Decoupled\Frontend;
 use CloakWP\Decoupled\Support\HtmlEntityDecoder;
@@ -53,6 +54,18 @@ final class CmsBootTest extends TestCase
     $this->assertNotSame($siteOne, $siteTwo);
     $this->assertSame('https://one.test', CMS::forSite(1)->getActiveFrontend()->getUrl());
     $this->assertSame('https://two.test', CMS::forSite(2)->getActiveFrontend()->getUrl());
+  }
+
+  public function testAssetsAppendRatherThanReplace(): void
+  {
+    $cms = CMS::getInstance();
+    $child = Stylesheet::make('hyland02-editor-styles');
+    $parent = Stylesheet::make('base-editor-styles');
+
+    $cms->assets([$child]);
+    $cms->assets([$parent]);
+
+    $this->assertSame([$child, $parent], $cms->configuredAssets());
   }
 
   public function testLongRunningJobsCanConfigureAChangedSiteBeforeBoot(): void
