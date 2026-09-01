@@ -42,7 +42,7 @@ final class RestHardeningTest extends TestCase
     $cms->boot();
     WpStubs::runAction('rest_api_init');
 
-    $this->assertCount(10, WpStubs::$restRoutes);
+    $this->assertCount(12, WpStubs::$restRoutes);
     $this->assertSame(['cloakwp'], array_values(array_unique(array_column(WpStubs::$restRoutes, 'namespace'))));
     $this->assertSame([
       '/menus',
@@ -55,6 +55,8 @@ final class RestHardeningTest extends TestCase
       '/auth/establish-logout',
       '/auth/logout',
       '/auth/generate',
+      '/image-library',
+      '/image-library/filters',
     ], array_column(WpStubs::$restRoutes, 'path'));
     foreach (WpStubs::$restRoutes as $route) {
       $this->assertTrue(is_callable($route['definition']['callback']));

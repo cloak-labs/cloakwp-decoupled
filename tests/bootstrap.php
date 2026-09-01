@@ -38,7 +38,7 @@ if (is_dir($coreSrc)) {
     if (is_readable($path)) {
       require_once $path;
     }
-  });
+  }, true, true);
 }
 
 require_once __DIR__ . '/WpStubs.php';
@@ -214,6 +214,15 @@ if (!class_exists('WP_REST_Response')) {
     public function get_headers(): array
     {
       return $this->headers;
+    }
+
+    public function header(string $key, string $value, bool $replace = true): void
+    {
+      if ($replace || !isset($this->headers[$key])) {
+        $this->headers[$key] = $value;
+      } else {
+        $this->headers[$key] .= ', ' . $value;
+      }
     }
   }
 }
@@ -428,6 +437,13 @@ if (!function_exists('sanitize_title')) {
   function sanitize_title($value): string
   {
     return strtolower(trim((string) preg_replace('/[^a-zA-Z0-9-]+/', '-', (string) $value), '-'));
+  }
+}
+
+if (!function_exists('sanitize_text_field')) {
+  function sanitize_text_field($str): string
+  {
+    return trim((string) $str);
   }
 }
 
