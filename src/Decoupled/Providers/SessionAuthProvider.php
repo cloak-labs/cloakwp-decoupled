@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CloakWP\Decoupled\Providers;
 
 use CloakWP\Decoupled\CMS;
+use CloakWP\Decoupled\Services\SessionManager;
 
 /**
  * Registers CloakWP session Bearer authentication ahead of jwt-auth so
@@ -18,7 +19,7 @@ final class SessionAuthProvider implements ServiceProvider
 
   public function boot(CMS $cms): void
   {
-    if (!$cms->context()->isRest() && !$cms->context()->isCore()) {
+    if (!$this->shouldRegister($cms)) {
       return;
     }
 
@@ -62,5 +63,31 @@ final class SessionAuthProvider implements ServiceProvider
       }
       $cms->session()->revokeAllRefreshTokens($id);
     }, 10, 2);
+
+    add_action('wp_logout', static function ($userId = 0) use ($cms): void {
+      $id = (int) $userId;
+      if ($id > 0) {
+        $cms->session()->revokeAllRefreshTokens($id);
+      }
+    }, 10, 1);
+
+    add_filter('logout_redirect', static function ($redirectTo) use ($cms) {
+      $frontends = $cms->getFrontends();
+      if ($frontends === []) {
+        return $redirectTo;
+      }
+
+      return rtrim($frontends[0]->getUrl(), '/') . SessionManager::FRONTEND_LOGOUT_PATH;
+    });
+  }
+
+  private function shouldRegister(CMS $cms): bool
+  {
+    $context = $cms->context();
+
+    return $context->isRest()
+      || $context->isCore()
+      || $context->isLogin()
+      || $context->isBackoffice();
   }
 }

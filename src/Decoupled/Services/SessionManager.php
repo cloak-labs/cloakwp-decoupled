@@ -24,6 +24,8 @@ final class SessionManager
 
   public const PURPOSE_LOGOUT = 'logout';
 
+  public const FRONTEND_LOGOUT_PATH = '/__cloakwp/logout';
+
   private \Closure $secretResolver;
 
   private \Closure $allowedOrigins;

@@ -212,6 +212,44 @@ final class SessionAuthTest extends TestCase
     $this->assertFalse($manager->isAllowedRedirect('https://evil.test/phish'));
   }
 
+  public function testWpLogoutRevokesRefreshTokens(): void
+  {
+    $cms = CMS::getInstance(WpContext::new()->force(WpContext::LOGIN))
+      ->frontends([
+        Frontend::make('web', 'https://web.test')->authSecret('session-secret'),
+      ]);
+    $manager = $this->manager();
+    $cms->useSession($manager);
+    (new SessionAuthProvider())->boot($cms);
+
+    $issued = $manager->authorize($this->authorizeRequest());
+    $this->assertInstanceOf(WP_REST_Response::class, $issued);
+
+    WpStubs::runAction('wp_logout', 1);
+
+    $refresh = new WP_REST_Request('POST');
+    $refresh->set_header('X-CloakWP-Secret', 'session-secret');
+    $refresh->set_param('grant_type', 'refresh_token');
+    $refresh->set_param('refresh_token', $issued->data['refreshToken']);
+    $replay = $manager->authorize($refresh);
+    $this->assertInstanceOf(WP_Error::class, $replay);
+    $this->assertSame(401, $replay->data['status']);
+  }
+
+  public function testWpLogoutRedirectsToFrontendLogoutPage(): void
+  {
+    $cms = CMS::getInstance(WpContext::new()->force(WpContext::LOGIN))
+      ->frontends([Frontend::make('web', 'https://web.test')]);
+    $cms->useSession($this->manager());
+    (new SessionAuthProvider())->boot($cms);
+
+    $redirect = WpStubs::applyFilters(
+      'logout_redirect',
+      'https://wp.example.test/wp-login.php?loggedout=true',
+    );
+    $this->assertSame('https://web.test/__cloakwp/logout', $redirect);
+  }
+
   public function testDetermineCurrentUserAcceptsAccessTokenThenJwtAuth(): void
   {
     $cms = CMS::getInstance(WpContext::new()->force(WpContext::REST))

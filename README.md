@@ -154,7 +154,10 @@ Session endpoints are secret-gated with `X-CloakWP-Secret`, using
 `CLOAKWP_SESSION_SECRET` or falling back to `CLOAKWP_AUTH_SECRET` / the
 frontend `authSecret()`. Password grants call `wp_authenticate()` so 2FA
 plugins can hook `authenticate`. Refresh tokens are hashed, rotated on every
-use, and revoked on logout or password change.
+use, and revoked on CloakWP logout, WordPress `wp_logout` (including the
+wp-admin Log Out link), and password change. WordPress logout redirects to
+the frontend `/__cloakwp/logout` page so the decoupled frontend session cookies are cleared
+on the same trip.
 
 `GET /cloakwp/auth/generate` and `LoginForm strategy="redirect"` are reserved
 for a later SSO/2FA bounce through `wp-login.php`. They are not implemented.
