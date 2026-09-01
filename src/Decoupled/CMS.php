@@ -184,12 +184,17 @@ final class CMS implements FrontendResolver
   }
 
   /**
+   * Register editor/admin assets. Subsequent calls append so a parent theme
+   * and child theme can both contribute. WordPress loads the child
+   * `functions.php` first, then the parent — a replace here dropped
+   * child `editor-child.css` in favor of `_base-theme` `editor.css`.
+   *
    * @param list<\CloakWP\Core\Enqueue\Stylesheet|\CloakWP\Core\Enqueue\Script> $assets
    */
   public function assets(array $assets): static
   {
     $this->assertConfigurable();
-    $this->assets = $assets;
+    $this->assets = [...$this->assets, ...$assets];
 
     return $this;
   }
