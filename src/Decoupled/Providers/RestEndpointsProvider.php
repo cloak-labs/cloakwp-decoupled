@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace CloakWP\Decoupled\Providers;
 
+use CloakWP\Core\Media\LibraryFilters;
 use CloakWP\Core\Rest\RestApi;
 use CloakWP\Core\Rest\Route;
 use CloakWP\Decoupled\CMS;
+use CloakWP\Decoupled\Media\ImageLibraryQuery;
 use CloakWP\Decoupled\Rest\Handlers\Authorize;
 use CloakWP\Decoupled\Rest\Handlers\EstablishLogout;
 use CloakWP\Decoupled\Rest\Handlers\EstablishSession;
@@ -15,6 +17,8 @@ use CloakWP\Decoupled\Rest\Handlers\GetFrontpage;
 use CloakWP\Decoupled\Rest\Handlers\GetGlobal;
 use CloakWP\Decoupled\Rest\Handlers\GetMenu;
 use CloakWP\Decoupled\Rest\Handlers\ListGlobals;
+use CloakWP\Decoupled\Rest\Handlers\ListImageLibrary;
+use CloakWP\Decoupled\Rest\Handlers\ListImageLibraryFilters;
 use CloakWP\Decoupled\Rest\Handlers\ListMenus;
 use CloakWP\Decoupled\Rest\Handlers\Logout;
 
@@ -123,7 +127,49 @@ final class RestEndpointsProvider implements ServiceProvider
             ],
           ]),
         Route::get('/auth/generate', new GenerateAuthorizationCode($session))->public(),
+        Route::get('/image-library', new ListImageLibrary(new ImageLibraryQuery($cms->images())))
+          ->public()
+          ->args($this->imageLibraryArgs()),
+        Route::get('/image-library/filters', new ListImageLibraryFilters())->public(),
       ])
       ->register();
+  }
+
+  /**
+   * @return array<string, array<string, mixed>>
+   */
+  private function imageLibraryArgs(): array
+  {
+    $args = [
+      'page' => [
+        'type' => 'integer',
+        'required' => false,
+        'default' => 1,
+        'minimum' => 1,
+      ],
+      'per_page' => [
+        'type' => 'integer',
+        'required' => false,
+        'default' => ImageLibraryQuery::DEFAULT_PER_PAGE,
+        'minimum' => 1,
+        'maximum' => ImageLibraryQuery::MAX_PER_PAGE,
+      ],
+    ];
+
+    foreach (LibraryFilters::all() as $filter) {
+      $queryVar = $filter->getQueryVar();
+      $args[$queryVar] = [
+        'type' => 'string',
+        'required' => false,
+      ];
+      if ($filter->allowsExclude()) {
+        $args[$queryVar . '_not'] = [
+          'type' => 'string',
+          'required' => false,
+        ];
+      }
+    }
+
+    return $args;
   }
 }
