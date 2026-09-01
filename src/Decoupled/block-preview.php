@@ -239,7 +239,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   >
     <!-- Block selector icon overlay on hover (editor only) -->
     <?php if (!$is_block_inserter): ?>
-      <div class="cloakwp-block-selector" style="display: none; max-width: 32px; max-height: 32px;">
+      <div class="cloakwp-block-selector">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
           class="cloakwp-block-selector-icon">
           <path stroke-linecap="round" stroke-linejoin="round"

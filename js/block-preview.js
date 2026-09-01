@@ -64,6 +64,9 @@
   /** @type {Map<string, Window>} */
   const readySourcesByKey = new Map();
 
+  /** @type {Map<string, string>} previewKey -> origin from the iframe's ready message */
+  const readyOriginsByKey = new Map();
+
   /** @type {Map<string, number>} previewKey -> optimistic epoch (monotonic) */
   const lastOptimisticEpochByKey = new Map();
 
@@ -120,6 +123,9 @@
     };
   }
 
+  /** @type {Map<string, HTMLIFrameElement>} previewKey -> iframe element when found via contentWindow */
+  const readyIframesByKey = new Map();
+
   /**
    * @returns {Document[]}
    */
@@ -151,6 +157,65 @@
   }
 
   /**
+   * Gutenberg's canvas is an iframe. `enqueue_block_editor_assets` CSS often
+   * stays on the parent admin document, so hover/gear rules never apply to
+   * preview markup. Inject the same rules into every reachable editor document.
+   */
+  var CANVAS_PREVIEW_CSS =
+    ".decoupled-block-preview-ctnr{position:relative}" +
+    ".wp-block:not(.is-selected) .decoupled-block-preview-ctnr::before{" +
+    "content:'';position:absolute;inset:0;z-index:40;cursor:pointer}" +
+    ".cloakwp-block-selector{display:none!important;position:absolute;width:24px;height:24px;max-width:32px;max-height:32px;padding:6px;z-index:50;color:#fff;cursor:pointer;pointer-events:auto;background-color:var(--wp-admin-theme-color,#007cba);border-bottom-right-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.3)}" +
+    ".cloakwp-block-selector:hover{background-color:var(--wp-admin-theme-color-darker-10,#006ba1)}" +
+    ".wp-block:not(.is-selected) .decoupled-block-preview-ctnr:hover .cloakwp-block-selector{display:block!important}";
+
+  function ensureCanvasPreviewStyles() {
+    var docs = collectEditorDocuments();
+    for (var i = 0; i < docs.length; i++) {
+      var doc = docs[i];
+      try {
+        if (doc.getElementById("cloakwp-preview-canvas-css")) continue;
+        var style = doc.createElement("style");
+        style.id = "cloakwp-preview-canvas-css";
+        style.textContent = CANVAS_PREVIEW_CSS;
+        (doc.head || doc.documentElement).appendChild(style);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
+
+  /**
+   * Match a nested iframe by Window identity. Preview iframes are cross-origin
+   * (frontend) and live inside Gutenberg's same-origin canvas, so attribute
+   * selectors on the parent document miss them and contentDocument throws —
+   * but contentWindow === source still works.
+   *
+   * @param {Window} source
+   * @returns {HTMLIFrameElement | null}
+   */
+  function findIframeByContentWindow(source) {
+    if (!source) return null;
+    const docs = collectEditorDocuments();
+    for (let d = 0; d < docs.length; d++) {
+      let list;
+      try {
+        list = docs[d].querySelectorAll("iframe");
+      } catch {
+        continue;
+      }
+      for (let i = 0; i < list.length; i++) {
+        try {
+          if (list[i].contentWindow === source) return list[i];
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
    * @param {string} key
    * @returns {Element | null}
    */
@@ -175,13 +240,17 @@
   function findPreviewIframeByKey(key) {
     if (!key) return null;
     const selector =
-      'iframe[data-cloakwp-preview-key="' + key.replace(/"/g, '\\"') + '"]';
+      'iframe[data-cloakwp-preview-key="' +
+      key.replace(/"/g, '\\"') +
+      '"], iframe[id="' +
+      key.replace(/"/g, '\\"') +
+      '"]';
     const docs = collectEditorDocuments();
     for (let i = 0; i < docs.length; i++) {
       const el = docs[i].querySelector(selector);
       if (el instanceof HTMLIFrameElement) return el;
     }
-    return null;
+    return readyIframesByKey.get(key) || null;
   }
 
   /**
@@ -192,12 +261,58 @@
     const out = [];
     const docs = collectEditorDocuments();
     for (let i = 0; i < docs.length; i++) {
-      const list = docs[i].querySelectorAll("iframe[data-cloakwp-preview-key]");
+      const list = docs[i].querySelectorAll(
+        "iframe[data-cloakwp-preview-key], iframe.block-preview-iframe",
+      );
       for (let j = 0; j < list.length; j++) {
         if (list[j] instanceof HTMLIFrameElement) out.push(list[j]);
       }
     }
+    readyIframesByKey.forEach(function (frame) {
+      if (out.indexOf(frame) === -1) out.push(frame);
+    });
     return out;
+  }
+
+  /**
+   * @param {string} html
+   * @returns {string | null}
+   */
+  function parseTokenPreviewKeyFromHtml(html) {
+    if (!html) return null;
+    const match = html.match(/token=([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/);
+    if (!match) return null;
+    try {
+      let payload = match[1].split(".")[0].replace(/-/g, "+").replace(/_/g, "/");
+      while (payload.length % 4) payload += "=";
+      const parsed = JSON.parse(atob(payload));
+      return typeof parsed.previewKey === "string" ? parsed.previewKey : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * @param {string} key
+   * @returns {PendingPayload | null}
+   */
+  function pendingFromHtmlCache(key) {
+    if (!key) return null;
+    let found = null;
+    htmlCache.forEach(function (html, cacheKey) {
+      if (found) return;
+      const hits =
+        cacheKey === key ||
+        (typeof html === "string" && html.indexOf(key) !== -1);
+      if (!hits) return;
+      const blockData = parseBlockDataFromHtml(html);
+      if (!blockData) return;
+      found = {
+        blockData: blockData,
+        isPageDark: parseIsPageDark(html),
+      };
+    });
+    return found;
   }
 
   /**
@@ -219,16 +334,39 @@
   /**
    * Resolve an exact iframe binding. A source cannot claim another preview key.
    *
+   * When Gutenberg's canvas iframe is opaque to this script (common: assets
+   * load on the parent, preview iframes live inside the canvas), DOM lookup
+   * fails. Fall back to the Window/origin captured from cloakwp-preview-ready.
+   *
    * @param {Window} source
    * @param {string} key
-   * @returns {{ iframe: HTMLIFrameElement, origin: string } | null}
+   * @returns {{ iframe: HTMLIFrameElement | null, origin: string, key: string } | null}
    */
   function resolvePreviewBinding(source, key) {
     if (!source || !key) return null;
-    const iframe = findPreviewIframeByKey(key);
-    if (!iframe || iframe.contentWindow !== source) return null;
-    const origin = getPreviewOrigin(iframe);
-    return origin ? { iframe, origin, key } : null;
+    let iframe = findPreviewIframeByKey(key);
+    if (iframe && iframe.contentWindow === source) {
+      const origin = getPreviewOrigin(iframe) || readyOriginsByKey.get(key);
+      if (origin) {
+        readyIframesByKey.set(key, iframe);
+        return { iframe, origin, key };
+      }
+    }
+    iframe = findIframeByContentWindow(source) || readyIframesByKey.get(key) || null;
+    if (iframe) {
+      readyIframesByKey.set(key, iframe);
+      const origin =
+        getPreviewOrigin(iframe) || readyOriginsByKey.get(key) || "";
+      if (origin) return { iframe, origin, key };
+    }
+    if (readySourcesByKey.get(key) === source && readyOriginsByKey.has(key)) {
+      return {
+        iframe: iframe || null,
+        origin: readyOriginsByKey.get(key),
+        key,
+      };
+    }
+    return null;
   }
 
   /**
@@ -397,16 +535,40 @@
   }
 
   /**
-   * @param {Window} source
-   * @param {unknown} blockData
-   * @param {boolean} isPageDark
-   * @param {string} [key]
+   * Theme classes on Gutenberg ancestors of a preview iframe (core/group,
+   * core/columns). Child iframes cannot inherit canvas `.dark` via CSS.
+   *
+   * @param {Element | null | undefined} el
    */
+  function collectAncestorThemeClasses(el) {
+    var dark = false;
+    var darker = false;
+    var node = el;
+    while (node && node.nodeType === 1) {
+      var cn = typeof node.className === "string" ? node.className : "";
+      if (cn) {
+        var hasStyleDark = cn.indexOf("is-style-dark") !== -1;
+        if (/(^|\s)dark(\s|$)/.test(cn) || hasStyleDark) dark = true;
+        if (/(^|\s)darker(\s|$)/.test(cn) || hasStyleDark) darker = true;
+      }
+      node = node.parentElement;
+    }
+    return { dark: dark, darker: darker };
+  }
+
   function sendUpdateToSource(source, blockData, isPageDark, key) {
     const binding = resolvePreviewBinding(source, key || "");
-    // #region agent log
-    fetch('http://127.0.0.1:7911/ingest/b9e95a7a-d039-48b7-9a0d-f086fde5a1ef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eac1a7'},body:JSON.stringify({sessionId:'eac1a7',hypothesisId:'H2',location:'block-preview.js:sendUpdateToSource',message:'WP sending update',data:{hasBinding:!!binding,key:key||null,hasBlockData:!!blockData,bindingOrigin:binding?binding.origin:null},timestamp:Date.now()})}).catch(function(){});
-    // #endregion
+    var iframe =
+      (binding && binding.iframe) ||
+      findIframeByContentWindow(source) ||
+      null;
+    var ancestorTheme = collectAncestorThemeClasses(
+      iframe || findPreviewRootByKey(key || "") || null,
+    );
+    var sentBodyClass = [];
+    if (isPageDark || ancestorTheme.dark) sentBodyClass.push("dark");
+    if (isPageDark || ancestorTheme.darker) sentBodyClass.push("darker");
+    var sentBodyClassName = sentBodyClass.join(" ");
     if (!binding || typeof source.postMessage !== "function") return;
 
     // Always send — the frontend needs an external "one screen" reference for
@@ -418,7 +580,7 @@
         type: "cloakwp-preview-update",
         previewKey: binding.key,
         blockData: blockData || null,
-        bodyClassName: isPageDark ? "dark dark:darker" : undefined,
+        bodyClassName: sentBodyClassName,
         previewViewportHeight:
           previewViewportHeight > 0 ? previewViewportHeight : undefined,
       },
@@ -463,6 +625,12 @@
     let pending = pendingByKey.get(key);
     if (!pending) {
       pending = bootstrapPendingFromDom(key);
+    }
+    if (!pending) {
+      pending = pendingFromHtmlCache(key);
+      if (pending) {
+        pendingByKey.set(key, pending);
+      }
     }
     if (!pending) return false;
     sendUpdateToSource(source, pending.blockData, pending.isPageDark, key);
@@ -1311,12 +1479,16 @@
 
     const next = Math.round(payload.height);
     if (!Number.isFinite(next) || next < 0) return false;
-    // Empty preview `#root` reports a ~20px floor. Applying it collapses the
-    // iframe and marks it "content-sized", so the editor-viewport bootstrap
-    // cannot recover — viewport-tied heroes then trap at that min height.
-    if (next < 48) return true;
 
-    const iframe = binding.iframe;
+    let iframe = binding.iframe || findIframeByContentWindow(source);
+    if (iframe) {
+      readyIframesByKey.set(binding.key, iframe);
+    }
+    // Frontend already withholds empty-#root reports (previewHasBlockContent).
+    // Skipping <48px trapped short blocks (acf/eyebrow ~20px) at the editor
+    // viewport bootstrap height (~860px).
+    if (next < 1) return true;
+    if (!iframe) return true;
     const height = next + "px";
     if (iframe.style.height === height) return true;
     iframe.style.height = height;
@@ -1336,14 +1508,17 @@
     if (!source || typeof source.postMessage !== "function") return;
 
     const key = ready.previewKey;
-    const binding = resolvePreviewBinding(source, key);
-    // #region agent log
-    fetch('http://127.0.0.1:7911/ingest/b9e95a7a-d039-48b7-9a0d-f086fde5a1ef',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'eac1a7'},body:JSON.stringify({sessionId:'eac1a7',hypothesisId:'H2',location:'block-preview.js:onWindowMessage',message:'WP received ready',data:{eventOrigin:event.origin,key:key||null,hasBinding:!!binding,bindingOrigin:binding?binding.origin:null,originMatch:binding?event.origin===binding.origin:false,iframeCount:findAllPreviewIframes().length},timestamp:Date.now()})}).catch(function(){});
-    // #endregion
+    let binding = resolvePreviewBinding(source, key);
+    if (!binding && key && event.origin) {
+      readyOriginsByKey.set(key, event.origin);
+      readySourcesByKey.set(key, source);
+      binding = resolvePreviewBinding(source, key);
+    }
     if (!binding || event.origin !== binding.origin) return;
 
     readyKeys.add(key);
     readySourcesByKey.set(key, source);
+    readyOriginsByKey.set(key, binding.origin);
     ensureInitialPreviewIframeHeight(binding.iframe);
     deliverPendingToSource(key, source);
   }
@@ -1355,6 +1530,7 @@
     if (initialized) return true;
     initialized = true;
 
+    ensureCanvasPreviewStyles();
     window.addEventListener("message", onWindowMessage);
     window.addEventListener("resize", broadcastEditorViewportHeight);
 
@@ -1451,12 +1627,20 @@
       if (isPreload) {
         if (hasBlockData) {
           pendingByKey.set(key, { blockData, isPageDark });
+          const tokenKey = parseTokenPreviewKeyFromHtml(html);
+          if (tokenKey && tokenKey !== key) {
+            pendingByKey.set(tokenKey, { blockData, isPageDark });
+          }
         }
         return htmlCache.has(key) ? htmlCache.get(key) : html;
       }
 
       if (hasBlockData) {
         storeAndFlush(key, blockData, isPageDark, { authoritative: true });
+        const tokenKey = parseTokenPreviewKeyFromHtml(html);
+        if (tokenKey && tokenKey !== key && pendingByKey.has(key)) {
+          pendingByKey.set(tokenKey, pendingByKey.get(key));
+        }
       }
 
       // Once we have an iframe shell (ready or still loading), always return it.
@@ -1495,6 +1679,8 @@
         }
       }
 
+      ensureCanvasPreviewStyles();
+
       const visible = findAllPreviewIframes();
       if (visible.length === 0) return;
 
@@ -1514,6 +1700,8 @@
           readyKeys.delete(key);
           pendingByKey.delete(key);
           readySourcesByKey.delete(key);
+          readyOriginsByKey.delete(key);
+          readyIframesByKey.delete(key);
           contentSizedPreviewKeys.delete(key);
         }
       });
