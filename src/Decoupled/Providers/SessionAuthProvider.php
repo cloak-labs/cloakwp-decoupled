@@ -79,6 +79,20 @@ final class SessionAuthProvider implements ServiceProvider
 
       return rtrim($frontends[0]->getUrl(), '/') . SessionManager::FRONTEND_LOGOUT_PATH;
     });
+
+    // wp-login.php uses wp_safe_redirect() after logout_redirect. Without
+    // this, a decoupled frontend host is stripped and session cookies stay.
+    add_filter('allowed_redirect_hosts', static function ($hosts) use ($cms) {
+      $hosts = is_array($hosts) ? $hosts : [];
+      foreach ($cms->getFrontends() as $frontend) {
+        $host = parse_url($frontend->getUrl(), PHP_URL_HOST);
+        if (is_string($host) && $host !== '') {
+          $hosts[] = strtolower($host);
+        }
+      }
+
+      return array_values(array_unique($hosts));
+    });
   }
 
   private function shouldRegister(CMS $cms): bool

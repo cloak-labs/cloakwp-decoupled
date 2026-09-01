@@ -156,8 +156,9 @@ frontend `authSecret()`. Password grants call `wp_authenticate()` so 2FA
 plugins can hook `authenticate`. Refresh tokens are hashed, rotated on every
 use, and revoked on CloakWP logout, WordPress `wp_logout` (including the
 wp-admin Log Out link), and password change. WordPress logout redirects to
-the frontend `/__cloakwp/logout` page so the decoupled frontend session cookies are cleared
-on the same trip.
+the frontend `/api/cloakwp/auth/logout` endpoint so the decoupled frontend session cookies are cleared
+on the same trip. `wp_safe_redirect()` only allows the CMS host by default; CloakWP adds
+each configured frontend host to `allowed_redirect_hosts` so that hop is not stripped.
 
 `GET /cloakwp/auth/generate` and `LoginForm strategy="redirect"` are reserved
 for a later SSO/2FA bounce through `wp-login.php`. They are not implemented.

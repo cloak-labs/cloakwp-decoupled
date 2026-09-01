@@ -247,7 +247,19 @@ final class SessionAuthTest extends TestCase
       'logout_redirect',
       'https://wp.example.test/wp-login.php?loggedout=true',
     );
-    $this->assertSame('https://web.test/__cloakwp/logout', $redirect);
+    $this->assertSame('https://web.test/api/cloakwp/auth/logout', $redirect);
+  }
+
+  public function testFrontendHostsAreAllowedForWpSafeRedirect(): void
+  {
+    $cms = CMS::getInstance(WpContext::new()->force(WpContext::LOGIN))
+      ->frontends([Frontend::make('web', 'https://hyland02.localhost/')]);
+    $cms->useSession($this->manager());
+    (new SessionAuthProvider())->boot($cms);
+
+    $hosts = WpStubs::applyFilters('allowed_redirect_hosts', ['wp.localhost']);
+    $this->assertContains('wp.localhost', $hosts);
+    $this->assertContains('hyland02.localhost', $hosts);
   }
 
   public function testDetermineCurrentUserAcceptsAccessTokenThenJwtAuth(): void
