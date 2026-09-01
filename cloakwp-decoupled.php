@@ -39,8 +39,10 @@ if (function_exists('wp_register_plugin_realpath')) {
   wp_register_plugin_realpath(__DIR__);
 }
 
-// Pull in vendor autoloader (for autoloading 3rd party classes such as pQuery)
-if (is_readable(__DIR__ . '/vendor/autoload.php')) {
+// Standalone plugin installs ship a vendor/ autoloader. Skip it when the
+// parent project (Bedrock) already autoloaded this package — nested
+// vendor copies of cloakwp/core are often stale and would prepend over Studio.
+if (!class_exists(\CloakWP\Decoupled\CMS::class) && is_readable(__DIR__ . '/vendor/autoload.php')) {
   require_once __DIR__ . '/vendor/autoload.php';
 }
 
