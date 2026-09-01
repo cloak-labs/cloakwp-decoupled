@@ -17,7 +17,7 @@ final class PreviewUrlHandler
   public function forBlock(Frontend $frontend, string $previewKey, string $pathname): string
   {
     $ttl = (int) $frontend->getSettings('previewTokenTtl');
-    $token = $this->tokens->issue($previewKey, $pathname, $ttl);
+    $token = $this->tokens->issue($previewKey, $pathname, $ttl, $this->wpOrigin());
     $path = (string) $frontend->getSettings('blockPreviewPath');
 
     return $this->withQuery(
@@ -42,10 +42,14 @@ final class PreviewUrlHandler
     }
 
     $pathname = Utils::getPostPathname($postId);
+    if (!is_string($pathname) || $pathname === '' || !str_starts_with($pathname, '/')) {
+      $pathname = '/';
+    }
     $token = $this->tokens->issue(
       'post-' . $postId,
       $pathname,
       (int) $frontend->getSettings('previewTokenTtl'),
+      $this->wpOrigin(),
     );
 
     return $this->withQuery(
@@ -72,6 +76,30 @@ final class PreviewUrlHandler
     }
 
     return $this->forPost($frontend, get_post($postId) ?? $postId);
+  }
+
+  /**
+   * Origin of the WP admin that is embedding the preview iframe.
+   * Bound into the token so the frontend postMessage handshake targets this
+   * window even when NEXT_PUBLIC_WP_ENVIRONMENT points at a different WP.
+   */
+  private function wpOrigin(): ?string
+  {
+    if (!function_exists('home_url') || !function_exists('wp_parse_url')) {
+      return null;
+    }
+
+    $parts = wp_parse_url(home_url('/'));
+    if (!is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+      return null;
+    }
+
+    $origin = $parts['scheme'] . '://' . $parts['host'];
+    if (isset($parts['port'])) {
+      $origin .= ':' . $parts['port'];
+    }
+
+    return $origin;
   }
 
   /**

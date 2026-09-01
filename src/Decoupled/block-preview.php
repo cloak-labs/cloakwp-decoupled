@@ -197,6 +197,9 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   $blockData = $blockParser->transformBlock($formattedData, $post_id);
   $json = wp_json_encode($blockData ?? null);
   $postPathname = Utils::getPostPathname($post_id);
+  if (!is_string($postPathname) || $postPathname === '' || !str_starts_with($postPathname, '/')) {
+    $postPathname = '/';
+  }
 
   $CMS = \CloakWP\Decoupled\CMS::getInstance();
   $frontend = $CMS->getActiveFrontend();

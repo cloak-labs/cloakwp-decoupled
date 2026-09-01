@@ -58,4 +58,12 @@ final class PreviewTokenTest extends TestCase
     $this->assertSame('block_123', $payload['previewKey']);
     $this->assertSame('/about', $payload['pathname']);
   }
+
+  public function testBindsWpOriginIntoIssuedToken(): void
+  {
+    $tokens = new PreviewToken(static fn(): string => 'test-secret', static fn(): int => 1000);
+    $token = $tokens->issue('block_123', '/about', 43200, 'https://wp.localhost');
+
+    $this->assertSame('https://wp.localhost', $tokens->verify($token)['wpOrigin']);
+  }
 }

@@ -25,7 +25,7 @@ final class PreviewToken
     $this->clock = \Closure::fromCallable($clock ?? 'time');
   }
 
-  public function issue(string $previewKey, string $pathname, int $ttl = 43200): string
+  public function issue(string $previewKey, string $pathname, int $ttl = 43200, ?string $wpOrigin = null): string
   {
     if (
       $previewKey === ''
@@ -43,6 +43,12 @@ final class PreviewToken
       'pathname' => $pathname,
       'exp' => ($this->clock)() + $ttl,
     ];
+    if ($wpOrigin !== null) {
+      if (!$this->isHttpOrigin($wpOrigin)) {
+        throw new \InvalidArgumentException('wpOrigin must be an http(s) origin with no path.');
+      }
+      $payload['wpOrigin'] = $wpOrigin;
+    }
     $encodedPayload = $this->base64UrlEncode((string) json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
     $signature = hash_hmac('sha256', $encodedPayload, ($this->secretResolver)(), true);
 
@@ -50,7 +56,7 @@ final class PreviewToken
   }
 
   /**
-   * @return array{previewKey: string, pathname: string, exp: int}|null
+   * @return array{previewKey: string, pathname: string, exp: int, wpOrigin?: string}|null
    */
   public function verify(string $token): ?array
   {
@@ -87,11 +93,52 @@ final class PreviewToken
       return null;
     }
 
-    return [
+    $wpOrigin = $payload['wpOrigin'] ?? null;
+    if ($wpOrigin !== null && (!is_string($wpOrigin) || !$this->isHttpOrigin($wpOrigin))) {
+      return null;
+    }
+
+    $result = [
       'previewKey' => $payload['previewKey'],
       'pathname' => $payload['pathname'],
       'exp' => $payload['exp'],
     ];
+    if (is_string($wpOrigin)) {
+      $result['wpOrigin'] = $wpOrigin;
+    }
+
+    return $result;
+  }
+
+  private function isHttpOrigin(string $value): bool
+  {
+    $parts = parse_url($value);
+    if (!is_array($parts)) {
+      return false;
+    }
+
+    $scheme = $parts['scheme'] ?? null;
+    if (
+      ($scheme !== 'http' && $scheme !== 'https')
+      || empty($parts['host'])
+      || isset($parts['user'])
+      || isset($parts['query'])
+      || isset($parts['fragment'])
+    ) {
+      return false;
+    }
+
+    $path = $parts['path'] ?? '';
+    if ($path !== '' && $path !== '/') {
+      return false;
+    }
+
+    $origin = $parts['scheme'] . '://' . $parts['host'];
+    if (isset($parts['port'])) {
+      $origin .= ':' . $parts['port'];
+    }
+
+    return rtrim($value, '/') === $origin;
   }
 
   private function base64UrlEncode(string $value): string
