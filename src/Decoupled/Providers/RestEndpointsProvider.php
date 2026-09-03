@@ -154,6 +154,11 @@ final class RestEndpointsProvider implements ServiceProvider
         'minimum' => 1,
         'maximum' => ImageLibraryQuery::MAX_PER_PAGE,
       ],
+      'include_project' => [
+        'type' => 'boolean',
+        'required' => false,
+        'default' => false,
+      ],
     ];
 
     foreach (LibraryFilters::all() as $filter) {

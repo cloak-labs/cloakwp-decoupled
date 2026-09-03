@@ -19,6 +19,7 @@ final class ImageLibraryQueryTest extends TestCase
   {
     WpStubs::reset();
     LibraryFilters::reset();
+    \CloakWP\Decoupled\Media\ProjectImageLookup::flushCache();
   }
 
   public function testBuildArgsAreImagesOnlyWithoutParentConstraint(): void
@@ -32,6 +33,15 @@ final class ImageLibraryQueryTest extends TestCase
     $this->assertSame(20, $args['posts_per_page']);
     $this->assertSame(2, $args['paged']);
     $this->assertArrayNotHasKey('post_parent', $args);
+    $this->assertSame('ids', $args['fields']);
+  }
+
+  public function testBuildArgsKeepsPostObjectsWhenIncludingProject(): void
+  {
+    $query = new ImageLibraryQuery(new FakeImageFormatter());
+    $args = $query->buildArgs(1, 20, [], [], true);
+
+    $this->assertArrayNotHasKey('fields', $args);
   }
 
   public function testApplyIncludeAndExcludeViaLibraryFilters(): void
@@ -119,6 +129,65 @@ final class ImageLibraryQueryTest extends TestCase
 
     $this->assertSame('orientation', $response->data[0]['id']);
     $this->assertSame('Portrait', $response->data[0]['options'][0]['label']);
+  }
+
+  public function testIncludeProjectFromRequest(): void
+  {
+    $on = new WP_REST_Request();
+    $on->set_param('include_project', '1');
+    $this->assertTrue(ImageLibraryQuery::includeProjectFromRequest($on));
+
+    $off = new WP_REST_Request();
+    $this->assertFalse(ImageLibraryQuery::includeProjectFromRequest($off));
+  }
+
+  public function testRunAttachesRelatedOnlyWhenIncludeProjectIsOn(): void
+  {
+    \CloakWP\Decoupled\Media\ProjectImageLookup::flushCache();
+    WpStubs::$posts[50] = (object) [
+      'ID' => 50,
+      'post_type' => 'project',
+      'post_status' => 'publish',
+      'post_title' => 'Baycrest',
+      'post_name' => 'baycrest',
+      'post_content' => '',
+    ];
+    WpStubs::$postMeta[50]['after_images'] = ['41'];
+    WpStubs::$postMeta[50]['subtitle'] = 'A compact yard';
+
+    $factory = static function (array $args): object {
+      return new FakeWpQuery(
+        posts: [(object) ['ID' => 41, 'post_parent' => 0]],
+        found: 1,
+        pages: 1,
+        args: $args,
+      );
+    };
+
+    $without = (new ImageLibraryQuery(new FakeImageFormatter(), $factory))->run(1, 20, [], [], false);
+    $this->assertArrayNotHasKey('related', $without['items'][0]);
+
+    $with = (new ImageLibraryQuery(new FakeImageFormatter(), $factory))->run(1, 20, [], [], true);
+    $this->assertSame('Baycrest', $with['items'][0]['related']['title']);
+    $this->assertSame('A compact yard', $with['items'][0]['related']['subtitle']);
+    $this->assertSame('/portfolio/baycrest/', $with['items'][0]['related']['href']);
+  }
+
+  public function testListHandlerReadsIncludeProject(): void
+  {
+    $captured = [];
+    $query = new ImageLibraryQuery(new FakeImageFormatter(), static function (array $args) use (&$captured): object {
+      $captured = $args;
+
+      return new FakeWpQuery(posts: [7], found: 1, pages: 1, args: $args);
+    });
+    $request = new WP_REST_Request();
+    $request->set_param('include_project', '1');
+
+    $response = (new ListImageLibrary($query))($request);
+
+    $this->assertArrayNotHasKey('fields', $captured);
+    $this->assertSame(7, $response->data['items'][0]['id']);
   }
 }
 

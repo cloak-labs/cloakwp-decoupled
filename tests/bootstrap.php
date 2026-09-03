@@ -614,3 +614,108 @@ if (!function_exists('delete_user_meta')) {
     return true;
   }
 }
+
+if (!function_exists('get_posts')) {
+  function get_posts($args = []): array
+  {
+    $types = $args['post_type'] ?? 'post';
+    if (!is_array($types)) {
+      $types = [$types];
+    }
+    $status = $args['post_status'] ?? 'publish';
+    $statuses = is_array($status) ? $status : [$status];
+    $in = isset($args['post__in']) && is_array($args['post__in'])
+      ? array_map('intval', $args['post__in'])
+      : null;
+
+    $out = [];
+    foreach (\CloakWP\Decoupled\Tests\WpStubs::$posts as $id => $post) {
+      if ($in !== null && !in_array((int) $id, $in, true)) {
+        continue;
+      }
+      $type = (string) ($post->post_type ?? '');
+      $postStatus = (string) ($post->post_status ?? 'publish');
+      if ($types !== [] && !in_array($type, $types, true)) {
+        continue;
+      }
+      if ($statuses !== [] && !in_array($postStatus, $statuses, true)) {
+        continue;
+      }
+      $out[] = $post;
+    }
+
+    return $out;
+  }
+}
+
+if (!function_exists('get_the_title')) {
+  function get_the_title($post = 0): string
+  {
+    $resolved = get_post($post);
+
+    return is_object($resolved) ? (string) ($resolved->post_title ?? '') : '';
+  }
+}
+
+if (!function_exists('get_permalink')) {
+  function get_permalink($post = 0): string
+  {
+    $resolved = get_post($post);
+    if (!is_object($resolved)) {
+      return '';
+    }
+    if (isset($resolved->permalink) && is_string($resolved->permalink)) {
+      return $resolved->permalink;
+    }
+    $slug = (string) ($resolved->post_name ?? $resolved->ID ?? '');
+
+    return 'https://example.test/portfolio/' . $slug . '/';
+  }
+}
+
+if (!function_exists('parse_blocks')) {
+  function parse_blocks($content): array
+  {
+    return [];
+  }
+}
+
+if (!function_exists('wp_cache_get')) {
+  function wp_cache_get($key, $group = '', $force = false, &$found = null)
+  {
+    $cacheKey = $group . ':' . $key;
+    if (!array_key_exists($cacheKey, \CloakWP\Decoupled\Tests\WpStubs::$objectCache)) {
+      $found = false;
+
+      return false;
+    }
+    $found = true;
+
+    return \CloakWP\Decoupled\Tests\WpStubs::$objectCache[$cacheKey];
+  }
+}
+
+if (!function_exists('wp_cache_set')) {
+  function wp_cache_set($key, $data, $group = '', $expire = 0): bool
+  {
+    \CloakWP\Decoupled\Tests\WpStubs::$objectCache[$group . ':' . $key] = $data;
+
+    return true;
+  }
+}
+
+if (!function_exists('wp_cache_delete')) {
+  function wp_cache_delete($key, $group = ''): bool
+  {
+    unset(\CloakWP\Decoupled\Tests\WpStubs::$objectCache[$group . ':' . $key]);
+
+    return true;
+  }
+}
+
+if (!function_exists('update_meta_cache')) {
+  function update_meta_cache($meta_type, $object_ids): array
+  {
+    return [];
+  }
+}

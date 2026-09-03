@@ -26,6 +26,7 @@ final class ImageLibraryQuery
   public function __construct(
     private readonly ImageFormatter $formatter,
     ?callable $queryFactory = null,
+    private readonly ?ProjectImageLookup $projectLookup = null,
   ) {
     $this->queryFactory = $queryFactory ?? static fn(array $args): object => new \WP_Query($args);
   }
@@ -35,15 +36,27 @@ final class ImageLibraryQuery
    * @param array<string, string> $exclude queryVar => value (with or without not: prefix)
    * @return array{items: list<array<string, mixed>>, total: int, totalPages: int, page: int, perPage: int}
    */
-  public function run(int $page = 1, int $perPage = self::DEFAULT_PER_PAGE, array $include = [], array $exclude = []): array
-  {
+  public function run(
+    int $page = 1,
+    int $perPage = self::DEFAULT_PER_PAGE,
+    array $include = [],
+    array $exclude = [],
+    bool $includeProject = false,
+  ): array {
     $page = max(1, $page);
     $perPage = min(self::MAX_PER_PAGE, max(1, $perPage));
 
-    $query = ($this->queryFactory)($this->buildArgs($page, $perPage, $include, $exclude));
+    $query = ($this->queryFactory)($this->buildArgs($page, $perPage, $include, $exclude, $includeProject));
     $ids = [];
+    $parents = [];
     foreach ($query->posts ?? [] as $post) {
-      $ids[] = is_object($post) ? (int) ($post->ID ?? 0) : (int) $post;
+      if (is_object($post)) {
+        $id = (int) ($post->ID ?? 0);
+        $parents[$id] = (int) ($post->post_parent ?? 0);
+      } else {
+        $id = (int) $post;
+      }
+      $ids[] = $id;
     }
 
     $items = [];
@@ -57,6 +70,11 @@ final class ImageLibraryQuery
       }
       $formatted['id'] = $id;
       $items[] = $formatted;
+    }
+
+    if ($includeProject && $items !== []) {
+      $lookup = $this->projectLookup ?? new ProjectImageLookup();
+      $items = $lookup->attach($items, $parents);
     }
 
     $total = (int) ($query->found_posts ?? count($items));
@@ -76,8 +94,13 @@ final class ImageLibraryQuery
    * @param array<string, string> $exclude
    * @return array<string, mixed>
    */
-  public function buildArgs(int $page, int $perPage, array $include, array $exclude): array
-  {
+  public function buildArgs(
+    int $page,
+    int $perPage,
+    array $include,
+    array $exclude,
+    bool $includeProject = false,
+  ): array {
     $args = [
       'post_type' => 'attachment',
       'post_status' => 'inherit',
@@ -87,9 +110,11 @@ final class ImageLibraryQuery
       'orderby' => 'date',
       'order' => 'DESC',
       'no_found_rows' => false,
-      'fields' => 'ids',
       'ignore_sticky_posts' => true,
     ];
+    if (!$includeProject) {
+      $args['fields'] = 'ids';
+    }
 
     $args = LibraryFilters::applyValues($args, $include);
     $args = LibraryFilters::applyValues($args, $this->normalizeExclude($exclude));
@@ -139,6 +164,13 @@ final class ImageLibraryQuery
     $n = (int) ($perPage !== '' ? $perPage : self::DEFAULT_PER_PAGE);
 
     return min(self::MAX_PER_PAGE, max(1, $n));
+  }
+
+  public static function includeProjectFromRequest(object $request, array $params = []): bool
+  {
+    $raw = self::param($request, $params, 'include_project');
+
+    return $raw === '1' || strtolower($raw) === 'true' || strtolower($raw) === 'yes';
   }
 
   /**

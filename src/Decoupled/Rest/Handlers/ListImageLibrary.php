@@ -32,8 +32,17 @@ final class ListImageLibrary
     $perPage = is_object($request)
       ? ImageLibraryQuery::perPageFromRequest($request, $params)
       : ImageLibraryQuery::DEFAULT_PER_PAGE;
+    $includeProject = is_object($request)
+      ? ImageLibraryQuery::includeProjectFromRequest($request, $params)
+      : false;
 
-    $result = $this->query->run($page, $perPage, $filters['include'], $filters['exclude']);
+    $result = $this->query->run(
+      $page,
+      $perPage,
+      $filters['include'],
+      $filters['exclude'],
+      $includeProject,
+    );
     $response = rest_ensure_response($result);
 
     if (is_object($response) && method_exists($response, 'header')) {

@@ -73,6 +73,9 @@ final class WpStubs
   /** @var array<int, array<string, mixed>> */
   public static array $userMeta = [];
 
+  /** @var array<string, mixed> */
+  public static array $objectCache = [];
+
   public static function reset(): void
   {
     self::$actions = [];
@@ -98,6 +101,7 @@ final class WpStubs
     self::$logoutCount = 0;
     self::$transients = [];
     self::$userMeta = [];
+    self::$objectCache = [];
     $_GET = [];
     $_POST = [];
     $_REQUEST = [];
