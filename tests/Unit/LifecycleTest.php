@@ -94,13 +94,12 @@ final class LifecycleTest extends TestCase
     $frontend->deployments(['https://preview.test']);
   }
 
-  public function testMissingFrontendFailsClearlyAtRegistration(): void
+  public function testMissingFrontendFallsBackToHomeUrl(): void
   {
     $cms = CMS::getInstance(WpContext::new()->force(WpContext::CORE));
-
-    $this->expectException(\LogicException::class);
-    $this->expectExceptionMessage('requires at least one frontend');
     $cms->register();
+
+    $this->assertSame('https://wp.example.test', $cms->getActiveFrontend()->getUrl());
   }
 
   public function testGlobalsDefaultToAnEmptyRepository(): void

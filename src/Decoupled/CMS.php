@@ -541,7 +541,7 @@ final class CMS implements FrontendResolver
       return;
     }
 
-    $this->frontendRegistry->validate();
+    $this->ensureFrontend();
     foreach ($this->frontendRegistry->all() as $frontend) {
       $frontend->bindServices($this->previewUrls, $this->revalidation);
     }
@@ -604,6 +604,27 @@ final class CMS implements FrontendResolver
   public function providers(): array
   {
     return $this->providers;
+  }
+
+  /**
+   * Themes should call frontends() explicitly. If a multisite instance is
+   * constructed (maintenance mode, switch_blog, parent theme) without one,
+   * fall back to home_url() so boot cannot white-screen the network.
+   */
+  private function ensureFrontend(): void
+  {
+    if ($this->frontendRegistry->all() !== []) {
+      return;
+    }
+
+    $url = function_exists('home_url') ? home_url('/') : '';
+    if (!is_string($url) || filter_var($url, FILTER_VALIDATE_URL) === false) {
+      $this->frontendRegistry->validate();
+    }
+
+    $this->frontendRegistry->set([
+      Frontend::make('website', $url),
+    ]);
   }
 
   private function scheduleBoot(): void

@@ -68,6 +68,15 @@ final class CmsBootTest extends TestCase
     $this->assertSame([$child, $parent], $cms->configuredAssets());
   }
 
+  public function testBootWithoutFrontendsUsesHomeUrlFallback(): void
+  {
+    $cms = CMS::getInstance();
+    $cms->boot();
+
+    $this->assertTrue($cms->isBooted());
+    $this->assertSame('https://wp.example.test', $cms->getActiveFrontend()->getUrl());
+  }
+
   public function testLongRunningJobsCanConfigureAChangedSiteBeforeBoot(): void
   {
     WpStubs::$didActions['init'] = 1;
