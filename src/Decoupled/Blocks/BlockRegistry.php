@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace CloakWP\Decoupled\Blocks;
 
+use CloakWP\ACF\Block as AcfBlock;
 use CloakWP\Core\Content\ContentModel;
 use CloakWP\Decoupled\CMS;
 
@@ -21,26 +22,41 @@ final class BlockRegistry
    */
   public function register(array $blocks, CMS $cms): void
   {
-    foreach ($blocks as $block) {
-      if (!is_object($block) || !method_exists($block, 'getFieldGroupSettings')) {
-        continue;
-      }
+    // Defer ACF field groups until every block is in CloakWP\ACF\BlockRegistry
+    // so InnerBlocks Flexible Content layouts include the full set (e.g. wysiwyg).
+    $canDeferFieldGroups = class_exists(AcfBlock::class)
+      && method_exists(AcfBlock::class, 'deferFieldGroupRegistration');
 
-      if (!$this->dependenciesAreRegistered($block)) {
-        continue;
-      }
+    if ($canDeferFieldGroups) {
+      AcfBlock::deferFieldGroupRegistration();
+    }
 
-      if (!isset($block->parsedBlockJson['render_callback']) && !isset($block->parsedBlockJson['acf']['renderTemplate'])) {
-        $block->args([
-          'render_callback' => [$cms, 'renderBlockIframePreview'],
-        ]);
-      }
+    try {
+      foreach ($blocks as $block) {
+        if (!is_object($block) || !method_exists($block, 'getFieldGroupSettings')) {
+          continue;
+        }
 
-      if (!$block->emptyFieldsMessage) {
-        $block->emptyFieldsMessage('This block has no fields/controls. Simply drop it wherever you wish to display it.');
-      }
+        if (!$this->dependenciesAreRegistered($block)) {
+          continue;
+        }
 
-      $block->register();
+        if (!isset($block->parsedBlockJson['render_callback']) && !isset($block->parsedBlockJson['acf']['renderTemplate'])) {
+          $block->args([
+            'render_callback' => [$cms, 'renderBlockIframePreview'],
+          ]);
+        }
+
+        if (!$block->emptyFieldsMessage) {
+          $block->emptyFieldsMessage('This block has no fields/controls. Simply drop it wherever you wish to display it.');
+        }
+
+        $block->register();
+      }
+    } finally {
+      if ($canDeferFieldGroups) {
+        AcfBlock::flushDeferredFieldGroups();
+      }
     }
 
     $this->blocks = array_merge($this->blocks, $blocks);
