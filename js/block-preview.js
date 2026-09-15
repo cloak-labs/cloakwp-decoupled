@@ -67,6 +67,17 @@
   /** @type {Map<string, string>} previewKey -> origin from the iframe's ready message */
   const readyOriginsByKey = new Map();
 
+  /**
+   * ACF replaces its temporary server-rendered block ID with Gutenberg's
+   * client ID in returned HTML. It cannot replace that ID inside the signed
+   * token, so the editor-facing key and iframe protocol key can differ.
+   * @type {Map<string, string>} editor key -> signed protocol key
+   */
+  const protocolKeysByEditorKey = new Map();
+
+  /** @type {Map<string, string>} signed protocol key -> editor key */
+  const editorKeysByProtocolKey = new Map();
+
   /** @type {Map<string, number>} previewKey -> optimistic epoch (monotonic) */
   const lastOptimisticEpochByKey = new Map();
 
@@ -293,6 +304,26 @@
   }
 
   /**
+   * @param {string} editorKey
+   * @param {string} protocolKey
+   */
+  function linkPreviewKeys(editorKey, protocolKey) {
+    if (!editorKey || !protocolKey || editorKey === protocolKey) return;
+
+    const previousProtocolKey = protocolKeysByEditorKey.get(editorKey);
+    if (previousProtocolKey && previousProtocolKey !== protocolKey) {
+      editorKeysByProtocolKey.delete(previousProtocolKey);
+    }
+    const previousEditorKey = editorKeysByProtocolKey.get(protocolKey);
+    if (previousEditorKey && previousEditorKey !== editorKey) {
+      protocolKeysByEditorKey.delete(previousEditorKey);
+    }
+
+    protocolKeysByEditorKey.set(editorKey, protocolKey);
+    editorKeysByProtocolKey.set(protocolKey, editorKey);
+  }
+
+  /**
    * @param {string} key
    * @returns {PendingPayload | null}
    */
@@ -316,19 +347,44 @@
   }
 
   /**
+   * @param {string} a
+   * @param {string} b
+   * @returns {boolean}
+   */
+  function originsCompatible(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    try {
+      const urlA = new URL(a);
+      const urlB = new URL(b);
+      return urlA.hostname === urlB.hostname && urlA.port === urlB.port;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Prefer the iframe's actual src origin (what postMessage must target).
+   * `data-cloakwp-preview-origin` can disagree after portless TLS or when
+   * FRONTEND_URL doesn't match the loaded URL.
+   *
    * @param {HTMLIFrameElement} iframe
    * @returns {string}
    */
   function getPreviewOrigin(iframe) {
+    try {
+      if (iframe && iframe.src) {
+        const fromSrc = new URL(iframe.src, window.location.href).origin;
+        if (fromSrc) return fromSrc;
+      }
+    } catch {
+      /* ignore */
+    }
     const root = iframe.closest(".decoupled-block-preview-ctnr");
     const configured =
       root && root.getAttribute("data-cloakwp-preview-origin");
     if (configured) return configured;
-    try {
-      return new URL(iframe.src, window.location.href).origin;
-    } catch {
-      return "";
-    }
+    return "";
   }
 
   /**
@@ -340,30 +396,52 @@
    *
    * @param {Window} source
    * @param {string} key
-   * @returns {{ iframe: HTMLIFrameElement | null, origin: string, key: string } | null}
+   * @returns {{ iframe: HTMLIFrameElement | null, origin: string, key: string, protocolKey: string } | null}
    */
   function resolvePreviewBinding(source, key) {
-    if (!source || !key) return null;
-    let iframe = findPreviewIframeByKey(key);
-    if (iframe && iframe.contentWindow === source) {
-      const origin = getPreviewOrigin(iframe) || readyOriginsByKey.get(key);
+    if (!key) return null;
+
+    const editorKey = editorKeysByProtocolKey.get(key) || key;
+    const protocolKey = protocolKeysByEditorKey.get(editorKey) || key;
+
+    // Identify the preview iframe by its rewritten editor key first.
+    let iframe = findPreviewIframeByKey(editorKey);
+    if (iframe) {
+      const origin =
+        getPreviewOrigin(iframe) ||
+        readyOriginsByKey.get(editorKey) ||
+        readyOriginsByKey.get(protocolKey);
       if (origin) {
-        readyIframesByKey.set(key, iframe);
-        return { iframe, origin, key };
+        readyIframesByKey.set(editorKey, iframe);
+        return { iframe, origin, key: editorKey, protocolKey };
       }
     }
-    iframe = findIframeByContentWindow(source) || readyIframesByKey.get(key) || null;
+
+    iframe =
+      findIframeByContentWindow(source) ||
+      readyIframesByKey.get(editorKey) ||
+      null;
     if (iframe) {
-      readyIframesByKey.set(key, iframe);
+      readyIframesByKey.set(editorKey, iframe);
       const origin =
-        getPreviewOrigin(iframe) || readyOriginsByKey.get(key) || "";
-      if (origin) return { iframe, origin, key };
+        getPreviewOrigin(iframe) ||
+        readyOriginsByKey.get(editorKey) ||
+        readyOriginsByKey.get(protocolKey) ||
+        "";
+      if (origin) {
+        return { iframe, origin, key: editorKey, protocolKey };
+      }
     }
-    if (readySourcesByKey.get(key) === source && readyOriginsByKey.has(key)) {
+
+    const readyOrigin =
+      readyOriginsByKey.get(editorKey) ||
+      readyOriginsByKey.get(protocolKey);
+    if (readyOrigin) {
       return {
         iframe: iframe || null,
-        origin: readyOriginsByKey.get(key),
-        key,
+        origin: readyOrigin,
+        key: editorKey,
+        protocolKey,
       };
     }
     return null;
@@ -556,6 +634,50 @@
     return { dark: dark, darker: darker };
   }
 
+  /**
+   * @param {{ iframe: HTMLIFrameElement | null, origin: string, key: string, protocolKey: string }} binding
+   * @param {Window | null | undefined} source
+   * @param {object} payload
+   */
+  function postToPreviewWindows(binding, source, payload) {
+    if (!binding || !binding.origin) return;
+    const targets = [];
+    const iframeWindow =
+      binding.iframe && binding.iframe.contentWindow
+        ? binding.iframe.contentWindow
+        : null;
+    if (iframeWindow) targets.push(iframeWindow);
+    if (source && targets.indexOf(source) === -1) targets.push(source);
+
+    const origins = [binding.origin];
+    try {
+      const url = new URL(binding.origin);
+      const isLocal =
+        url.hostname === "localhost" ||
+        url.hostname === "wp.localhost" ||
+        url.hostname.endsWith(".localhost");
+      if (isLocal) {
+        const altProtocol = url.protocol === "https:" ? "http:" : "https:";
+        const alt = altProtocol + "//" + url.host;
+        if (alt !== binding.origin) origins.push(alt);
+      }
+    } catch {
+      /* ignore */
+    }
+
+    for (let i = 0; i < targets.length; i++) {
+      const win = targets[i];
+      if (!win || typeof win.postMessage !== "function") continue;
+      for (let j = 0; j < origins.length; j++) {
+        try {
+          win.postMessage(payload, origins[j]);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  }
+
   function sendUpdateToSource(source, blockData, isPageDark, key) {
     const binding = resolvePreviewBinding(source, key || "");
     var iframe =
@@ -569,23 +691,27 @@
     if (isPageDark || ancestorTheme.dark) sentBodyClass.push("dark");
     if (isPageDark || ancestorTheme.darker) sentBodyClass.push("darker");
     var sentBodyClassName = sentBodyClass.join(" ");
-    if (!binding || typeof source.postMessage !== "function") return;
+    if (!binding) return;
 
     // Always send — the frontend needs an external "one screen" reference for
     // viewport-tied content (100vh heroes), whose height is otherwise
     // self-referential inside an auto-sized iframe.
-    const previewViewportHeight = getEditorPreviewViewportHeight(source);
-    source.postMessage(
-      {
-        type: "cloakwp-preview-update",
-        previewKey: binding.key,
-        blockData: blockData || null,
-        bodyClassName: sentBodyClassName,
-        previewViewportHeight:
-          previewViewportHeight > 0 ? previewViewportHeight : undefined,
-      },
-      binding.origin,
+    const previewViewportHeight = getEditorPreviewViewportHeight(
+      (binding.iframe && binding.iframe.contentWindow) || source,
     );
+    const payload = {
+      type: "cloakwp-preview-update",
+      previewKey: binding.protocolKey,
+      blockData: blockData || null,
+      bodyClassName: sentBodyClassName,
+      previewViewportHeight:
+        previewViewportHeight > 0 ? previewViewportHeight : undefined,
+    };
+
+    // Gutenberg nests the Next.js iframe in the editor canvas. event.source
+    // from the ready handshake can be the canvas rather than the preview
+    // window; posting to that Window with the frontend origin is dropped.
+    postToPreviewWindows(binding, source, payload);
   }
 
   /**
@@ -601,15 +727,12 @@
         const binding = resolvePreviewBinding(source, key);
         if (!binding) return;
         const h = getEditorPreviewViewportHeight(source);
-        if (h > 0 && source && typeof source.postMessage === "function") {
-          source.postMessage(
-            {
-              type: "cloakwp-preview-update",
-              previewKey: binding.key,
-              previewViewportHeight: h,
-            },
-            binding.origin,
-          );
+        if (h > 0) {
+          postToPreviewWindows(binding, source, {
+            type: "cloakwp-preview-update",
+            previewKey: binding.protocolKey,
+            previewViewportHeight: h,
+          });
         }
       });
     }, 300);
@@ -1475,7 +1598,7 @@
     if (!source) return false;
 
     const binding = resolvePreviewBinding(source, payload.previewKey);
-    if (!binding || event.origin !== binding.origin) return false;
+    if (!binding || !originsCompatible(event.origin, binding.origin)) return false;
 
     const next = Math.round(payload.height);
     if (!Number.isFinite(next) || next < 0) return false;
@@ -1507,20 +1630,47 @@
     const source = event.source;
     if (!source || typeof source.postMessage !== "function") return;
 
-    const key = ready.previewKey;
-    let binding = resolvePreviewBinding(source, key);
-    if (!binding && key && event.origin) {
-      readyOriginsByKey.set(key, event.origin);
-      readySourcesByKey.set(key, source);
-      binding = resolvePreviewBinding(source, key);
+    const protocolKey = ready.previewKey;
+    const iframe = findIframeByContentWindow(source);
+    const iframeEditorKey =
+      iframe && iframe.getAttribute("data-cloakwp-preview-key");
+    if (iframeEditorKey) {
+      linkPreviewKeys(iframeEditorKey, protocolKey);
     }
-    if (!binding || event.origin !== binding.origin) return;
 
-    readyKeys.add(key);
-    readySourcesByKey.set(key, source);
-    readyOriginsByKey.set(key, binding.origin);
+    const editorKey =
+      editorKeysByProtocolKey.get(protocolKey) ||
+      iframeEditorKey ||
+      protocolKey;
+    if (editorKey && event.origin) {
+      readyOriginsByKey.set(editorKey, event.origin);
+      readySourcesByKey.set(editorKey, source);
+    }
+    let binding = resolvePreviewBinding(source, editorKey);
+    if (!binding && editorKey && event.origin) {
+      binding = {
+        iframe: iframe || null,
+        origin: event.origin,
+        key: editorKey,
+        protocolKey,
+      };
+    }
+    if (!binding) return;
+    // Trust the iframe's actual origin over data-cloakwp-preview-origin.
+    if (event.origin) {
+      binding = {
+        iframe: binding.iframe,
+        origin: event.origin,
+        key: binding.key,
+        protocolKey: binding.protocolKey,
+      };
+    }
+
+    readyKeys.add(binding.key);
+    readySourcesByKey.set(binding.key, source);
+    readyOriginsByKey.set(binding.key, binding.origin);
     ensureInitialPreviewIframeHeight(binding.iframe);
-    deliverPendingToSource(key, source);
+    deliverPendingToSource(binding.key, source);
   }
 
   function registerAcfHooks() {
@@ -1628,19 +1778,15 @@
         if (hasBlockData) {
           pendingByKey.set(key, { blockData, isPageDark });
           const tokenKey = parseTokenPreviewKeyFromHtml(html);
-          if (tokenKey && tokenKey !== key) {
-            pendingByKey.set(tokenKey, { blockData, isPageDark });
-          }
+          if (tokenKey) linkPreviewKeys(key, tokenKey);
         }
         return htmlCache.has(key) ? htmlCache.get(key) : html;
       }
 
       if (hasBlockData) {
-        storeAndFlush(key, blockData, isPageDark, { authoritative: true });
         const tokenKey = parseTokenPreviewKeyFromHtml(html);
-        if (tokenKey && tokenKey !== key && pendingByKey.has(key)) {
-          pendingByKey.set(tokenKey, pendingByKey.get(key));
-        }
+        if (tokenKey) linkPreviewKeys(key, tokenKey);
+        storeAndFlush(key, blockData, isPageDark, { authoritative: true });
       }
 
       // Once we have an iframe shell (ready or still loading), always return it.
@@ -1695,15 +1841,21 @@
       );
 
       htmlCache.forEach(function (_html, key) {
-        if (!visibleKeys.has(key)) {
-          htmlCache.delete(key);
-          readyKeys.delete(key);
-          pendingByKey.delete(key);
-          readySourcesByKey.delete(key);
-          readyOriginsByKey.delete(key);
-          readyIframesByKey.delete(key);
-          contentSizedPreviewKeys.delete(key);
-        }
+        if (visibleKeys.has(key)) return;
+        // Gutenberg's canvas is often not queryable from the parent admin
+        // document. Do not tear down a live handshake just because the
+        // iframe wasn't found this tick — that stops sidebar field updates.
+        if (readySourcesByKey.has(key) || readyIframesByKey.has(key)) return;
+        htmlCache.delete(key);
+        readyKeys.delete(key);
+        pendingByKey.delete(key);
+        readySourcesByKey.delete(key);
+        readyOriginsByKey.delete(key);
+        readyIframesByKey.delete(key);
+        const protocolKey = protocolKeysByEditorKey.get(key);
+        if (protocolKey) editorKeysByProtocolKey.delete(protocolKey);
+        protocolKeysByEditorKey.delete(key);
+        contentSizedPreviewKeys.delete(key);
       });
     });
 
