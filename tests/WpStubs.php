@@ -76,6 +76,15 @@ final class WpStubs
   /** @var array<string, mixed> */
   public static array $objectCache = [];
 
+  /** @var array<int|string, object> */
+  public static array $navMenus = [];
+
+  /** @var array<string, int> */
+  public static array $navMenuLocations = [];
+
+  /** @var array<int, list<object>> */
+  public static array $navMenuItems = [];
+
   public static function reset(): void
   {
     self::$actions = [];
@@ -102,6 +111,9 @@ final class WpStubs
     self::$transients = [];
     self::$userMeta = [];
     self::$objectCache = [];
+    self::$navMenus = [];
+    self::$navMenuLocations = [];
+    self::$navMenuItems = [];
     $_GET = [];
     $_POST = [];
     $_REQUEST = [];

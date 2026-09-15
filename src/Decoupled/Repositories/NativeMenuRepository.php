@@ -5,9 +5,15 @@ declare(strict_types=1);
 namespace CloakWP\Decoupled\Repositories;
 
 use CloakWP\Decoupled\Contracts\MenuRepository;
+use CloakWP\Decoupled\Support\FrontendUrlTransformer;
 
 final class NativeMenuRepository implements MenuRepository
 {
+  public function __construct(
+    private readonly ?FrontendUrlTransformer $frontendUrls = null,
+  ) {
+  }
+
   public function all(): array
   {
     $menus = wp_get_nav_menus();
@@ -127,6 +133,33 @@ final class NativeMenuRepository implements MenuRepository
 
     unset($meta['xfn'], $meta['_wp_old_date'], $meta['type']);
 
-    return apply_filters('cloakwp/decoupled/menu_item/formatted_meta', $meta, $item);
+    $meta = apply_filters('cloakwp/decoupled/menu_item/formatted_meta', $meta, $item);
+    if (isset($meta['url']) && is_string($meta['url'])) {
+      $meta['url'] = $this->relativizeInternalUrl($meta['url']);
+    }
+
+    return $meta;
+  }
+
+  /**
+   * Internal menu links (assigned frontend, deployments, and WP home) become
+   * path-only so Next.js stays on the current preview host. External URLs
+   * are left unchanged.
+   */
+  private function relativizeInternalUrl(string $url): string
+  {
+    if ($this->frontendUrls === null) {
+      return $url;
+    }
+
+    $extraBases = [];
+    if (function_exists('home_url')) {
+      $home = home_url();
+      if (is_string($home) && $home !== '') {
+        $extraBases[] = $home;
+      }
+    }
+
+    return $this->frontendUrls->makeRelative($url, $extraBases);
   }
 }

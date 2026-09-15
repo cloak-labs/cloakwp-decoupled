@@ -25,25 +25,32 @@ final class FrontendUrlTransformer
   /**
    * Convert an absolute URL to a path-only URL when it points at one of this
    * project's known frontend origins (active frontend URL + deployments).
+   *
+   * @param list<string> $extraBases Additional absolute origins to treat as internal.
    */
-  public function makeFrontendUrlRelative(string $url): string
+  public function makeFrontendUrlRelative(string $url, array $extraBases = []): string
   {
     if ($url === '') {
       return $url;
     }
 
     $frontend = $this->resolveActiveFrontend();
-    if (!$frontend) {
-      return $url;
+    $bases = [];
+    if ($frontend) {
+      $bases[] = $frontend->getUrl();
+      $deployments = $frontend->getSettings('deployments');
+      if (is_array($deployments)) {
+        foreach ($deployments as $deploymentUrl) {
+          if (is_string($deploymentUrl) && $deploymentUrl !== '') {
+            $bases[] = $deploymentUrl;
+          }
+        }
+      }
     }
 
-    $bases = [$frontend->getUrl()];
-    $deployments = $frontend->getSettings('deployments');
-    if (is_array($deployments)) {
-      foreach ($deployments as $deploymentUrl) {
-        if (is_string($deploymentUrl) && $deploymentUrl !== '') {
-          $bases[] = $deploymentUrl;
-        }
+    foreach ($extraBases as $extraBase) {
+      if (is_string($extraBase) && $extraBase !== '') {
+        $bases[] = $extraBase;
       }
     }
 
@@ -79,10 +86,12 @@ final class FrontendUrlTransformer
 
   /**
    * Shorter alias used by service providers.
+   *
+   * @param list<string> $extraBases Additional absolute origins to treat as internal.
    */
-  public function makeRelative(string $url): string
+  public function makeRelative(string $url, array $extraBases = []): string
   {
-    return $this->makeFrontendUrlRelative($url);
+    return $this->makeFrontendUrlRelative($url, $extraBases);
   }
 
   private function resolveActiveFrontend(): ?object

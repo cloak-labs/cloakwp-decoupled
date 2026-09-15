@@ -22,16 +22,26 @@ final class FrontendLinksProvider implements ServiceProvider
     add_filter('post_link', [$cms, 'convertToDecoupledUrl'], 10, 2);
     add_filter('post_type_link', [$cms, 'convertToDecoupledUrl'], 10, 2);
 
-    add_filter('cloakwp/eloquent/model/menu_item/formatted_meta', function ($meta) use ($cms) {
-      if (($meta['link_type'] ?? '') != 'custom') {
-        $url = $meta['url'];
-        $frontendUrl = $cms->getActiveFrontend()->getUrl();
-        $url = str_replace($frontendUrl, '', $url);
-        $meta['url'] = untrailingslashit($url);
+    $relativizeMenuItem = function ($meta) use ($cms) {
+      if (!is_array($meta) || !isset($meta['url']) || !is_string($meta['url'])) {
+        return $meta;
       }
 
+      $extraBases = [];
+      if (function_exists('home_url')) {
+        $home = home_url();
+        if (is_string($home) && $home !== '') {
+          $extraBases[] = $home;
+        }
+      }
+
+      $meta['url'] = $cms->frontendUrls()->makeRelative($meta['url'], $extraBases);
+
       return $meta;
-    }, 10, 2);
+    };
+
+    add_filter('cloakwp/decoupled/menu_item/formatted_meta', $relativizeMenuItem, 10, 2);
+    add_filter('cloakwp/eloquent/model/menu_item/formatted_meta', $relativizeMenuItem, 10, 2);
 
     if ($cms->context()->isBackoffice()) {
       add_action('admin_bar_menu', function (\WP_Admin_Bar $wp_admin_bar) use ($cms) {

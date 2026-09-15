@@ -79,4 +79,18 @@ final class FrontendUrlTransformerTest extends TestCase
 
     $this->assertSame('/team', $transformer->makeRelative('https://prod.example.com/team'));
   }
+
+  public function testExtraBasesAreStrippedWithoutChangingExternalUrls(): void
+  {
+    $transformer = new FrontendUrlTransformer($this->resolver('https://app.example.com'));
+
+    $this->assertSame(
+      '/contact',
+      $transformer->makeRelative('https://wp.example.test/contact', ['https://wp.example.test']),
+    );
+    $this->assertSame(
+      'https://other.example.com/page',
+      $transformer->makeRelative('https://other.example.com/page', ['https://wp.example.test']),
+    );
+  }
 }

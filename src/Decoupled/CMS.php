@@ -118,9 +118,9 @@ final class CMS implements FrontendResolver
     $this->blockRegistry = new BlockRegistry();
     $this->imageFormatter = new ImageFormatter();
     $this->authProvider = new NoAuthProvider();
-    $this->menuRepository = new NativeMenuRepository();
-    $this->globalsRepository = new EmptyGlobalsRepository();
     $this->frontendUrls = new FrontendUrlTransformer($this);
+    $this->menuRepository = new NativeMenuRepository($this->frontendUrls);
+    $this->globalsRepository = new EmptyGlobalsRepository();
     $this->maintenance = new MaintenanceState();
     $this->globalsExposure = new GlobalsExposure();
     $this->previewToken = new PreviewToken();
