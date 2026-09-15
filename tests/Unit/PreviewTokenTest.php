@@ -66,4 +66,38 @@ final class PreviewTokenTest extends TestCase
 
     $this->assertSame('https://wp.localhost', $tokens->verify($token)['wpOrigin']);
   }
+
+  public function testPortlessLocalhostRequestOriginIsHttps(): void
+  {
+    $previousHost = $_SERVER['HTTP_HOST'] ?? null;
+    $previousForwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? null;
+    $_SERVER['HTTP_HOST'] = 'wp.localhost';
+    unset($_SERVER['HTTP_X_FORWARDED_PROTO']);
+
+    try {
+      $tokens = new PreviewToken(static fn(): string => 'test-secret', static fn(): int => 1000);
+      $urls = new PreviewUrlHandler($tokens);
+      $frontend = Frontend::make('web', 'https://web.test')
+        ->blockPreviewPath('/preview-block');
+
+      $url = $urls->forBlock($frontend, 'block_123', '/about');
+      parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+      $this->assertSame(
+        'https://wp.localhost',
+        $tokens->verify($query['token'])['wpOrigin'],
+      );
+    } finally {
+      if ($previousHost === null) {
+        unset($_SERVER['HTTP_HOST']);
+      } else {
+        $_SERVER['HTTP_HOST'] = $previousHost;
+      }
+      if ($previousForwarded === null) {
+        unset($_SERVER['HTTP_X_FORWARDED_PROTO']);
+      } else {
+        $_SERVER['HTTP_X_FORWARDED_PROTO'] = $previousForwarded;
+      }
+    }
+  }
 }

@@ -116,8 +116,15 @@ final class PreviewUrlHandler
     }
 
     $forwarded = $_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '';
+    $hostname = explode(':', $host)[0];
     $scheme = 'http';
     if ((function_exists('is_ssl') && is_ssl()) || $forwarded === 'https') {
+      $scheme = 'https';
+    } elseif (
+      !str_contains($host, ':')
+      && str_ends_with($hostname, '.localhost')
+    ) {
+      // Portless TLS terminates on the host; PHP-FPM in Docker still sees http.
       $scheme = 'https';
     }
 
