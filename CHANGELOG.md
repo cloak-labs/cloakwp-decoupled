@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- `?relative_images=1` now also rewrites ACF **file** field URLs (videos, PDFs, etc.) to path-only srcs, including nested Gutenberg-stored attachment arrays that skip `format_value`.
+
 ## 2.0.0
 
 ### Breaking

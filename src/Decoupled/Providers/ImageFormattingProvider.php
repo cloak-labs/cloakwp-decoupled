@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CloakWP\Decoupled\Providers;
 
 use CloakWP\Decoupled\CMS;
+use CloakWP\Decoupled\Media\RelativeUploadUrl;
 use CloakWP\Decoupled\Support\Acf;
 
 final class ImageFormattingProvider implements ServiceProvider
@@ -42,7 +43,27 @@ final class ImageFormattingProvider implements ServiceProvider
 
         return $gallery;
       }, 99, 3);
+
+      add_filter('acf/format_value/type=file', static function ($value) {
+        return RelativeUploadUrl::coerceFileToId($value);
+      }, 9, 3);
+
+      add_filter('acf/format_value/type=file', static function ($value) {
+        return RelativeUploadUrl::maybeFile($value);
+      }, 20, 3);
     }
+
+    add_filter('cloakwp/block/data', static function ($parsedBlock) {
+      if (!is_array($parsedBlock) || !RelativeUploadUrl::enabled()) {
+        return $parsedBlock;
+      }
+
+      if (isset($parsedBlock['data'])) {
+        $parsedBlock['data'] = RelativeUploadUrl::walk($parsedBlock['data']);
+      }
+
+      return $parsedBlock;
+    }, 20, 1);
 
     add_filter('cloakwp/eloquent/posts/post_type=attachment', function ($attachments) use ($formatter) {
       $formatted = [];

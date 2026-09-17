@@ -26,43 +26,6 @@ final class ImageFormatter implements ImageFormatterContract
   }
 
   /**
-   * Whether formatImage() should emit path-only srcs (e.g. /app/uploads/sites/36/...)
-   * instead of absolute URLs.
-   *
-   * Enabled when the REST request includes `?relative_images` (any value other
-   * than "false"), or when a theme/plugin forces it via the
-   * `cloakwp/image_format/relative_urls` filter.
-   */
-  protected function shouldUseRelativeImageUrls(): bool
-  {
-    $fromQuery = isset($_GET['relative_images']) && $_GET['relative_images'] !== 'false';
-    return (bool) apply_filters('cloakwp/image_format/relative_urls', $fromQuery);
-  }
-
-  /**
-   * Optionally convert an absolute image URL to its path component for
-   * local-media builds. Only rewrites URLs whose path contains "/uploads/" so
-   * external/CDN URLs stay absolute.
-   */
-  protected function maybeRelativeImageUrl(string $url): string
-  {
-    if (!$this->shouldUseRelativeImageUrls()) {
-      return $url;
-    }
-
-    $path = wp_parse_url($url, PHP_URL_PATH);
-    if (!$path) {
-      return $url;
-    }
-
-    if (str_contains($path, '/uploads/')) {
-      return $path;
-    }
-
-    return $url;
-  }
-
-  /**
    * By default, WordPress exposes images via the REST API as image IDs, which
    * is not very useful for decoupled frontends — it requires making a
    * separate/additional REST API request for each image to get its URL, size,
@@ -90,7 +53,7 @@ final class ImageFormatter implements ImageFormatterContract
         // during a REST request, creating an SSRF risk.
         return [
           'full' => [
-            'src' => $this->maybeRelativeImageUrl($imageId),
+            'src' => RelativeUploadUrl::maybe($imageId),
           ],
         ];
       }
@@ -113,7 +76,7 @@ final class ImageFormatter implements ImageFormatterContract
 
         // Include URL, width, and height in the result
         $result[$size] = [
-          'src' => $this->maybeRelativeImageUrl($url),
+          'src' => RelativeUploadUrl::maybe($url),
           'width' => $width,
           'height' => $height,
         ];
