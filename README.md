@@ -92,6 +92,8 @@ The package registers:
 - `/wp-json/cloakwp/menus/{menu_slug}`
 - `/wp-json/cloakwp/globals`
 - `/wp-json/cloakwp/globals/{global_slug}`
+- `/wp-json/cloakwp/options` (alias of `/globals`)
+- `/wp-json/cloakwp/options/{option_slug}` (alias of `/globals/{global_slug}`)
 - `/wp-json/cloakwp/auth/authorize`
 - `/wp-json/cloakwp/auth/establish-session`
 - `/wp-json/cloakwp/auth/establish-logout`
@@ -108,6 +110,9 @@ default layout, social links, contact info, and similar. They are not a
 WordPress `get_option()` dump, not per-entry post meta, and not ACF-specific (but often come from ACF Options pages for users of ACF).
 They exist so the frontend can load one shared payload (often alongside menus)
 instead of repeating that content on every document.
+
+`/cloakwp/options` is a compatibility alias of `/cloakwp/globals` (same
+exposure rules) for frontends still calling `wpClient.options()`.
 
 Nothing is public until you expose it:
 

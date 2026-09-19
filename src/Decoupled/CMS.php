@@ -326,7 +326,8 @@ final class CMS implements FrontendResolver
   }
 
   /**
-   * Expose only the named site-wide fields through /cloakwp/globals.
+   * Expose only the named site-wide fields through /cloakwp/globals
+   * (and the /cloakwp/options alias).
    *
    * @param list<string> $names
    */

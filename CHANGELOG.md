@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Restore `/cloakwp/options` and `/cloakwp/options/{option_slug}` as aliases of `/cloakwp/globals` so ISR deploys still calling the pre-2.0 path keep receiving site-wide fields.
+
 ### Changed
 - `?relative_images=1` now also rewrites ACF **file** field URLs (videos, PDFs, etc.) to path-only srcs, including nested Gutenberg-stored attachment arrays that skip `format_value`.
 

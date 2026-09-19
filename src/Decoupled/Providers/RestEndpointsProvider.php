@@ -70,6 +70,18 @@ final class RestEndpointsProvider implements ServiceProvider
               'sanitize_callback' => 'sanitize_key',
             ],
           ]),
+        // Pre-2.0 path. Keep serving the same payload so ISR deploys still
+        // calling wpClient.options() continue to receive site-wide fields.
+        Route::get('/options', new ListGlobals($globalsRepository, $globalsExposure))->public(),
+        Route::get('/options/(?P<option_slug>[a-zA-Z0-9_-]+)', new GetGlobal($globalsRepository, $globalsExposure))
+          ->public()
+          ->args([
+            'option_slug' => [
+              'type' => 'string',
+              'required' => true,
+              'sanitize_callback' => 'sanitize_key',
+            ],
+          ]),
         Route::post('/auth/authorize', new Authorize($session))
           ->public()
           ->args([

@@ -42,7 +42,7 @@ final class RestHardeningTest extends TestCase
     $cms->boot();
     WpStubs::runAction('rest_api_init');
 
-    $this->assertCount(12, WpStubs::$restRoutes);
+    $this->assertCount(14, WpStubs::$restRoutes);
     $this->assertSame(['cloakwp'], array_values(array_unique(array_column(WpStubs::$restRoutes, 'namespace'))));
     $this->assertSame([
       '/menus',
@@ -50,6 +50,8 @@ final class RestHardeningTest extends TestCase
       '/frontpage',
       '/globals',
       '/globals/(?P<global_slug>[a-zA-Z0-9_-]+)',
+      '/options',
+      '/options/(?P<option_slug>[a-zA-Z0-9_-]+)',
       '/auth/authorize',
       '/auth/establish-session',
       '/auth/establish-logout',
@@ -61,7 +63,15 @@ final class RestHardeningTest extends TestCase
     foreach (WpStubs::$restRoutes as $route) {
       $this->assertTrue(is_callable($route['definition']['callback']));
     }
-    $this->assertIsCallable(WpStubs::$restRoutes[5]['definition']['permission_callback']);
+    $routesByPath = [];
+    foreach (WpStubs::$restRoutes as $route) {
+      $routesByPath[$route['path']] = $route;
+    }
+    $this->assertInstanceOf(ListGlobals::class, $routesByPath['/globals']['definition']['callback']);
+    $this->assertInstanceOf(ListGlobals::class, $routesByPath['/options']['definition']['callback']);
+    $this->assertInstanceOf(GetGlobal::class, $routesByPath['/globals/(?P<global_slug>[a-zA-Z0-9_-]+)']['definition']['callback']);
+    $this->assertInstanceOf(GetGlobal::class, $routesByPath['/options/(?P<option_slug>[a-zA-Z0-9_-]+)']['definition']['callback']);
+    $this->assertIsCallable($routesByPath['/auth/authorize']['definition']['permission_callback']);
   }
 
   public function testSingleGlobalEndpointReturnsExplicitlyExposedValue(): void
@@ -78,6 +88,11 @@ final class RestHardeningTest extends TestCase
 
     $this->assertSame('250-555-0100', $single->data);
     $this->assertSame(['phone' => '250-555-0100'], $all->data);
+
+    $legacyRequest = new \WP_REST_Request();
+    $legacyRequest->set_param('option_slug', 'phone');
+    $legacy = (new GetGlobal($repository, $exposure))($legacyRequest);
+    $this->assertSame('250-555-0100', $legacy->data);
   }
 
   public function testGlobalsDefaultToDenied(): void
