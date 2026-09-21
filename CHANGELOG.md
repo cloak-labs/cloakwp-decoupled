@@ -8,6 +8,7 @@
 - GitHub Actions workflow at `.github/workflows/test.yml` (globals contract + PHPUnit).
 
 ### Changed
+- Globals contract tests and docs use generic slugs; field names are application-defined, not part of this package's API.
 - `?relative_images=1` now also rewrites ACF **file** field URLs (videos, PDFs, etc.) to path-only srcs, including nested Gutenberg-stored attachment arrays that skip `format_value`.
 
 ## 2.0.0

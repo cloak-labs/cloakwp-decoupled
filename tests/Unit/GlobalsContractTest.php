@@ -22,37 +22,34 @@ final class GlobalsContractTest extends TestCase
   public function testListGlobalsAndOptionsAliasReturnIdenticalPayloads(): void
   {
     WpStubs::$acfOptions = [
-      'company' => ['name' => ['informal' => 'Ford']],
-      'layout' => ['header' => []],
-      'links' => ['social' => []],
-      'private_key' => 'hidden',
+      'alpha' => ['label' => 'one'],
+      'beta' => ['items' => []],
+      'secret' => 'hidden',
     ];
     $repository = new AcfGlobalsRepository();
     $exposure = new GlobalsExposure();
-    $exposure->allow(['company', 'layout', 'links']);
+    $exposure->allow(['alpha', 'beta']);
 
     $globals = (new ListGlobals($repository, $exposure))();
     $options = (new ListGlobals($repository, $exposure))();
 
     $this->assertSame(200, $globals->get_status());
     $this->assertSame($globals->data, $options->data);
-    $this->assertSame(
-      ['company', 'layout', 'links'],
-      array_keys($globals->data),
-    );
+    $this->assertSame(['alpha', 'beta'], array_keys($globals->data));
+    $this->assertArrayNotHasKey('secret', $globals->data);
   }
 
   public function testSingleGlobalAcceptsLegacyOptionSlug(): void
   {
-    WpStubs::$acfOptions = ['company' => ['name' => ['informal' => 'Ford']]];
+    WpStubs::$acfOptions = ['alpha' => ['label' => 'one']];
     $repository = new AcfGlobalsRepository();
     $exposure = new GlobalsExposure();
-    $exposure->allow(['company']);
+    $exposure->allow(['alpha']);
 
     $modern = new \WP_REST_Request();
-    $modern->set_param('global_slug', 'company');
+    $modern->set_param('global_slug', 'alpha');
     $legacy = new \WP_REST_Request();
-    $legacy->set_param('option_slug', 'company');
+    $legacy->set_param('option_slug', 'alpha');
 
     $handler = new GetGlobal($repository, $exposure);
     $this->assertSame($handler($modern)->data, $handler($legacy)->data);
@@ -60,7 +57,7 @@ final class GlobalsContractTest extends TestCase
 
   public function testUnexposedGlobalsAreForbiddenNotEmpty(): void
   {
-    WpStubs::$acfOptions = ['company' => ['name' => 'x']];
+    WpStubs::$acfOptions = ['alpha' => ['label' => 'x']];
     $result = (new ListGlobals(new AcfGlobalsRepository(), new GlobalsExposure()))();
 
     $this->assertInstanceOf(\WP_Error::class, $result);
@@ -82,12 +79,11 @@ final class GlobalsContractTest extends TestCase
   public function testAllowAllPreservesNestedAcfShape(): void
   {
     WpStubs::$acfOptions = [
-      'company' => [
-        'name' => ['informal' => 'Ford', 'legal' => ''],
-        'logos' => ['dark' => false],
+      'alpha' => [
+        'title' => ['short' => 'Example', 'long' => ''],
+        'flags' => ['enabled' => false],
       ],
-      'layout' => ['header_accordion' => null, 'header' => ['overlap' => 'no']],
-      'links' => ['social' => ['instagram' => 'https://example.test']],
+      'beta' => ['missing' => null, 'nested' => ['mode' => 'off']],
     ];
     $exposure = new GlobalsExposure();
     $exposure->allowAll();
@@ -95,13 +91,13 @@ final class GlobalsContractTest extends TestCase
     $response = (new ListGlobals(new AcfGlobalsRepository(), $exposure))();
 
     $this->assertSame(WpStubs::$acfOptions, $response->data);
-    $this->assertFalse($response->data['company']['logos']['dark']);
-    $this->assertNull($response->data['layout']['header_accordion']);
+    $this->assertFalse($response->data['alpha']['flags']['enabled']);
+    $this->assertNull($response->data['beta']['missing']);
   }
 
   public function testMissingSingleGlobalIsNotFound(): void
   {
-    WpStubs::$acfOptions = ['company' => ['name' => 'x']];
+    WpStubs::$acfOptions = ['alpha' => ['label' => 'x']];
     $exposure = new GlobalsExposure();
     $exposure->allow(['missing']);
     $request = new \WP_REST_Request();

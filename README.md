@@ -105,22 +105,23 @@ Menus use WordPress's native navigation APIs. Replace the implementation with
 
 ## Globals
 
-**Globals** are site-wide data that any page might need: company details,
-default layout, social links, contact info, and similar. They are not a
-WordPress `get_option()` dump, not per-entry post meta, and not ACF-specific (but often come from ACF Options pages for users of ACF).
+**Globals** are site-wide values any page might need. They are not a
+WordPress `get_option()` dump, not per-entry post meta, and not ACF-specific
+(though ACF Options pages are a common source). Field names are defined by
+the application; this package only stores, filters, and serves them.
 They exist so the frontend can load one shared payload (often alongside menus)
 instead of repeating that content on every document.
 
 `/cloakwp/options` is a compatibility alias of `/cloakwp/globals` (same
 exposure rules) for frontends still calling `wpClient.options()`.
 
-Nothing is public until you expose it:
+Nothing is public until you expose it. Pass the slugs your project actually
+stores:
 
 ```php
 CMS::getInstance()->exposeGlobals([
-  'company',
-  'layout',
-  'links',
+  'site',
+  'theme',
 ]);
 
 // Appropriate only when every global field is public content.
