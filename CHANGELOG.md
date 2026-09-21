@@ -5,7 +5,7 @@
 ### Added
 - Restore `/cloakwp/options` and `/cloakwp/options/{option_slug}` as aliases of `/cloakwp/globals` so ISR deploys still calling the pre-2.0 path keep receiving site-wide fields.
 - Contract tests covering `/globals` vs `/options` payload parity, empty/unexposed error codes, nested ACF shapes, and the legacy `option_slug` parameter.
-- GitHub Actions template at `ci/github-workflows/test.yml` (copy to `.github/workflows/`).
+- GitHub Actions workflow at `.github/workflows/test.yml` (globals contract + PHPUnit).
 
 ### Changed
 - `?relative_images=1` now also rewrites ACF **file** field URLs (videos, PDFs, etc.) to path-only srcs, including nested Gutenberg-stored attachment arrays that skip `format_value`.
