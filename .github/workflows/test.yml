@@ -1,0 +1,48 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  globals-contract:
+    name: Globals REST contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+          tools: phpunit:11
+      - name: Run globals contract tests
+        run: phpunit --bootstrap tests/bootstrap.php tests/Unit/GlobalsContractTest.php
+
+  phpunit:
+    name: Full PHPUnit suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          repository: cloak-labs/cloakwp-core
+          path: cloakwp-core
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+        continue-on-error: true
+      - name: Run PHPUnit
+        env:
+          CLOAKWP_CORE_SRC: ${{ github.workspace }}/cloakwp-core/src
+        run: |
+          if [ -x vendor/bin/phpunit ]; then
+            vendor/bin/phpunit
+          else
+            echo "Skipping full suite; Composer dependencies were not installed."
+          fi

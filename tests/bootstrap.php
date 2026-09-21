@@ -26,7 +26,7 @@ if (is_readable($autoload)) {
   });
 }
 
-$coreSrc = dirname(__DIR__, 2) . '/cloakwp-core/src';
+$coreSrc = getenv('CLOAKWP_CORE_SRC') ?: dirname(__DIR__, 2) . '/cloakwp-core/src';
 if (is_dir($coreSrc)) {
   spl_autoload_register(static function (string $class) use ($coreSrc): void {
     $prefix = 'CloakWP\\Core\\';
