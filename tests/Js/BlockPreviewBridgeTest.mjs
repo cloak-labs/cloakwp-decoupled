@@ -5,7 +5,12 @@ import vm from "node:vm";
 
 const bridgePath = new URL("../../js/block-preview.js", import.meta.url);
 
-function previewHtml(editorKey, protocolKey, blockData) {
+function previewHtml(
+  editorKey,
+  protocolKey,
+  blockData,
+  previewInitialHeight = "compact",
+) {
   const tokenPayload = Buffer.from(
     JSON.stringify({
       previewKey: protocolKey,
@@ -19,6 +24,7 @@ function previewHtml(editorKey, protocolKey, blockData) {
       class="decoupled-block-preview-ctnr"
       data-cloakwp-preview-key="${editorKey}"
       data-cloakwp-preview-origin="https://frontend.test"
+      data-cloakwp-preview-initial-height="${previewInitialHeight}"
     >
       <iframe
         class="block-preview-iframe"
@@ -30,7 +36,12 @@ function previewHtml(editorKey, protocolKey, blockData) {
   `;
 }
 
-async function createBridgeHarness({ editorKey, protocolKey, blockData }) {
+async function createBridgeHarness({
+  editorKey,
+  protocolKey,
+  blockData,
+  previewInitialHeight = "compact",
+}) {
   const timers = [];
   const messageListeners = [];
   const filters = new Map();
@@ -53,9 +64,13 @@ async function createBridgeHarness({ editorKey, protocolKey, blockData }) {
     name === "data-cloakwp-preview-key" ? editorKey : null;
   iframe.closest = () => ({
     getAttribute(name) {
-      return name === "data-cloakwp-preview-origin"
-        ? "https://frontend.test"
-        : null;
+      if (name === "data-cloakwp-preview-origin") {
+        return "https://frontend.test";
+      }
+      if (name === "data-cloakwp-preview-initial-height") {
+        return previewInitialHeight;
+      }
+      return null;
     },
   });
 
@@ -147,7 +162,10 @@ async function createBridgeHarness({ editorKey, protocolKey, blockData }) {
 
   const renderPreview = filters.get("blocks/preview/render");
   assert.ok(renderPreview, "preview render filter was not registered");
-  renderPreview(previewHtml(editorKey, protocolKey, blockData), true);
+  renderPreview(
+    previewHtml(editorKey, protocolKey, blockData, previewInitialHeight),
+    true,
+  );
 
   assert.equal(messageListeners.length, 1);
   messageListeners[0]({
@@ -159,14 +177,17 @@ async function createBridgeHarness({ editorKey, protocolKey, blockData }) {
     source: previewWindow,
   });
 
+  const readyMessages = previewMessages.slice();
   previewMessages.length = 0;
 
   return {
     flushTimers() {
       while (timers.length) timers.shift()();
     },
+    iframe,
     optimisticUpdate: context.__cloakwpPreviewTest.applyOptimisticPathUpdate,
     previewMessages,
+    readyMessages,
   };
 }
 
@@ -185,11 +206,74 @@ test("sends an optimistic ACF field update when the signed and editor preview ke
   harness.optimisticUpdate(editorKey, ["h1"], "About Us updated", "test");
   harness.flushTimers();
 
-  assert.equal(harness.previewMessages.length, 1);
-  assert.equal(harness.previewMessages[0].targetOrigin, "https://frontend.test");
-  assert.equal(harness.previewMessages[0].payload.previewKey, protocolKey);
+  const update = harness.previewMessages.find(
+    ({ payload }) => payload.type === "cloakwp-preview-update",
+  );
+  assert.ok(update);
+  assert.equal(update.targetOrigin, "https://frontend.test");
+  assert.equal(update.payload.previewKey, protocolKey);
   assert.equal(
-    harness.previewMessages[0].payload.blockData.data.h1,
+    update.payload.blockData.data.h1,
     "About Us updated",
+  );
+});
+
+test("uses a compact initial height for ordinary blocks", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_eyebrow",
+    protocolKey: "block_eyebrow_signed",
+    blockData: {
+      name: "acf/eyebrow",
+      data: { eyebrow_text: "Services" },
+    },
+  });
+
+  assert.equal(harness.iframe.style.height, "150px");
+  assert.equal(harness.iframe.parentNode.style.height, "150px");
+  assert.equal(
+    harness.readyMessages.at(-1).payload.previewUsesViewportHeight,
+    false,
+  );
+});
+
+test("uses the editor viewport height only for opted-in blocks", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_hero",
+    protocolKey: "block_hero_signed",
+    blockData: {
+      name: "acf/hero",
+      data: { h1: "About Us" },
+    },
+    previewInitialHeight: "viewport",
+  });
+
+  assert.equal(harness.iframe.style.height, "730px");
+  assert.equal(harness.iframe.parentNode.style.height, "730px");
+  assert.equal(
+    harness.readyMessages.at(-1).payload.previewUsesViewportHeight,
+    true,
+  );
+});
+
+test("requests height again when the initial observer report is missed", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_delayed",
+    protocolKey: "block_delayed_signed",
+    blockData: {
+      name: "acf/eyebrow",
+      data: { eyebrow_text: "Delayed" },
+    },
+  });
+
+  harness.flushTimers();
+
+  const heightRequests = harness.previewMessages.filter(
+    ({ payload }) => payload.type === "cloakwp-preview-get-height",
+  );
+  assert.equal(heightRequests.length, 3);
+  assert.ok(
+    heightRequests.every(
+      ({ payload }) => payload.previewKey === "block_delayed_signed",
+    ),
   );
 });
