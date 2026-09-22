@@ -204,6 +204,23 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
   $CMS = \CloakWP\Decoupled\CMS::getInstance();
   $frontend = $CMS->getActiveFrontend();
   $frontendUrl = $frontend->getUrl();
+  $previewInitialHeight = 'compact';
+  foreach ($CMS->getBlocks() as $configuredBlock) {
+    $blockConfig = is_object($configuredBlock)
+      ? ($configuredBlock->parsedBlockJson ?? null)
+      : null;
+    if (
+      !is_array($blockConfig)
+      || ($blockConfig['name'] ?? null) !== $block['name']
+    ) {
+      continue;
+    }
+
+    if (($blockConfig['cloakwp']['previewInitialHeight'] ?? null) === 'viewport') {
+      $previewInitialHeight = 'viewport';
+    }
+    break;
+  }
   // Stable key across ACF AJAX re-renders (AJAX sets $block['id'] to block_{clientId}).
   // Prefer this over uniqid so editor JS can reuse the live iframe via postMessage.
   $previewKey = !empty($block['id'])
@@ -235,6 +252,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
     class="decoupled-block-preview-ctnr"
     data-cloakwp-preview-key="<?php echo esc_attr($previewKey); ?>"
     data-cloakwp-preview-origin="<?php echo esc_attr($iframeOrigin); ?>"
+    data-cloakwp-preview-initial-height="<?php echo esc_attr($previewInitialHeight); ?>"
     data-cloakwp-is-page-dark="<?php echo $isPageDark ? '1' : '0'; ?>"
   >
     <!-- Block selector icon overlay on hover (editor only) -->
@@ -250,8 +268,10 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
     <?php endif; ?>
 
     <?php /*
-      Initial height is set by JS (see below) to one editor screen minus chrome.
-      The height listener overwrites this inline property on first report.
+      JS starts most previews at a compact placeholder height. Blocks with
+      cloakwp.previewInitialHeight="viewport" opt into a one-screen bootstrap
+      so viewport-relative layouts can measure against a useful initial height.
+      The height listener overwrites either value on the first content report.
     */ ?>
     <iframe id="<?php echo esc_attr($previewKey); ?>"
       data-cloakwp-preview-key="<?php echo esc_attr($previewKey); ?>"

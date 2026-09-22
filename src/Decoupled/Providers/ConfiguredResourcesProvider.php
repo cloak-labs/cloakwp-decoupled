@@ -16,9 +16,13 @@ final class ConfiguredResourcesProvider implements ServiceProvider
 
   public function boot(CMS $cms): void
   {
-    $assets = $cms->configuredAssets();
-    if ($assets !== []) {
-      Assets::enqueue($assets);
+    $isAjax = $cms->context()->isAjax();
+
+    if (!$isAjax) {
+      $assets = $cms->configuredAssets();
+      if ($assets !== []) {
+        Assets::enqueue($assets);
+      }
     }
 
     $blocks = $cms->configuredBlocks();
@@ -26,9 +30,11 @@ final class ConfiguredResourcesProvider implements ServiceProvider
       $cms->registerConfiguredBlocks();
     }
 
-    $allowedBlocks = $cms->configuredAllowedCoreBlocks();
-    if ($allowedBlocks !== null) {
-      AllowedBlocks::make($allowedBlocks)->register();
+    if (!$isAjax) {
+      $allowedBlocks = $cms->configuredAllowedCoreBlocks();
+      if ($allowedBlocks !== null) {
+        AllowedBlocks::make($allowedBlocks)->register();
+      }
     }
   }
 }

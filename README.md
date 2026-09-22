@@ -217,6 +217,18 @@ The frontend must verify the token, expiry, pathname, and preview key. Editor
 iframe messaging should also validate the exact origin, source window, message
 type, and preview key (CloakWP's JS packages solve all of this).
 
+Block-preview iframes use a compact placeholder height until the frontend
+reports its rendered content height. Blocks whose layout depends on viewport
+height can opt into a one-editor-screen bootstrap in `block.json`:
+
+```json
+{
+  "cloakwp": {
+    "previewInitialHeight": "viewport"
+  }
+}
+```
+
 ## Cache revalidation
 
 Trigger revalidation explicitly:

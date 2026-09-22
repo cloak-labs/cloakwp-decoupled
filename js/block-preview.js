@@ -137,6 +137,9 @@
   /** @type {Map<string, HTMLIFrameElement>} previewKey -> iframe element when found via contentWindow */
   const readyIframesByKey = new Map();
 
+  /** @type {Map<string, ReturnType<typeof setTimeout>[]>} */
+  const heightRequestTimersByKey = new Map();
+
   /**
    * @returns {Document[]}
    */
@@ -589,20 +592,43 @@
     return Math.max(200, Math.round(raw - editorChromePx(window)));
   }
 
+  /** Default placeholder height for previews that do not depend on vh units. */
+  const COMPACT_PREVIEW_HEIGHT_PX = 150;
+
   /**
-   * Size a preview iframe to one editor screen before the frontend's first
-   * height report. Without this, the browser default (~150px) wins and
-   * min-height viewport heroes measure at their natural content height (~600px)
-   * — a self-consistent trap auto-sizing cannot escape from below.
+   * @param {HTMLIFrameElement | null | undefined} iframe
+   * @returns {boolean}
+   */
+  function usesViewportInitialHeight(iframe) {
+    if (!iframe || typeof iframe.closest !== "function") return false;
+    const root = iframe.closest(".decoupled-block-preview-ctnr");
+    return (
+      !!root &&
+      root.getAttribute("data-cloakwp-preview-initial-height") === "viewport"
+    );
+  }
+
+  /**
+   * Give ordinary previews a compact placeholder while their frontend loads.
+   * Viewport-dependent blocks explicitly opt into one editor screen so
+   * min-height heroes do not get trapped measuring against a ~150px iframe.
    *
    * @param {HTMLIFrameElement | null | undefined} iframe
    */
   function ensureInitialPreviewIframeHeight(iframe) {
     if (!iframe) return;
+    if (
+      iframe.classList &&
+      iframe.classList.contains("in-block-inserter")
+    ) {
+      return;
+    }
     const key = iframe.getAttribute("data-cloakwp-preview-key");
     if (key && contentSizedPreviewKeys.has(key)) return;
 
-    const h = getEditorPreviewViewportHeight(iframe.contentWindow);
+    const h = usesViewportInitialHeight(iframe)
+      ? getEditorPreviewViewportHeight(iframe.contentWindow)
+      : COMPACT_PREVIEW_HEIGHT_PX;
     if (h <= 0) return;
 
     const height = h + "px";
@@ -678,6 +704,43 @@
     }
   }
 
+  /**
+   * Recover if the frontend's initial observer/mutation event is missed.
+   * Successful height reports cancel the remaining requests.
+   *
+   * @param {{ iframe: HTMLIFrameElement | null, origin: string, key: string, protocolKey: string }} binding
+   * @param {Window | null | undefined} source
+   */
+  function scheduleHeightRequests(binding, source) {
+    if (
+      !binding ||
+      contentSizedPreviewKeys.has(binding.key) ||
+      heightRequestTimersByKey.has(binding.key)
+    ) {
+      return;
+    }
+
+    const timers = [250, 1000, 2500].map(function (delay) {
+      return setTimeout(function () {
+        postToPreviewWindows(binding, source, {
+          type: "cloakwp-preview-get-height",
+          previewKey: binding.protocolKey,
+        });
+      }, delay);
+    });
+    heightRequestTimersByKey.set(binding.key, timers);
+  }
+
+  /**
+   * @param {string} key
+   */
+  function clearHeightRequests(key) {
+    const timers = heightRequestTimersByKey.get(key);
+    if (!timers) return;
+    timers.forEach(clearTimeout);
+    heightRequestTimersByKey.delete(key);
+  }
+
   function sendUpdateToSource(source, blockData, isPageDark, key) {
     const binding = resolvePreviewBinding(source, key || "");
     var iframe =
@@ -704,6 +767,7 @@
       previewKey: binding.protocolKey,
       blockData: blockData || null,
       bodyClassName: sentBodyClassName,
+      previewUsesViewportHeight: usesViewportInitialHeight(binding.iframe),
       previewViewportHeight:
         previewViewportHeight > 0 ? previewViewportHeight : undefined,
     };
@@ -1613,11 +1677,12 @@
     if (next < 1) return true;
     if (!iframe) return true;
     const height = next + "px";
+    contentSizedPreviewKeys.add(binding.key);
+    clearHeightRequests(binding.key);
     if (iframe.style.height === height) return true;
     iframe.style.height = height;
     const parent = iframe.parentNode;
     if (parent && parent.style) parent.style.height = height;
-    contentSizedPreviewKeys.add(binding.key);
     return true;
   }
 
@@ -1670,7 +1735,9 @@
     readySourcesByKey.set(binding.key, source);
     readyOriginsByKey.set(binding.key, binding.origin);
     ensureInitialPreviewIframeHeight(binding.iframe);
-    deliverPendingToSource(binding.key, source);
+    if (deliverPendingToSource(binding.key, source)) {
+      scheduleHeightRequests(binding, source);
+    }
   }
 
   function registerAcfHooks() {
@@ -1856,6 +1923,7 @@
         if (protocolKey) editorKeysByProtocolKey.delete(protocolKey);
         protocolKeysByEditorKey.delete(key);
         contentSizedPreviewKeys.delete(key);
+        clearHeightRequests(key);
       });
     });
 
