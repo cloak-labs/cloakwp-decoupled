@@ -176,6 +176,18 @@ final class RestEndpointsProvider implements ServiceProvider
         'required' => false,
         'enum' => [ImageLibraryQuery::SCATTER_NONE, ImageLibraryQuery::SCATTER_PROJECT],
       ],
+      'priority' => [
+        'type' => 'string',
+        'required' => false,
+        'description' => 'Ordered taxonomy:termId pairs that scatter should pull toward the top.',
+      ],
+      'priority_share' => [
+        'type' => 'integer',
+        'required' => false,
+        'default' => 50,
+        'minimum' => 0,
+        'maximum' => 100,
+      ],
     ];
 
     foreach (LibraryFilters::all() as $filter) {

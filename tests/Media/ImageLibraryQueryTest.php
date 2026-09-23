@@ -329,6 +329,65 @@ final class ImageLibraryQueryTest extends TestCase
 
     $this->assertSame(-1, $captured['posts_per_page']);
   }
+
+  public function testScatterPriorityPullsMatchingTermsTowardTheTop(): void
+  {
+    WpStubs::$objectTerms = [
+      (object) ['object_id' => 2, 'taxonomy' => 'photo_type', 'term_id' => 12],
+      (object) ['object_id' => 5, 'taxonomy' => 'photo_type', 'term_id' => 12],
+      (object) ['object_id' => 3, 'taxonomy' => 'outdoor_living_type', 'term_id' => 99],
+      (object) ['object_id' => 6, 'taxonomy' => 'outdoor_living_type', 'term_id' => 56],
+    ];
+    WpStubs::$termChildren['outdoor_living_type:34'] = [99];
+
+    $posts = [];
+    foreach ([1, 2, 3, 4, 5, 6] as $id) {
+      $posts[] = (object) ['ID' => $id, 'post_parent' => 0];
+    }
+    $query = new ImageLibraryQuery(new FakeImageFormatter(), static function () use ($posts): object {
+      return new FakeWpQuery(posts: $posts, found: count($posts), pages: 1);
+    });
+    $priority = [
+      ['taxonomy' => 'photo_type', 'termId' => 12],
+      ['taxonomy' => 'outdoor_living_type', 'termId' => 34],
+      ['taxonomy' => 'outdoor_living_type', 'termId' => 56],
+    ];
+
+    $mixed = $query->run(1, 20, [], [], false, ImageLibraryQuery::SCATTER_PROJECT, $priority, 50);
+    $ignored = $query->run(1, 20, [], [], false, ImageLibraryQuery::SCATTER_PROJECT, $priority, 0);
+
+    $this->assertSame([2, 1, 5, 4, 3, 6], array_column($mixed['items'], 'id'));
+    $this->assertSame([1, 2, 3, 4, 5, 6], array_column($ignored['items'], 'id'));
+  }
+
+  public function testListHandlerReadsPriority(): void
+  {
+    WpStubs::$objectTerms = [
+      (object) ['object_id' => 2, 'taxonomy' => 'photo_type', 'term_id' => 12],
+    ];
+    $posts = [
+      (object) ['ID' => 1, 'post_parent' => 0],
+      (object) ['ID' => 2, 'post_parent' => 0],
+    ];
+    $query = new ImageLibraryQuery(new FakeImageFormatter(), static function () use ($posts): object {
+      return new FakeWpQuery(posts: $posts, found: 2, pages: 1);
+    });
+    $request = new WP_REST_Request();
+    $request->set_param('scatter', 'project');
+    $request->set_param('priority', 'nope,photo_type:0,photo_type:12');
+    $request->set_param('priority_share', '100');
+
+    $result = (new ListImageLibrary($query))($request);
+
+    $this->assertSame([2, 1], array_column($result->data['items'], 'id'));
+    $this->assertSame(
+      [['taxonomy' => 'photo_type', 'termId' => 12]],
+      ImageLibraryQuery::priorityFromRequest($request),
+    );
+    $zero = new WP_REST_Request();
+    $this->assertSame(0, ImageLibraryQuery::priorityShareFromRequest($zero, ['priority_share' => '0']));
+    $this->assertSame(50, ImageLibraryQuery::priorityShareFromRequest(new WP_REST_Request()));
+  }
 }
 
 final class FakeImageFormatter implements \CloakWP\Decoupled\Contracts\ImageFormatter

@@ -38,6 +38,7 @@ final class ImageLibraryQuery
   /**
    * @param array<string, string> $include queryVar => value
    * @param array<string, string> $exclude queryVar => value (with or without not: prefix)
+   * @param list<array{taxonomy: string, termId: int}> $priorityTerms earlier terms rank higher
    * @return array{items: list<array<string, mixed>>, total: int, totalPages: int, page: int, perPage: int}
    */
   public function run(
@@ -47,13 +48,23 @@ final class ImageLibraryQuery
     array $exclude = [],
     bool $includeProject = false,
     string $scatter = self::SCATTER_NONE,
+    array $priorityTerms = [],
+    int $priorityShare = 0,
   ): array {
     $page = max(1, $page);
     $perPage = min(self::MAX_PER_PAGE, max(1, $perPage));
     $scatter = $scatter === self::SCATTER_PROJECT ? self::SCATTER_PROJECT : self::SCATTER_NONE;
 
     if ($scatter === self::SCATTER_PROJECT) {
-      return $this->runScattered($page, $perPage, $include, $exclude, $includeProject);
+      return $this->runScattered(
+        $page,
+        $perPage,
+        $include,
+        $exclude,
+        $includeProject,
+        $priorityTerms,
+        $priorityShare,
+      );
     }
 
     $query = ($this->queryFactory)($this->buildArgs($page, $perPage, $include, $exclude, $includeProject));
@@ -111,6 +122,7 @@ final class ImageLibraryQuery
    *
    * @param array<string, string> $include
    * @param array<string, string> $exclude
+   * @param list<array{taxonomy: string, termId: int}> $priorityTerms
    * @return array{items: list<array<string, mixed>>, total: int, totalPages: int, page: int, perPage: int}
    */
   private function runScattered(
@@ -119,6 +131,8 @@ final class ImageLibraryQuery
     array $include,
     array $exclude,
     bool $includeProject,
+    array $priorityTerms = [],
+    int $priorityShare = 0,
   ): array {
     $args = $this->buildArgs(1, $perPage, $include, $exclude, true);
     $args['posts_per_page'] = -1;
@@ -134,16 +148,26 @@ final class ImageLibraryQuery
 
     $lookup = $this->projectLookup ?? new ProjectImageLookup();
     $projectIds = $lookup->projectIds($ids, $parents);
+    $ranks = $this->ranksFor($ids, $priorityTerms, $priorityShare);
     $entries = [];
     foreach ($ids as $id) {
       $projectId = $projectIds[$id] ?? 0;
-      $entries[] = [
+      $entry = [
         'id' => $id,
         'group' => $projectId > 0 ? 'project:' . $projectId : 'image:' . $id,
       ];
+      if (array_key_exists($id, $ranks)) {
+        $entry['priority'] = $ranks[$id];
+      }
+      $entries[] = $entry;
     }
 
-    $scattered = ImageScatter::reorder($entries);
+    $scattered = ImageScatter::reorder(
+      $entries,
+      ImageScatter::VIEWPORT_WINDOW,
+      ImageScatter::MAX_PER_PROJECT_IN_VIEWPORT,
+      $priorityShare,
+    );
     $orderedIds = [];
     foreach ($scattered as $entry) {
       $orderedIds[] = $entry['id'];
@@ -269,6 +293,163 @@ final class ImageLibraryQuery
     $raw = strtolower(self::param($request, $params, 'scatter'));
 
     return $raw === self::SCATTER_PROJECT ? self::SCATTER_PROJECT : self::SCATTER_NONE;
+  }
+
+  /**
+   * Ordered "taxonomy:termId" pairs. Unknown tokens are dropped.
+   *
+   * @param array<string, mixed> $params
+   * @return list<array{taxonomy: string, termId: int}>
+   */
+  public static function priorityFromRequest(object $request, array $params = []): array
+  {
+    $raw = self::param($request, $params, 'priority');
+    if ($raw === '') {
+      return [];
+    }
+
+    $terms = [];
+    foreach (explode(',', $raw) as $part) {
+      $part = strtolower(trim($part));
+      if (!preg_match('/^([a-z0-9_-]+):([1-9]\d*)$/', $part, $matches)) {
+        continue;
+      }
+      $terms[] = [
+        'taxonomy' => $matches[1],
+        'termId' => (int) $matches[2],
+      ];
+    }
+
+    return $terms;
+  }
+
+  /**
+   * @param array<string, mixed> $params
+   */
+  public static function priorityShareFromRequest(object $request, array $params = []): int
+  {
+    $raw = null;
+    if (method_exists($request, 'get_param')) {
+      $raw = $request->get_param('priority_share');
+    }
+    if (($raw === null || $raw === '') && array_key_exists('priority_share', $params)) {
+      $raw = $params['priority_share'];
+    }
+    if ($raw === null || $raw === '') {
+      return 50;
+    }
+
+    return max(0, min(100, (int) $raw));
+  }
+
+  /**
+   * @param list<int> $imageIds
+   * @param list<array{taxonomy: string, termId: int}> $priorityTerms
+   * @return array<int, int>
+   */
+  private function ranksFor(array $imageIds, array $priorityTerms, int $priorityShare): array
+  {
+    if ($imageIds === [] || $priorityTerms === [] || $priorityShare <= 0) {
+      return [];
+    }
+
+    $keyRanks = $this->priorityKeyRanks($priorityTerms);
+    $taxonomies = [];
+    foreach ($priorityTerms as $term) {
+      $taxonomy = (string) ($term['taxonomy'] ?? '');
+      if ($taxonomy !== '') {
+        $taxonomies[] = $taxonomy;
+      }
+    }
+
+    return ImageScatter::priorityRanks($this->termsByImage($imageIds, $taxonomies), $keyRanks);
+  }
+
+  /**
+   * Selected terms and their children share a rank. An earlier row wins
+   * when the same term is reached twice.
+   *
+   * @param list<array{taxonomy: string, termId: int}> $priorityTerms
+   * @return array<string, int>
+   */
+  private function priorityKeyRanks(array $priorityTerms): array
+  {
+    $ranks = [];
+    foreach (array_values($priorityTerms) as $rank => $term) {
+      $taxonomy = (string) ($term['taxonomy'] ?? '');
+      $termId = (int) ($term['termId'] ?? 0);
+      if ($taxonomy === '' || $termId <= 0) {
+        continue;
+      }
+      foreach ($this->termAndChildren($taxonomy, $termId) as $id) {
+        $key = $taxonomy . ':' . $id;
+        if (!isset($ranks[$key])) {
+          $ranks[$key] = $rank;
+        }
+      }
+    }
+
+    return $ranks;
+  }
+
+  /**
+   * @return list<int>
+   */
+  private function termAndChildren(string $taxonomy, int $termId): array
+  {
+    $ids = [$termId];
+    if (!function_exists('get_term_children')) {
+      return $ids;
+    }
+    $children = get_term_children($termId, $taxonomy);
+    if (function_exists('is_wp_error') && is_wp_error($children)) {
+      return $ids;
+    }
+    if (!is_array($children)) {
+      return $ids;
+    }
+    foreach ($children as $child) {
+      $child = (int) $child;
+      if ($child > 0) {
+        $ids[] = $child;
+      }
+    }
+
+    return $ids;
+  }
+
+  /**
+   * @param list<int> $imageIds
+   * @param list<string> $taxonomies
+   * @return array<int, list<string>>
+   */
+  private function termsByImage(array $imageIds, array $taxonomies): array
+  {
+    if ($imageIds === [] || $taxonomies === [] || !function_exists('wp_get_object_terms')) {
+      return [];
+    }
+    $terms = wp_get_object_terms($imageIds, array_values(array_unique($taxonomies)), [
+      'fields' => 'all_with_object_id',
+    ]);
+    if (function_exists('is_wp_error') && is_wp_error($terms)) {
+      return [];
+    }
+    if (!is_array($terms)) {
+      return [];
+    }
+
+    $out = [];
+    foreach ($terms as $term) {
+      $imageId = (int) (is_object($term) ? ($term->object_id ?? 0) : ($term['object_id'] ?? 0));
+      $taxonomy = (string) (is_object($term) ? ($term->taxonomy ?? '') : ($term['taxonomy'] ?? ''));
+      $termId = (int) (is_object($term) ? ($term->term_id ?? 0) : ($term['term_id'] ?? 0));
+      if ($imageId <= 0 || $taxonomy === '' || $termId <= 0) {
+        continue;
+      }
+      $out[$imageId][] = $taxonomy . ':' . $termId;
+    }
+
+    return $out;
   }
 
   /**

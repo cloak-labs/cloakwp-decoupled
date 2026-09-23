@@ -85,6 +85,12 @@ final class WpStubs
   /** @var array<int, list<object>> */
   public static array $navMenuItems = [];
 
+  /** @var list<object|array<string, mixed>> */
+  public static array $objectTerms = [];
+
+  /** @var array<string, list<int>> */
+  public static array $termChildren = [];
+
   public static function reset(): void
   {
     self::$actions = [];
@@ -114,6 +120,8 @@ final class WpStubs
     self::$navMenus = [];
     self::$navMenuLocations = [];
     self::$navMenuItems = [];
+    self::$objectTerms = [];
+    self::$termChildren = [];
     $_GET = [];
     $_POST = [];
     $_REQUEST = [];

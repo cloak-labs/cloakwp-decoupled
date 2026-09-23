@@ -38,6 +38,12 @@ final class ListImageLibrary
     $scatter = is_object($request)
       ? ImageLibraryQuery::scatterFromRequest($request, $params)
       : ImageLibraryQuery::SCATTER_NONE;
+    $priorityTerms = is_object($request)
+      ? ImageLibraryQuery::priorityFromRequest($request, $params)
+      : [];
+    $priorityShare = is_object($request)
+      ? ImageLibraryQuery::priorityShareFromRequest($request, $params)
+      : 0;
 
     $result = $this->query->run(
       $page,
@@ -46,6 +52,8 @@ final class ListImageLibrary
       $filters['exclude'],
       $includeProject,
       $scatter,
+      $priorityTerms,
+      $priorityShare,
     );
     $response = rest_ensure_response($result);
 

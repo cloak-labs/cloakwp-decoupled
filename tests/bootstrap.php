@@ -773,6 +773,34 @@ if (!function_exists('wp_setup_nav_menu_item')) {
   }
 }
 
+if (!function_exists('wp_get_object_terms')) {
+  function wp_get_object_terms($object_ids, $taxonomies, $args = [])
+  {
+    $wanted = array_fill_keys((array) $taxonomies, true);
+    $ids = array_fill_keys(array_map('intval', (array) $object_ids), true);
+    $matched = [];
+    foreach (\CloakWP\Decoupled\Tests\WpStubs::$objectTerms as $term) {
+      $imageId = (int) (is_object($term) ? ($term->object_id ?? 0) : ($term['object_id'] ?? 0));
+      $taxonomy = (string) (is_object($term) ? ($term->taxonomy ?? '') : ($term['taxonomy'] ?? ''));
+      if (!isset($ids[$imageId]) || !isset($wanted[$taxonomy])) {
+        continue;
+      }
+      $matched[] = $term;
+    }
+
+    return $matched;
+  }
+}
+
+if (!function_exists('get_term_children')) {
+  function get_term_children($term_id, $taxonomy)
+  {
+    $key = (string) $taxonomy . ':' . (int) $term_id;
+
+    return \CloakWP\Decoupled\Tests\WpStubs::$termChildren[$key] ?? [];
+  }
+}
+
 if (!function_exists('maybe_unserialize')) {
   function maybe_unserialize($value)
   {
