@@ -174,14 +174,18 @@
    * Gutenberg's canvas is an iframe. `enqueue_block_editor_assets` CSS often
    * stays on the parent admin document, so hover/gear rules never apply to
    * preview markup. Inject the same rules into every reachable editor document.
+   *
+   * The click shield is a direct child of the unselected block wrapper. A
+   * descendant `.wp-block:not(.is-selected)` selector stays active while any
+   * ancestor group is unselected, so the shield never lifts after selection.
    */
   var CANVAS_PREVIEW_CSS =
     ".decoupled-block-preview-ctnr{position:relative}" +
-    ".wp-block:not(.is-selected) .decoupled-block-preview-ctnr::before{" +
+    ".block-editor-block-list__block:not(.is-selected)>.decoupled-block-preview-ctnr::before{" +
     "content:'';position:absolute;inset:0;z-index:40;cursor:pointer}" +
     ".cloakwp-block-selector{display:none!important;position:absolute;width:24px;height:24px;max-width:32px;max-height:32px;padding:6px;z-index:50;color:#fff;cursor:pointer;pointer-events:auto;background-color:var(--wp-admin-theme-color,#007cba);border-bottom-right-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.3)}" +
     ".cloakwp-block-selector:hover{background-color:var(--wp-admin-theme-color-darker-10,#006ba1)}" +
-    ".wp-block:not(.is-selected) .decoupled-block-preview-ctnr:hover .cloakwp-block-selector{display:block!important}";
+    ".block-editor-block-list__block:not(.is-selected)>.decoupled-block-preview-ctnr:hover .cloakwp-block-selector{display:block!important}";
 
   function ensureCanvasPreviewStyles() {
     var docs = collectEditorDocuments();
