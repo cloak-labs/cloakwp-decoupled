@@ -6,8 +6,12 @@
   position: relative;
 }
 /* Capture hover/click over the cross-origin iframe so Gutenberg can select
-   the block and so the gear icon's :hover rule can fire. */
-.wp-block:not(.is-selected) .decoupled-block-preview-ctnr::before {
+   the block and so the gear icon's :hover rule can fire.
+   Direct child only: a descendant selector stays matched while any ancestor
+   group/columns block is unselected, so the shield never lifts and iframe
+   clicks (accordions, etc.) never land after this block is selected. */
+.block-editor-block-list__block:not(.is-selected)
+  > .decoupled-block-preview-ctnr::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -33,8 +37,8 @@
 .cloakwp-block-selector:hover {
   background-color: var(--wp-admin-theme-color-darker-10, #006ba1);
 }
-.wp-block:not(.is-selected)
-  .decoupled-block-preview-ctnr:hover
+.block-editor-block-list__block:not(.is-selected)
+  > .decoupled-block-preview-ctnr:hover
   .cloakwp-block-selector {
   display: block !important;
 }
