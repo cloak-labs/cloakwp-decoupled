@@ -20,6 +20,10 @@ final class ImageLibraryQuery
 
   public const EXCLUDE_PREFIX = 'not:';
 
+  public const SCATTER_NONE = 'none';
+
+  public const SCATTER_PROJECT = 'project';
+
   /** @var callable(array<string, mixed>): object */
   private $queryFactory;
 
@@ -42,40 +46,19 @@ final class ImageLibraryQuery
     array $include = [],
     array $exclude = [],
     bool $includeProject = false,
+    string $scatter = self::SCATTER_NONE,
   ): array {
     $page = max(1, $page);
     $perPage = min(self::MAX_PER_PAGE, max(1, $perPage));
+    $scatter = $scatter === self::SCATTER_PROJECT ? self::SCATTER_PROJECT : self::SCATTER_NONE;
+
+    if ($scatter === self::SCATTER_PROJECT) {
+      return $this->runScattered($page, $perPage, $include, $exclude, $includeProject);
+    }
 
     $query = ($this->queryFactory)($this->buildArgs($page, $perPage, $include, $exclude, $includeProject));
-    $ids = [];
-    $parents = [];
-    foreach ($query->posts ?? [] as $post) {
-      if (is_object($post)) {
-        $id = (int) ($post->ID ?? 0);
-        $parents[$id] = (int) ($post->post_parent ?? 0);
-      } else {
-        $id = (int) $post;
-      }
-      $ids[] = $id;
-    }
-
-    $items = [];
-    foreach ($ids as $id) {
-      if ($id <= 0) {
-        continue;
-      }
-      $formatted = $this->formatter->format($id);
-      if (!is_array($formatted)) {
-        continue;
-      }
-      $formatted['id'] = $id;
-      $items[] = $formatted;
-    }
-
-    if ($includeProject && $items !== []) {
-      $lookup = $this->projectLookup ?? new ProjectImageLookup();
-      $items = $lookup->attach($items, $parents);
-    }
+    [$ids, $parents] = $this->idsAndParents($query->posts ?? []);
+    $items = $this->formatItems($ids, $parents, $includeProject);
 
     $total = (int) ($query->found_posts ?? count($items));
     $totalPages = (int) ($query->max_num_pages ?? ($perPage > 0 ? (int) ceil($total / $perPage) : 0));
@@ -120,6 +103,114 @@ final class ImageLibraryQuery
     $args = LibraryFilters::applyValues($args, $this->normalizeExclude($exclude));
 
     return $args;
+  }
+
+  /**
+   * Load every matching image, scatter by project, then slice the requested page.
+   * Pagination has to be applied after the reorder so page 2 continues the same sequence.
+   *
+   * @param array<string, string> $include
+   * @param array<string, string> $exclude
+   * @return array{items: list<array<string, mixed>>, total: int, totalPages: int, page: int, perPage: int}
+   */
+  private function runScattered(
+    int $page,
+    int $perPage,
+    array $include,
+    array $exclude,
+    bool $includeProject,
+  ): array {
+    $args = $this->buildArgs(1, $perPage, $include, $exclude, true);
+    $args['posts_per_page'] = -1;
+    $args['nopaging'] = true;
+    unset($args['paged'], $args['fields'], $args['order']);
+    $args['orderby'] = ['date' => 'DESC', 'ID' => 'DESC'];
+    $args['no_found_rows'] = true;
+    $args['update_post_meta_cache'] = false;
+    $args['update_post_term_cache'] = false;
+
+    $query = ($this->queryFactory)($args);
+    [$ids, $parents] = $this->idsAndParents($query->posts ?? []);
+
+    $lookup = $this->projectLookup ?? new ProjectImageLookup();
+    $projectIds = $lookup->projectIds($ids, $parents);
+    $entries = [];
+    foreach ($ids as $id) {
+      $projectId = $projectIds[$id] ?? 0;
+      $entries[] = [
+        'id' => $id,
+        'group' => $projectId > 0 ? 'project:' . $projectId : 'image:' . $id,
+      ];
+    }
+
+    $scattered = ImageScatter::reorder($entries);
+    $orderedIds = [];
+    foreach ($scattered as $entry) {
+      $orderedIds[] = $entry['id'];
+    }
+
+    $total = count($orderedIds);
+    $totalPages = $perPage > 0 ? (int) ceil($total / $perPage) : 0;
+    $pageIds = array_slice($orderedIds, ($page - 1) * $perPage, $perPage);
+
+    return [
+      'items' => $this->formatItems($pageIds, $parents, $includeProject),
+      'total' => $total,
+      'totalPages' => $totalPages,
+      'page' => $page,
+      'perPage' => $perPage,
+    ];
+  }
+
+  /**
+   * @param list<mixed> $posts
+   * @return array{0: list<int>, 1: array<int, int>}
+   */
+  private function idsAndParents(array $posts): array
+  {
+    $ids = [];
+    $parents = [];
+    foreach ($posts as $post) {
+      if (is_object($post)) {
+        $id = (int) ($post->ID ?? 0);
+        $parents[$id] = (int) ($post->post_parent ?? 0);
+      } else {
+        $id = (int) $post;
+      }
+      if ($id > 0) {
+        $ids[] = $id;
+      }
+    }
+
+    return [$ids, $parents];
+  }
+
+  /**
+   * @param list<int> $ids
+   * @param array<int, int> $parents
+   * @return list<array<string, mixed>>
+   */
+  private function formatItems(array $ids, array $parents, bool $includeProject): array
+  {
+    $items = [];
+    foreach ($ids as $id) {
+      if ($id <= 0) {
+        continue;
+      }
+      $formatted = $this->formatter->format($id);
+      if (!is_array($formatted)) {
+        continue;
+      }
+      $formatted['id'] = $id;
+      $items[] = $formatted;
+    }
+
+    if ($includeProject && $items !== []) {
+      $lookup = $this->projectLookup ?? new ProjectImageLookup();
+      $items = $lookup->attach($items, $parents);
+    }
+
+    return $items;
   }
 
   /**
@@ -171,6 +262,13 @@ final class ImageLibraryQuery
     $raw = self::param($request, $params, 'include_project');
 
     return $raw === '1' || strtolower($raw) === 'true' || strtolower($raw) === 'yes';
+  }
+
+  public static function scatterFromRequest(object $request, array $params = []): string
+  {
+    $raw = strtolower(self::param($request, $params, 'scatter'));
+
+    return $raw === self::SCATTER_PROJECT ? self::SCATTER_PROJECT : self::SCATTER_NONE;
   }
 
   /**

@@ -189,6 +189,103 @@ final class ImageLibraryQueryTest extends TestCase
     $this->assertArrayNotHasKey('fields', $captured);
     $this->assertSame(7, $response->data['items'][0]['id']);
   }
+
+  public function testScatterByProjectReordersAcrossPagesWithoutReformattingTheWholeLibrary(): void
+  {
+    \CloakWP\Decoupled\Media\ProjectImageLookup::flushCache();
+    WpStubs::$posts[10] = (object) [
+      'ID' => 10,
+      'post_type' => 'project',
+      'post_status' => 'publish',
+      'post_title' => 'Oak',
+      'post_name' => 'oak',
+      'post_content' => '',
+    ];
+    WpStubs::$posts[20] = (object) [
+      'ID' => 20,
+      'post_type' => 'project',
+      'post_status' => 'publish',
+      'post_title' => 'Pine',
+      'post_name' => 'pine',
+      'post_content' => '',
+    ];
+    WpStubs::$postMeta[10]['after_images'] = ['1', '2', '3'];
+    WpStubs::$postMeta[20]['after_images'] = ['4', '5'];
+
+    $formatted = new \stdClass();
+    $formatted->ids = [];
+    $captured = [];
+    $posts = [];
+    foreach ([1, 2, 3, 4, 5, 6] as $id) {
+      $posts[] = (object) ['ID' => $id, 'post_parent' => 0];
+    }
+    $formatter = new class($formatted) implements \CloakWP\Decoupled\Contracts\ImageFormatter {
+      public function __construct(private \stdClass $formatted)
+      {
+      }
+
+      public function format(mixed $imageId): mixed
+      {
+        $id = (int) $imageId;
+        $this->formatted->ids[] = $id;
+
+        return ['full' => ['src' => "https://example.test/{$id}.jpg"]];
+      }
+    };
+    $factory = static function (array $args) use (&$captured, $posts): object {
+      $captured = $args;
+
+      return new FakeWpQuery(posts: $posts, found: 0, pages: 0, args: $args);
+    };
+    $query = new ImageLibraryQuery($formatter, $factory);
+
+    $page1 = $query->run(1, 3, [], [], true, ImageLibraryQuery::SCATTER_PROJECT);
+    $page1Ids = array_column($page1['items'], 'id');
+    $formattedOnPage1 = $formatted->ids;
+    $page2 = $query->run(2, 3, [], [], false, ImageLibraryQuery::SCATTER_PROJECT);
+
+    $this->assertSame(-1, $captured['posts_per_page']);
+    $this->assertSame(['date' => 'DESC', 'ID' => 'DESC'], $captured['orderby']);
+    $this->assertSame([1, 2, 4], $page1Ids);
+    $this->assertSame('Oak', $page1['items'][0]['related']['title']);
+    $this->assertSame([1, 2, 4], $formattedOnPage1);
+    $this->assertSame([5, 6, 3], array_column($page2['items'], 'id'));
+    $this->assertArrayNotHasKey('related', $page2['items'][0]);
+    $this->assertSame(6, $page1['total']);
+    $this->assertSame(2, $page1['totalPages']);
+  }
+
+  public function testScatterNoneKeepsThePagedQuery(): void
+  {
+    $captured = [];
+    $query = new ImageLibraryQuery(new FakeImageFormatter(), static function (array $args) use (&$captured): object {
+      $captured = $args;
+
+      return new FakeWpQuery(posts: [1, 2], found: 2, pages: 1, args: $args);
+    });
+
+    $result = $query->run(1, 20, [], [], false, 'nope');
+
+    $this->assertSame(20, $captured['posts_per_page']);
+    $this->assertSame(1, $captured['paged']);
+    $this->assertSame([1, 2], array_column($result['items'], 'id'));
+  }
+
+  public function testListHandlerReadsScatter(): void
+  {
+    $captured = [];
+    $query = new ImageLibraryQuery(new FakeImageFormatter(), static function (array $args) use (&$captured): object {
+      $captured = $args;
+
+      return new FakeWpQuery(posts: [7], found: 1, pages: 1, args: $args);
+    });
+    $request = new WP_REST_Request();
+    $request->set_param('scatter', 'project');
+
+    (new ListImageLibrary($query))($request);
+
+    $this->assertSame(-1, $captured['posts_per_page']);
+  }
 }
 
 final class FakeImageFormatter implements \CloakWP\Decoupled\Contracts\ImageFormatter

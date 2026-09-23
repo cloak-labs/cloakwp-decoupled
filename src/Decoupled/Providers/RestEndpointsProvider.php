@@ -171,6 +171,11 @@ final class RestEndpointsProvider implements ServiceProvider
         'required' => false,
         'default' => false,
       ],
+      'scatter' => [
+        'type' => 'string',
+        'required' => false,
+        'enum' => [ImageLibraryQuery::SCATTER_NONE, ImageLibraryQuery::SCATTER_PROJECT],
+      ],
     ];
 
     foreach (LibraryFilters::all() as $filter) {

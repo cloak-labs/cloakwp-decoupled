@@ -35,6 +35,9 @@ final class ListImageLibrary
     $includeProject = is_object($request)
       ? ImageLibraryQuery::includeProjectFromRequest($request, $params)
       : false;
+    $scatter = is_object($request)
+      ? ImageLibraryQuery::scatterFromRequest($request, $params)
+      : ImageLibraryQuery::SCATTER_NONE;
 
     $result = $this->query->run(
       $page,
@@ -42,6 +45,7 @@ final class ListImageLibrary
       $filters['include'],
       $filters['exclude'],
       $includeProject,
+      $scatter,
     );
     $response = rest_ensure_response($result);
 

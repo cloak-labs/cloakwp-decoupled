@@ -39,24 +39,20 @@ final class ProjectImageLookup
       return $items;
     }
 
-    $index = $this->index();
-    $published = [];
-    foreach (array_keys($index['projects']) as $projectId) {
-      $published[(int) $projectId] = true;
+    $imageIds = [];
+    foreach ($items as $item) {
+      $imageId = (int) ($item['id'] ?? 0);
+      if ($imageId > 0) {
+        $imageIds[] = $imageId;
+      }
     }
+
+    $index = $this->index();
+    $projectIds = $this->resolveIds($imageIds, $parents, $index);
 
     foreach ($items as &$item) {
       $imageId = (int) ($item['id'] ?? 0);
-      if ($imageId <= 0) {
-        continue;
-      }
-
-      $projectId = ProjectImageIndex::resolveProjectId(
-        $imageId,
-        (int) ($parents[$imageId] ?? 0),
-        $index['images'],
-        $published,
-      );
+      $projectId = $projectIds[$imageId] ?? null;
       if ($projectId === null) {
         continue;
       }
@@ -69,6 +65,52 @@ final class ProjectImageLookup
     unset($item);
 
     return $items;
+  }
+
+  /**
+   * @param list<int> $imageIds
+   * @param array<int, int> $parents imageId => post_parent
+   * @return array<int, int> imageId => projectId
+   */
+  public function projectIds(array $imageIds, array $parents): array
+  {
+    $this->registerHooks();
+
+    return $this->resolveIds($imageIds, $parents, $this->index());
+  }
+
+  /**
+   * @param list<int> $imageIds
+   * @param array<int, int> $parents
+   * @param array{images: array<int, int>, projects: array<int, array{title: string, subtitle?: string, href: string}>} $index
+   * @return array<int, int>
+   */
+  private function resolveIds(array $imageIds, array $parents, array $index): array
+  {
+    $published = [];
+    foreach (array_keys($index['projects']) as $projectId) {
+      $published[(int) $projectId] = true;
+    }
+
+    $out = [];
+    foreach ($imageIds as $imageId) {
+      $imageId = (int) $imageId;
+      if ($imageId <= 0 || isset($out[$imageId])) {
+        continue;
+      }
+
+      $projectId = ProjectImageIndex::resolveProjectId(
+        $imageId,
+        (int) ($parents[$imageId] ?? 0),
+        $index['images'],
+        $published,
+      );
+      if ($projectId !== null) {
+        $out[$imageId] = $projectId;
+      }
+    }
+
+    return $out;
   }
 
   public static function flushCache(): void
