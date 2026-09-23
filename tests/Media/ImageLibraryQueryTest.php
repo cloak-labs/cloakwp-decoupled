@@ -255,6 +255,49 @@ final class ImageLibraryQueryTest extends TestCase
     $this->assertSame(2, $page1['totalPages']);
   }
 
+  public function testScatterGroupsDraftProjectImagesWithoutPublicLinks(): void
+  {
+    \CloakWP\Decoupled\Media\ProjectImageLookup::flushCache();
+    WpStubs::$posts[30] = (object) [
+      'ID' => 30,
+      'post_type' => 'project',
+      'post_status' => 'draft',
+      'post_title' => 'Whiterock',
+      'post_name' => 'whiterock',
+      'post_content' => '',
+    ];
+    WpStubs::$posts[40] = (object) [
+      'ID' => 40,
+      'post_type' => 'project',
+      'post_status' => 'publish',
+      'post_title' => 'Oak',
+      'post_name' => 'oak',
+      'post_content' => '',
+    ];
+    WpStubs::$postMeta[30]['after_images'] = ['1', '2', '3'];
+    WpStubs::$postMeta[40]['after_images'] = ['4', '5'];
+
+    $posts = [];
+    foreach ([1, 2, 3, 4, 5, 6] as $id) {
+      $posts[] = (object) ['ID' => $id, 'post_parent' => 0];
+    }
+    $posts[] = (object) ['ID' => 8, 'post_parent' => 30];
+    $query = new ImageLibraryQuery(new FakeImageFormatter(), static function () use ($posts): object {
+      return new FakeWpQuery(posts: $posts, found: count($posts), pages: 1);
+    });
+
+    $result = $query->run(1, 20, [], [], true, ImageLibraryQuery::SCATTER_PROJECT);
+    $byId = [];
+    foreach ($result['items'] as $item) {
+      $byId[(int) $item['id']] = $item;
+    }
+
+    $this->assertSame([1, 2, 4, 5, 6, 3, 8], array_column($result['items'], 'id'));
+    $this->assertArrayNotHasKey('related', $byId[1]);
+    $this->assertArrayNotHasKey('related', $byId[8]);
+    $this->assertSame('Oak', $byId[4]['related']['title']);
+  }
+
   public function testScatterNoneKeepsThePagedQuery(): void
   {
     $captured = [];

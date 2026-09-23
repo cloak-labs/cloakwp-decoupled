@@ -7,12 +7,15 @@ namespace CloakWP\Decoupled\Media;
 use CloakWP\Core\Utils;
 
 /**
- * Resolves a page of image-library items to a slim `related` payload
- * (title, subtitle, href) for the published project each image belongs to.
+ * Resolves image-library items to the portfolio project they belong to.
  *
- * Cost when `include_project` is on:
+ * Scatter grouping includes published and draft projects, so a draft shoot
+ * does not stay clumped. The public `related` link is only attached for
+ * published projects.
+ *
+ * Cost when `include_project` or scatter-by-project is on:
  * - 1 extra column from the attachments query (`post_parent`) instead of `fields=ids`
- * - A cached reverse index of published projects (2 queries on miss: posts + meta cache)
+ * - A cached reverse index of projects (2 queries on miss: posts + meta cache)
  * Per-image lookups are in-memory after that.
  */
 final class ProjectImageLookup
@@ -21,7 +24,9 @@ final class ProjectImageLookup
 
   public const CACHE_TTL = 3600;
 
-  /** @var array<string, array{images: array<int, int>, projects: array<int, array{title: string, subtitle?: string, href: string}>}> */
+  /**
+   * @var array<string, array{images: array<int, int>, projects: array<int, array{title: string, subtitle?: string, href: string}>, assignable: array<int, true>}>
+   */
   private static array $memoryCache = [];
 
   private static bool $hooksRegistered = false;
@@ -48,7 +53,7 @@ final class ProjectImageLookup
     }
 
     $index = $this->index();
-    $projectIds = $this->resolveIds($imageIds, $parents, $index);
+    $projectIds = $this->resolveIds($imageIds, $parents, $index, true);
 
     foreach ($items as &$item) {
       $imageId = (int) ($item['id'] ?? 0);
@@ -82,14 +87,23 @@ final class ProjectImageLookup
   /**
    * @param list<int> $imageIds
    * @param array<int, int> $parents
-   * @param array{images: array<int, int>, projects: array<int, array{title: string, subtitle?: string, href: string}>} $index
+   * @param array{images: array<int, int>, projects: array<int, array{title: string, subtitle?: string, href: string}>, assignable?: array<int, true>} $index
    * @return array<int, int>
    */
-  private function resolveIds(array $imageIds, array $parents, array $index): array
+  private function resolveIds(array $imageIds, array $parents, array $index, bool $publishedOnly = false): array
   {
-    $published = [];
-    foreach (array_keys($index['projects']) as $projectId) {
-      $published[(int) $projectId] = true;
+    $assignable = [];
+    if (!$publishedOnly && isset($index['assignable']) && is_array($index['assignable'])) {
+      foreach ($index['assignable'] as $projectId => $ok) {
+        if ($ok) {
+          $assignable[(int) $projectId] = true;
+        }
+      }
+    }
+    if ($assignable === []) {
+      foreach (array_keys($index['projects']) as $projectId) {
+        $assignable[(int) $projectId] = true;
+      }
     }
 
     $out = [];
@@ -103,7 +117,7 @@ final class ProjectImageLookup
         $imageId,
         (int) ($parents[$imageId] ?? 0),
         $index['images'],
-        $published,
+        $assignable,
       );
       if ($projectId !== null) {
         $out[$imageId] = $projectId;
@@ -149,7 +163,7 @@ final class ProjectImageLookup
 
     if (function_exists('wp_cache_get')) {
       $cached = wp_cache_get($key, self::CACHE_GROUP);
-      if (is_array($cached) && isset($cached['images'], $cached['projects'])) {
+      if (is_array($cached) && isset($cached['images'], $cached['projects'], $cached['assignable'])) {
         self::$memoryCache[$key] = $cached;
 
         return $cached;
@@ -166,13 +180,14 @@ final class ProjectImageLookup
   }
 
   /**
-   * @return array{images: array<int, int>, projects: array<int, array{title: string, subtitle?: string, href: string}>}
+   * @return array{images: array<int, int>, projects: array<int, array{title: string, subtitle?: string, href: string}>, assignable: array<int, true>}
    */
   private function buildIndex(): array
   {
-    $projects = $this->publishedProjects();
+    $projects = $this->projectPosts();
     $summaries = [];
     $projectImageIds = [];
+    $assignable = [];
 
     foreach ($projects as $project) {
       $id = (int) ($project->ID ?? 0);
@@ -180,19 +195,23 @@ final class ProjectImageLookup
         continue;
       }
 
-      $summary = $this->summaryFor($project);
-      if ($summary === null) {
+      $assignable[$id] = true;
+      $projectImageIds[$id] = [];
+      if ((string) ($project->post_status ?? '') !== 'publish') {
         continue;
       }
-      $summaries[$id] = $summary;
-      $projectImageIds[$id] = [];
+
+      $summary = $this->summaryFor($project);
+      if ($summary !== null) {
+        $summaries[$id] = $summary;
+      }
     }
 
-    if ($summaries === []) {
-      return ['images' => [], 'projects' => []];
+    if ($projectImageIds === []) {
+      return ['images' => [], 'projects' => [], 'assignable' => []];
     }
 
-    $projectIds = array_keys($summaries);
+    $projectIds = array_keys($projectImageIds);
     if (function_exists('update_meta_cache')) {
       update_meta_cache('post', $projectIds);
     }
@@ -229,13 +248,17 @@ final class ProjectImageLookup
     return [
       'images' => ProjectImageIndex::imageToProjectMap($projectImageIds),
       'projects' => $summaries,
+      'assignable' => $assignable,
     ];
   }
 
   /**
+   * Published projects can be linked. Drafts are included so scatter can
+   * separate a shoot that has not been published yet.
+   *
    * @return list<object>
    */
-  private function publishedProjects(): array
+  private function projectPosts(): array
   {
     if (!function_exists('get_posts')) {
       return [];
@@ -243,7 +266,7 @@ final class ProjectImageLookup
 
     $posts = get_posts([
       'post_type' => self::projectPostTypes(),
-      'post_status' => 'publish',
+      'post_status' => ['publish', 'draft'],
       'posts_per_page' => -1,
       'no_found_rows' => true,
       'ignore_sticky_posts' => true,
@@ -425,7 +448,7 @@ final class ProjectImageLookup
   {
     $blogId = function_exists('get_current_blog_id') ? (int) get_current_blog_id() : 1;
 
-    return 'cloakwp_project_image_index_' . $blogId;
+    return 'cloakwp_project_image_index_v2_' . $blogId;
   }
 
   private static function plainText(string $value): string
