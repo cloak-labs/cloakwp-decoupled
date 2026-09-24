@@ -127,6 +127,7 @@ async function createBridgeHarness({
     `
       globalThis.__cloakwpPreviewTest = {
         applyOptimisticPathUpdate,
+        mergeStaleServerData,
       };
     })();
     `,
@@ -186,10 +187,34 @@ async function createBridgeHarness({
     },
     iframe,
     optimisticUpdate: context.__cloakwpPreviewTest.applyOptimisticPathUpdate,
+    mergeStaleServerData: context.__cloakwpPreviewTest.mergeStaleServerData,
     previewMessages,
     readyMessages,
   };
 }
+
+test("keeps optimistic text and takes server galleries when merging a stale preview", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_images",
+    protocolKey: "block_images_signed",
+    blockData: {
+      name: "acf/images",
+      data: { heading: "Gallery", manual_images: [] },
+    },
+  });
+
+  const merged = harness.mergeStaleServerData(
+    { heading: "Gallery updated", manual_images: [] },
+    {
+      heading: "Gallery",
+      manual_images: [{ url: "https://cdn.test/a.jpg" }],
+    },
+  );
+
+  assert.equal(merged.heading, "Gallery updated");
+  assert.equal(merged.manual_images.length, 1);
+  assert.equal(merged.manual_images[0].url, "https://cdn.test/a.jpg");
+});
 
 test("sends an optimistic ACF field update when the signed and editor preview keys differ", async () => {
   const editorKey = "block_11111111-2222-3333-4444-555555555555";

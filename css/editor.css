@@ -43,6 +43,33 @@
   display: block !important;
 }
 
+.cloakwp-block-preview-refresh {
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 60;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  color: #fff;
+  background: var(--wp-admin-theme-color, #007cba);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  pointer-events: auto;
+  align-items: center;
+  justify-content: center;
+}
+.cloakwp-block-preview-refresh:hover {
+  background: var(--wp-admin-theme-color-darker-10, #006ba1);
+}
+.block-editor-block-list__block.is-selected .cloakwp-block-preview-refresh,
+.decoupled-block-preview-ctnr:hover .cloakwp-block-preview-refresh {
+  display: flex;
+}
+
 /* Hide scrollbars on ACF Block preview iframes */
 .block-preview-iframe {
   overflow: hidden;

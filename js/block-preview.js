@@ -24,10 +24,12 @@
  *    and postMessage immediately — no waiting for ACF's AJAX. Nesting is
  *    resolved by walking the ACF parent chain into a single JSON path
  *    (groups, clones, repeater row indices, flexible layouts) so any depth
- *    works without per-shape special cases. Media fields that only have
- *    attachment IDs client-side are left alone until AJAX returns.
- *    Repeater row *removals* splice the pending array immediately; *additions*
- *    wait for fetch-block (new rows are empty until the user fills them in).
+ *    works without per-shape special cases. Fields whose editor value is only
+ *    an ID or row count (gallery, image, file, relationship, and similar)
+ *    are not patched locally. Those edits mark the block so the next
+ *    fetch-block JSON is applied even if an earlier keystroke would have
+ *    made that response look stale. Repeater row *removals* splice the
+ *    pending array immediately; *additions* wait for fetch-block.
  *
  * 4. Ignore stale AJAX responses
  *    ACF still runs fetch-block in the background. Each request is stamped
@@ -80,6 +82,22 @@
 
   /** @type {Map<string, number>} previewKey -> optimistic epoch (monotonic) */
   const lastOptimisticEpochByKey = new Map();
+
+  /**
+   * Preview keys waiting on fetch-block because the edit can't be represented
+   * from field.val() (attachment IDs, new repeater rows, etc.).
+   * Value is the optimistic epoch at the time of that edit; a later response
+   * is accepted when its fetch epoch is at least this value.
+   * @type {Map<string, number>}
+   */
+  const serverRenderEpochByKey = new Map();
+
+  /**
+   * Manual refresh: return the next fetch-block HTML so ACF remounts the
+   * iframe instead of reusing the cached shell.
+   * @type {Set<string>}
+   */
+  const forceRemountKeys = new Set();
 
   /**
    * Global optimistic epoch. Bumped on every accepted optimistic edit.
@@ -185,7 +203,10 @@
     "content:'';position:absolute;inset:0;z-index:40;cursor:pointer}" +
     ".cloakwp-block-selector{display:none!important;position:absolute;width:24px;height:24px;max-width:32px;max-height:32px;padding:6px;z-index:50;color:#fff;cursor:pointer;pointer-events:auto;background-color:var(--wp-admin-theme-color,#007cba);border-bottom-right-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.3)}" +
     ".cloakwp-block-selector:hover{background-color:var(--wp-admin-theme-color-darker-10,#006ba1)}" +
-    ".block-editor-block-list__block:not(.is-selected)>.decoupled-block-preview-ctnr:hover .cloakwp-block-selector{display:block!important}";
+    ".block-editor-block-list__block:not(.is-selected)>.decoupled-block-preview-ctnr:hover .cloakwp-block-selector{display:block!important}" +
+    ".cloakwp-block-preview-refresh{display:none;position:absolute;top:8px;right:8px;z-index:60;width:28px;height:28px;padding:0;border:0;border-radius:3px;color:#fff;background:var(--wp-admin-theme-color,#007cba);box-shadow:0 1px 3px rgba(0,0,0,.3);cursor:pointer;pointer-events:auto;align-items:center;justify-content:center}" +
+    ".cloakwp-block-preview-refresh:hover{background:var(--wp-admin-theme-color-darker-10,#006ba1)}" +
+    ".block-editor-block-list__block.is-selected .cloakwp-block-preview-refresh,.decoupled-block-preview-ctnr:hover .cloakwp-block-preview-refresh{display:flex}";
 
   function ensureCanvasPreviewStyles() {
     var docs = collectEditorDocuments();
@@ -854,9 +875,50 @@
       const isStale =
         lastEpoch > 0 &&
         (fetchEpoch < 0 || fetchEpoch < lastEpoch);
+      const serverEpoch = serverRenderEpochByKey.get(key);
+      const serverRenderDue =
+        forceRemountKeys.has(key) ||
+        (serverEpoch != null &&
+          (fetchEpoch < 0 || fetchEpoch >= serverEpoch));
 
-      if (isStale) {
+      if (isStale && !serverRenderDue) {
         return false;
+      }
+
+      if (serverRenderDue) {
+        serverRenderEpochByKey.delete(key);
+      }
+
+      if (
+        isStale &&
+        serverRenderDue &&
+        !forceRemountKeys.has(key) &&
+        blockData &&
+        typeof blockData === "object" &&
+        blockData.data &&
+        typeof blockData.data === "object"
+      ) {
+        const prev = pendingByKey.get(key);
+        const prevData =
+          prev &&
+          prev.blockData &&
+          typeof prev.blockData === "object" &&
+          prev.blockData.data &&
+          typeof prev.blockData.data === "object"
+            ? prev.blockData.data
+            : null;
+        if (prevData) {
+          const mergedBlockData = Object.assign({}, blockData, {
+            data: mergeStaleServerData(prevData, blockData.data),
+          });
+          pendingByKey.set(key, { blockData: mergedBlockData, isPageDark });
+          const source = readySourcesByKey.get(key);
+          if (source) {
+            sendUpdateToSource(source, mergedBlockData, isPageDark, key);
+            return true;
+          }
+          return false;
+        }
       }
     }
 
@@ -1455,6 +1517,209 @@
   }
 
   /**
+   * Fold a fetch-block payload into newer optimistic data.
+   * Arrays and attachment objects come from the server (galleries, new rows).
+   * Scalars and other objects keep the pending value when it differs, so a
+   * keystroke made after the request started is not overwritten.
+   *
+   * @param {unknown} pending
+   * @param {unknown} incoming
+   * @returns {unknown}
+   */
+  function mergeStaleServerData(pending, incoming) {
+    if (Array.isArray(pending) || Array.isArray(incoming)) {
+      return incoming !== undefined ? incoming : pending;
+    }
+
+    const pendingIsObject = !!pending && typeof pending === "object";
+    const incomingIsObject = !!incoming && typeof incoming === "object";
+    if (!pendingIsObject || !incomingIsObject) {
+      if (pending !== undefined && !valuesEqual(pending, incoming)) return pending;
+      return incoming !== undefined ? incoming : pending;
+    }
+
+    const pendingMedia = /** @type {Record<string, unknown>} */ (pending);
+    const incomingMedia = /** @type {Record<string, unknown>} */ (incoming);
+    if (
+      pendingMedia.url ||
+      pendingMedia.src ||
+      incomingMedia.url ||
+      incomingMedia.src
+    ) {
+      return incoming;
+    }
+
+    const merged = Object.assign({}, incomingMedia);
+    const keys = Object.keys(pendingMedia);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      if (!Object.prototype.hasOwnProperty.call(incomingMedia, key)) {
+        merged[key] = pendingMedia[key];
+        continue;
+      }
+      merged[key] = mergeStaleServerData(pendingMedia[key], incomingMedia[key]);
+    }
+    return merged;
+  }
+
+  /**
+   * Editor values that are IDs, embed URLs, or row chrome — the formatted
+   * block JSON has to come from fetch-block.
+   * @type {Record<string, true>}
+   */
+  const SERVER_VALUE_TYPES = {
+    gallery: true,
+    image: true,
+    file: true,
+    oembed: true,
+    relationship: true,
+    post_object: true,
+    taxonomy: true,
+    user: true,
+    google_map: true,
+  };
+
+  /**
+   * @param {string} blockId
+   */
+  function markServerRender(blockId) {
+    const key = resolvePreviewKey(blockId);
+    if (!key) return;
+    const marked = serverRenderEpochByKey.get(key);
+    if (marked == null || optimisticEpoch < marked) {
+      serverRenderEpochByKey.set(key, optimisticEpoch);
+    }
+  }
+
+  /**
+   * ACF `append` fires for new repeater rows and flexible layouts.
+   * @param {JQuery|HTMLElement|null|undefined} el
+   */
+  function markServerRenderFromAddedElement(el) {
+    const $ = window.jQuery;
+    if (!$ || typeof acf === "undefined" || typeof acf.getField !== "function") {
+      return;
+    }
+    const $el = el && el.jquery ? el : $(el);
+    if (!$el || !$el.length) return;
+    const $fieldEl = $el.closest(
+      '.acf-field[data-type="repeater"], .acf-field[data-type="flexible_content"], .acf-field[data-type="gallery"]',
+    );
+    if (!$fieldEl.length) return;
+    const field = acf.getField($fieldEl);
+    if (!field) return;
+    markServerRender(getBlockIdFromField(field));
+  }
+
+  const REFRESH_BUTTON_SELECTOR = [
+    ".cloakwp-block-preview-refresh",
+    ".acf-block-preview-refresh",
+    ".acf-block-preview-refresh-button",
+    ".acfe-block-preview-refresh",
+    "[data-name='refresh-preview']",
+    "[data-acf-block-preview-refresh]",
+  ].join(", ");
+
+  /**
+   * Plugin refresh controls already drawn inside this preview.
+   * @param {Element} root
+   * @returns {boolean}
+   */
+  function hasExternalRefreshButton(root) {
+    const preview = root.closest(".acf-block-preview") || root.parentElement;
+    if (!preview) return false;
+    const found = preview.querySelector(
+      ".acf-block-preview-refresh, .acf-block-preview-refresh-button, .acfe-block-preview-refresh, [data-name='refresh-preview'], [data-acf-block-preview-refresh], .dashicons-update",
+    );
+    return !!found && !found.closest(".cloakwp-block-preview-refresh");
+  }
+
+  function ensureRefreshClickListener(doc) {
+    if (!doc || doc.__cloakwpRefreshListener) return;
+    try {
+      doc.addEventListener("click", onRefreshButtonClick, true);
+      doc.__cloakwpRefreshListener = true;
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  /**
+   * @param {Element} root
+   */
+  function ensureRefreshButton(root) {
+    if (!root) return;
+    ensureRefreshClickListener(root.ownerDocument || document);
+    if (root.querySelector(".cloakwp-block-preview-refresh")) return;
+    if (hasExternalRefreshButton(root)) return;
+    const doc = root.ownerDocument || document;
+    const button = doc.createElement("button");
+    button.type = "button";
+    button.className = "cloakwp-block-preview-refresh";
+    button.setAttribute("aria-label", "Refresh preview");
+    button.title = "Refresh preview";
+    button.innerHTML =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
+    root.appendChild(button);
+  }
+
+  /**
+   * @param {Element} fromEl
+   */
+  function requestFullPreviewRender(fromEl) {
+    const root =
+      fromEl.closest(".decoupled-block-preview-ctnr") ||
+      (fromEl.closest(".acf-block-preview") &&
+        fromEl.closest(".acf-block-preview").querySelector(
+          ".decoupled-block-preview-ctnr",
+        ));
+    const key = root && root.getAttribute("data-cloakwp-preview-key");
+    if (key) {
+      serverRenderEpochByKey.set(key, 0);
+      forceRemountKeys.add(key);
+      htmlCache.delete(key);
+    }
+
+    const $ = window.jQuery;
+    if (!$) return;
+    let $node = $(fromEl);
+    for (let i = 0; i < 8 && $node && $node.length; i++) {
+      const inst = $node.data("acf");
+      if (inst && typeof inst.fetch === "function") {
+        inst.fetch();
+        return;
+      }
+      $node = $node.parent();
+    }
+  }
+
+  /**
+   * @param {Event} event
+   */
+  function onRefreshButtonClick(event) {
+    const target = event.target;
+    if (!target || !target.closest) return;
+    const button = target.closest(REFRESH_BUTTON_SELECTOR);
+    if (!button) {
+      const icon = target.closest(".dashicons-update");
+      const host =
+        icon &&
+        icon.closest(
+          ".acf-block-preview, .block-editor-block-list__block, .acf-block-component",
+        );
+      if (!icon || !host) return;
+      requestFullPreviewRender(icon);
+      return;
+    }
+    const ours = button.classList.contains("cloakwp-block-preview-refresh");
+    if (ours) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    requestFullPreviewRender(button);
+  }
+
+  /**
    * Push field edits to the live iframe immediately — don't wait for ACF's
    * ~2.5s admin-ajax fetch-block. Authoritative JSON still arrives later via
    * blocks/preview/render (skipped when stale vs last optimistic edit).
@@ -1563,13 +1828,16 @@
 
     const leafType = field.get("type");
 
+    // Attachment IDs, term IDs, and map/embed payloads are not the formatted
+    // JSON the frontend renders. Let the next fetch-block supply them.
+    if (SERVER_VALUE_TYPES[leafType]) {
+      markServerRender(getBlockIdFromField(field));
+      return;
+    }
+
     // These types don't expose usable leaf values via .val() for our pending
     // JSON shape (counts, first-subfield scalars, layout chrome, etc.).
     if (
-      leafType === "gallery" ||
-      leafType === "image" ||
-      leafType === "file" ||
-      leafType === "oembed" ||
       leafType === "repeater" ||
       leafType === "flexible_content" ||
       leafType === "group" ||
@@ -1784,6 +2052,15 @@
       }
     });
 
+    // New repeater/flexible rows have no formatted JSON until fetch-block.
+    acf.addAction("append", function ($el) {
+      try {
+        markServerRenderFromAddedElement($el);
+      } catch (e) {
+        /* ignore */
+      }
+    });
+
     // Capture phase: bump optimistic epoch BEFORE ACF starts fetch-block so
     // the XHR stamps fetchEpoch === lastEpoch (strict stale guard above).
     // Paired with change_field above — capture covers native typing; change_field
@@ -1813,6 +2090,7 @@
       try {
         editorDocs[i].addEventListener("input", onCaptureInput, true);
         editorDocs[i].addEventListener("change", onCaptureChange, true);
+        ensureRefreshClickListener(editorDocs[i]);
       } catch (err) {
         /* ignore */
       }
@@ -1864,6 +2142,13 @@
       // Waiting for readySourcesByKey caused a race: fetch-block often completes
       // before the Next.js iframe handsakes, and returning stub/new HTML tore
       // down the loading iframe — new blocks then stayed blank until reload.
+      // Manual refresh opts out for one response so ACF remounts the iframe.
+      if (forceRemountKeys.has(key)) {
+        forceRemountKeys.delete(key);
+        if (hasIframe) htmlCache.set(key, html);
+        return html;
+      }
+
       if (htmlCache.has(key)) {
         return htmlCache.get(key);
       }
@@ -1894,6 +2179,8 @@
         if (key && pending) {
           storeAndFlush(key, pending.blockData, pending.isPageDark);
         }
+
+        ensureRefreshButton(root);
       }
 
       ensureCanvasPreviewStyles();
