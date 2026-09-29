@@ -875,6 +875,23 @@
   }
 
   /**
+   * A cached preview can handshake before ACF stores its block JSON.
+   * Deliver to whichever key the ready message was filed under.
+   * @param {string} key
+   */
+  function flushReadyPreview(key) {
+    const keys = [key];
+    const protocolKey = protocolKeysByEditorKey.get(key);
+    const editorKey = editorKeysByProtocolKey.get(key);
+    if (protocolKey) keys.push(protocolKey);
+    if (editorKey) keys.push(editorKey);
+    for (let i = 0; i < keys.length; i++) {
+      const source = readySourcesByKey.get(keys[i]);
+      if (source) deliverPendingToSource(keys[i], source);
+    }
+  }
+
+  /**
    * @param {string} key
    * @param {unknown} blockData
    * @param {boolean} isPageDark
@@ -2160,6 +2177,7 @@
           pendingByKey.set(key, { blockData, isPageDark });
           const tokenKey = parseTokenPreviewKeyFromHtml(html);
           if (tokenKey) linkPreviewKeys(key, tokenKey);
+          flushReadyPreview(key);
         }
         return htmlCache.has(key) ? htmlCache.get(key) : html;
       }
@@ -2236,6 +2254,10 @@
         // document. Do not tear down a live handshake just because the
         // iframe wasn't found this tick — that stops sidebar field updates.
         if (readySourcesByKey.has(key) || readyIframesByKey.has(key)) return;
+        // A long page mounts previews one block at a time. The first one to
+        // fire this hook would otherwise delete every not-yet-mounted
+        // neighbour's block data, and those iframes stay blank.
+        if (!readyKeys.has(key)) return;
         htmlCache.delete(key);
         readyKeys.delete(key);
         pendingByKey.delete(key);

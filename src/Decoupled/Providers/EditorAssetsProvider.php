@@ -43,7 +43,7 @@ final class EditorAssetsProvider implements ServiceProvider
         ->version(
           ($isDevelopment && is_readable($blockPreviewJs))
             ? (string) filemtime($blockPreviewJs)
-            : '2.2.0'
+            : '2.3.0'
         )
         ->inFooter();
     }
