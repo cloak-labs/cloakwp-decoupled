@@ -277,6 +277,29 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
       data-cloakwp-preview-key="<?php echo esc_attr($previewKey); ?>"
       class="block-preview-iframe <?php echo $is_block_inserter ? 'in-block-inserter' : ''; ?>"
       src="<?php echo $iframeUrl; ?>" title="Block Preview" width="100%" scrolling="no" allow="same-origin"></iframe>
+    <?php if (!$is_block_inserter): ?>
+    <script>
+      (function () {
+        var key = <?php echo wp_json_encode($previewKey); ?>;
+        if (!key) return;
+        var flag = "__cloakwpPreviewHeight_" + key;
+        if (window[flag]) return;
+        window[flag] = true;
+        window.addEventListener("message", function (event) {
+          var data = event.data;
+          if (!data || data.type !== "cloakwp-preview-height") return;
+          if (data.previewKey !== key || typeof data.height !== "number") return;
+          var iframe = document.getElementById(key);
+          if (!iframe || event.source !== iframe.contentWindow) return;
+          var height = Math.round(data.height) + "px";
+          iframe.style.height = height;
+          if (iframe.parentNode && iframe.parentNode.style) {
+            iframe.parentNode.style.height = height;
+          }
+        });
+      })();
+    </script>
+    <?php endif; ?>
 
     <script type="application/json" class="cloakwp-block-data"><?php echo $json; ?></script>
     <script type="application/json" class="cloakwp-preview-meta"><?php echo wp_json_encode([

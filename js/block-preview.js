@@ -649,14 +649,39 @@
       return;
     }
     const key = iframe.getAttribute("data-cloakwp-preview-key");
+    const stored = key ? contentHeightsByKey.get(key) : null;
+    if (stored) {
+      applyPreviewIframeHeight(iframe, stored);
+      if (key) contentSizedPreviewKeys.add(key);
+      return;
+    }
     if (key && contentSizedPreviewKeys.has(key)) return;
+
+    // A later preview render must not snap a grown iframe back to the
+    // placeholder. Pattern blocks often report height before this pass can
+    // match their preview key, and the browser default is also 150px.
+    const current = parseFloat(iframe.style.height);
+    if (
+      Number.isFinite(current) &&
+      current > COMPACT_PREVIEW_HEIGHT_PX
+    ) {
+      return;
+    }
 
     const h = usesViewportInitialHeight(iframe)
       ? getEditorPreviewViewportHeight(iframe.contentWindow)
       : COMPACT_PREVIEW_HEIGHT_PX;
     if (h <= 0) return;
 
-    const height = h + "px";
+    applyPreviewIframeHeight(iframe, h);
+  }
+
+  /**
+   * @param {HTMLIFrameElement} iframe
+   * @param {number} heightPx
+   */
+  function applyPreviewIframeHeight(iframe, heightPx) {
+    const height = Math.round(heightPx) + "px";
     if (iframe.style.height === height) return;
     iframe.style.height = height;
     const parent = iframe.parentNode;
@@ -989,6 +1014,8 @@
    * @type {Set<string>}
    */
   const contentSizedPreviewKeys = new Set();
+  /** @type {Map<string, number>} */
+  const contentHeightsByKey = new Map();
 
   /** @type {Map<string, ReturnType<typeof setTimeout>>} */
   const optimisticTimers = new Map();
@@ -1947,14 +1974,19 @@
     // Skipping <48px trapped short blocks (acf/eyebrow ~20px) at the editor
     // viewport bootstrap height (~860px).
     if (next < 1) return true;
-    if (!iframe) return true;
-    const height = next + "px";
-    contentSizedPreviewKeys.add(binding.key);
+
+    const remember = function (key) {
+      if (!key) return;
+      contentHeightsByKey.set(key, next);
+      contentSizedPreviewKeys.add(key);
+    };
+    remember(binding.key);
+    remember(payload.previewKey);
     clearHeightRequests(binding.key);
-    if (iframe.style.height === height) return true;
-    iframe.style.height = height;
-    const parent = iframe.parentNode;
-    if (parent && parent.style) parent.style.height = height;
+
+    if (!iframe) return true;
+    remember(iframe.getAttribute("data-cloakwp-preview-key"));
+    applyPreviewIframeHeight(iframe, next);
     return true;
   }
 
