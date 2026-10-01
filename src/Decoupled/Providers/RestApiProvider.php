@@ -7,6 +7,7 @@ namespace CloakWP\Decoupled\Providers;
 use CloakWP\Core\Utils;
 use CloakWP\Decoupled\CMS;
 use CloakWP\Decoupled\Support\Acf;
+use CloakWP\Decoupled\Support\AcfLinkFormatter;
 use CloakWP\Decoupled\Support\HtmlEntityDecoder;
 use WP_Error;
 use WP_REST_Response;
@@ -98,19 +99,8 @@ final class RestApiProvider implements ServiceProvider
 
   private function enableRelativeAcfLinks(CMS $cms): void
   {
-    $transformer = $cms->frontendUrls();
-
-    add_filter('acf/format_value/type=link', function ($value) use ($transformer) {
-      if (is_array($value) && !empty($value['url']) && is_string($value['url'])) {
-        $value['url'] = $transformer->makeRelative($value['url']);
-        return $value;
-      }
-
-      if (is_string($value)) {
-        return $transformer->makeRelative($value);
-      }
-
-      return $value;
-    }, 20, 3);
+    $formatter = new AcfLinkFormatter($cms->frontendUrls());
+    add_filter('acf/format_value/type=link', [$formatter, 'format'], 20, 3);
+    add_filter('acf/format_value/type=page_link', [$formatter, 'formatPageLink'], 20, 3);
   }
 }

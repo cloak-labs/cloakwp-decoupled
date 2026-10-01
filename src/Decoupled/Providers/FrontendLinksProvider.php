@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace CloakWP\Decoupled\Providers;
 
 use CloakWP\Decoupled\CMS;
+use CloakWP\Decoupled\Support\AcfLinkFormatter;
 
 final class FrontendLinksProvider implements ServiceProvider
 {
@@ -21,6 +22,30 @@ final class FrontendLinksProvider implements ServiceProvider
     add_filter('page_link', [$cms, 'convertToDecoupledUrl'], 10, 2);
     add_filter('post_link', [$cms, 'convertToDecoupledUrl'], 10, 2);
     add_filter('post_type_link', [$cms, 'convertToDecoupledUrl'], 10, 2);
+
+    $acfLinks = new AcfLinkFormatter($cms->frontendUrls());
+    add_filter('cloakwp/block/data', function (array $block, array $fields) use ($acfLinks): array {
+      if (is_array($block['data'] ?? null)) {
+        $block['data'] = $acfLinks->formatFields($block['data'], $fields);
+      }
+
+      return $block;
+    }, 20, 2);
+
+    // Block Parser handles nested buttons and synced patterns before this filter.
+    // Keep frontend-origin knowledge here rather than in the generic parser.
+    add_filter('cloakwp/block', function (array $block) use ($cms): array {
+      if (($block['name'] ?? null) !== 'core/button' || !is_string($block['attrs']['url'] ?? null)) {
+        return $block;
+      }
+
+      $block['attrs']['url'] = $cms->frontendUrls()->makeRelative(
+        $block['attrs']['url'],
+        [home_url()],
+      );
+
+      return $block;
+    });
 
     $relativizeMenuItem = function ($meta) use ($cms) {
       if (!is_array($meta) || !isset($meta['url']) || !is_string($meta['url'])) {

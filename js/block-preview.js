@@ -92,12 +92,13 @@
    */
   const serverRenderEpochByKey = new Map();
 
-  /**
-   * Manual refresh: return the next fetch-block HTML so ACF remounts the
-   * iframe instead of reusing the cached shell.
-   * @type {Set<string>}
-   */
-  const forceRemountKeys = new Set();
+  /** @type {Map<string, Record<string, unknown>>} */
+  const previewAttributesByKey = new Map();
+  /** @type {Map<string, JQuery.jqXHR>} */
+  const refreshRequestsByKey = new Map();
+  /** @type {Map<string, number>} Ignore requests older than a successful refresh. */
+  const refreshSequenceByKey = new Map();
+  let fetchBlockSequence = 0;
 
   /**
    * Global optimistic epoch. Bumped on every accepted optimistic edit.
@@ -111,7 +112,7 @@
    * Meta for completed fetch-block XHRs, pushed in onreadystatechange(4)
    * immediately before ACF's handler so blocks/preview/render can shift the
    * matching request (not a start-time FIFO).
-   * @type {{ epoch: number }[]}
+   * @type {{ epoch: number, sequence: number }[]}
    */
   const fetchBlockCompletedMeta = [];
 
@@ -136,11 +137,15 @@
         // (before ACF processes the body) so out-of-order completions stay matched.
         const meta = {
           epoch: optimisticEpoch,
+          sequence: ++fetchBlockSequence,
         };
         const xhr = this;
         const prevRsc = xhr.onreadystatechange;
         xhr.onreadystatechange = function () {
-          if (xhr.readyState === 4) {
+          if (
+            xhr.readyState === 4 &&
+            bodyStr.indexOf("cloakwp_preview_refresh") === -1
+          ) {
             fetchBlockCompletedMeta.push(meta);
           }
           if (typeof prevRsc === "function") {
@@ -336,7 +341,7 @@
    * @param {string} protocolKey
    */
   function linkPreviewKeys(editorKey, protocolKey) {
-    if (!editorKey || !protocolKey || editorKey === protocolKey) return;
+    if (!editorKey || !protocolKey) return;
 
     const previousProtocolKey = protocolKeysByEditorKey.get(editorKey);
     if (previousProtocolKey && previousProtocolKey !== protocolKey) {
@@ -345,6 +350,14 @@
     const previousEditorKey = editorKeysByProtocolKey.get(protocolKey);
     if (previousEditorKey && previousEditorKey !== editorKey) {
       protocolKeysByEditorKey.delete(previousEditorKey);
+    }
+
+    // A fresh AJAX token can use the editor key itself. Drop the old preload
+    // alias or updates will still target its server-generated protocol key.
+    if (editorKey === protocolKey) {
+      protocolKeysByEditorKey.delete(editorKey);
+      editorKeysByProtocolKey.delete(protocolKey);
+      return;
     }
 
     protocolKeysByEditorKey.set(editorKey, protocolKey);
@@ -895,20 +908,28 @@
    * @param {string} key
    * @param {unknown} blockData
    * @param {boolean} isPageDark
-   * @param {{ authoritative?: boolean }} [opts]
+   * @param {{ authoritative?: boolean, manual?: boolean, epoch?: number }} [opts]
    */
   function storeAndFlush(key, blockData, isPageDark, opts) {
     const authoritative = !!(opts && opts.authoritative);
+    const manual = !!(opts && opts.manual);
 
     // Stale fetch-block: request's optimistic-epoch is older than the latest
     // local edit. Comparing per-request meta (not FIFO start times) so
     // out-of-order XHR completion can't apply an older body after a newer one.
     if (authoritative) {
-      const meta = fetchBlockCompletedMeta.length
-        ? fetchBlockCompletedMeta.shift()
-        : null;
-      const fetchEpoch =
-        meta && typeof meta.epoch === "number" ? meta.epoch : -1;
+      const meta =
+        !manual && fetchBlockCompletedMeta.length
+          ? fetchBlockCompletedMeta.shift()
+          : null;
+      if (meta && meta.sequence < (refreshSequenceByKey.get(key) || 0)) {
+        return false;
+      }
+      const fetchEpoch = manual
+        ? opts.epoch
+        : meta && typeof meta.epoch === "number"
+          ? meta.epoch
+          : -1;
       const lastEpoch = lastOptimisticEpochByKey.get(key) || 0;
 
       // Fetch must have started at the latest optimistic epoch. Capture-phase
@@ -919,7 +940,7 @@
         (fetchEpoch < 0 || fetchEpoch < lastEpoch);
       const serverEpoch = serverRenderEpochByKey.get(key);
       const serverRenderDue =
-        forceRemountKeys.has(key) ||
+        manual ||
         (serverEpoch != null &&
           (fetchEpoch < 0 || fetchEpoch >= serverEpoch));
 
@@ -934,7 +955,6 @@
       if (
         isStale &&
         serverRenderDue &&
-        !forceRemountKeys.has(key) &&
         blockData &&
         typeof blockData === "object" &&
         blockData.data &&
@@ -967,6 +987,7 @@
     let nextBlockData = blockData;
     if (
       authoritative &&
+      !manual &&
       blockData &&
       typeof blockData === "object" &&
       blockData.data &&
@@ -1718,23 +1739,101 @@
           ".decoupled-block-preview-ctnr",
         ));
     const key = root && root.getAttribute("data-cloakwp-preview-key");
-    if (key) {
-      serverRenderEpochByKey.set(key, 0);
-      forceRemountKeys.add(key);
-      htmlCache.delete(key);
+    const $ = window.jQuery;
+    if (!key || !$ || typeof acf === "undefined" || !window.wp?.data) return;
+    if (refreshRequestsByKey.has(key)) return;
+    const host = root.closest("[data-block]");
+    const clientId =
+      (host && host.getAttribute("data-block")) || key.replace(/^block_/, "");
+    const block = window.wp.data.select("core/block-editor").getBlock(clientId);
+    if (!block) return;
+    const attributes = Object.assign({}, block.attributes);
+    attributes.name = block.name || attributes.name;
+    const renderedAttributes = previewAttributesByKey.get(key) || {};
+    const context =
+      attributes._acf_context || renderedAttributes._acf_context || {};
+
+    // Read the mounted form as well: Gutenberg attributes lag ACF's 300ms
+    // change debounce. Sidebar forms live outside the block's canvas DOM.
+    if (typeof acf.serialize === "function") {
+      const docs = collectEditorDocuments();
+      for (let i = 0; i < docs.length; i++) {
+        const form = docs[i].querySelector(
+          '.acf-block-fields[data-block-id="block_' + clientId + '"]',
+        );
+        if (!form) continue;
+        const data = acf.serialize($(form), "acf-block_" + clientId);
+        if (data && Object.keys(data).length) attributes.data = data;
+        break;
+      }
     }
 
-    const $ = window.jQuery;
-    if (!$) return;
-    let $node = $(fromEl);
-    for (let i = 0; i < 8 && $node && $node.length; i++) {
-      const inst = $node.data("acf");
-      if (inst && typeof inst.fetch === "function") {
-        inst.fetch();
+    // ACF previews are React components, not DOM-attached ACF models. Send
+    // fetch-block directly to bypass both its preload and response caches.
+    const epoch = optimisticEpoch;
+    const sequence = fetchBlockSequence + 1;
+    fromEl.disabled = true;
+    fromEl.title = "Refresh preview";
+    fromEl.setAttribute("aria-busy", "true");
+    const request = $.ajax({
+      url: acf.get("ajaxurl"),
+      type: "post",
+      dataType: "json",
+      cache: false,
+      data: acf.prepareForAjax({
+        action: "acf/ajax/fetch-block",
+        block: JSON.stringify(attributes),
+        clientId,
+        context: JSON.stringify(context),
+        query: { preview: true },
+        cloakwp_preview_refresh: true,
+      }),
+    });
+    refreshRequestsByKey.set(key, request);
+    request.done(function (response) {
+      const preview = response && response.data && response.data.preview;
+      if (root.isConnected === false) return;
+      if (!preview) {
+        fromEl.title = "Preview refresh failed. Try again.";
         return;
       }
-      $node = $node.parent();
-    }
+      const html = response.data.clientId
+        ? preview.split(response.data.clientId).join(clientId)
+        : preview;
+      const blockData = parseBlockDataFromHtml(html);
+      if (!blockData || parsePreviewKey(html) !== key) {
+        fromEl.title = "Preview refresh failed. Try again.";
+        return;
+      }
+      refreshSequenceByKey.set(key, sequence);
+      storeAndFlush(key, blockData, parseIsPageDark(html), {
+        authoritative: true,
+        manual: true,
+        epoch,
+      });
+      const pending = pendingByKey.get(key);
+      const script = root.querySelector(".cloakwp-block-data");
+      if (script && pending) script.textContent = JSON.stringify(pending.blockData);
+      const iframe = root.querySelector("iframe.block-preview-iframe");
+      if (iframe) {
+        // Reload only the iframe so ACF's React-owned shell remains intact.
+        // The new ready handshake receives the freshly rendered payload.
+        clearHeightRequests(key);
+        readyKeys.delete(key);
+        readySourcesByKey.delete(key);
+        readyIframesByKey.delete(key);
+        const tokenKey = parseTokenPreviewKeyFromHtml(html);
+        if (tokenKey) linkPreviewKeys(key, tokenKey);
+        const src = html.match(/<iframe\b[^>]*\bsrc=["']([^"']+)["']/i);
+        iframe.src = src ? src[1].replace(/&amp;/g, "&") : iframe.src;
+      }
+    }).fail(function () {
+      fromEl.title = "Preview refresh failed. Try again.";
+    }).always(function () {
+      refreshRequestsByKey.delete(key);
+      fromEl.disabled = false;
+      fromEl.removeAttribute("aria-busy");
+    });
   }
 
   /**
@@ -2192,13 +2291,6 @@
       // Waiting for readySourcesByKey caused a race: fetch-block often completes
       // before the Next.js iframe handsakes, and returning stub/new HTML tore
       // down the loading iframe — new blocks then stayed blank until reload.
-      // Manual refresh opts out for one response so ACF remounts the iframe.
-      if (forceRemountKeys.has(key)) {
-        forceRemountKeys.delete(key);
-        if (hasIframe) htmlCache.set(key, html);
-        return html;
-      }
-
       if (htmlCache.has(key)) {
         return htmlCache.get(key);
       }
@@ -2206,7 +2298,7 @@
       return html;
     });
 
-    acf.addAction("render_block_preview", function ($el) {
+    acf.addAction("render_block_preview", function ($el, attributes) {
       const root =
         ($el &&
           typeof $el.find === "function" &&
@@ -2219,8 +2311,11 @@
 
       if (root) {
         const key = root.getAttribute("data-cloakwp-preview-key");
+        if (key && attributes) previewAttributesByKey.set(key, attributes);
         const fromDom = readPendingFromRoot(root);
-        if (key && fromDom) {
+        // Cached shell JSON can be older than optimistic or manual updates.
+        // Only bootstrap from it when no live payload is already available.
+        if (key && fromDom && !pendingByKey.has(key)) {
           pendingByKey.set(key, fromDom);
         }
 
@@ -2259,6 +2354,8 @@
         // neighbour's block data, and those iframes stay blank.
         if (!readyKeys.has(key)) return;
         htmlCache.delete(key);
+        previewAttributesByKey.delete(key);
+        refreshSequenceByKey.delete(key);
         readyKeys.delete(key);
         pendingByKey.delete(key);
         readySourcesByKey.delete(key);

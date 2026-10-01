@@ -45,7 +45,20 @@ async function createBridgeHarness({
   const timers = [];
   const messageListeners = [];
   const filters = new Map();
+  const actions = new Map();
+  const clickListeners = [];
   const previewMessages = [];
+  const requests = [];
+  let serializedData = null;
+
+  class FakeXHR {
+    open() {}
+    send() {}
+    complete() {
+      this.readyState = 4;
+      this.onreadystatechange();
+    }
+  }
 
   class FakeIframe {}
 
@@ -99,14 +112,60 @@ async function createBridgeHarness({
       }
       return null;
     },
-    addEventListener() {},
+    addEventListener(type, listener) {
+      if (type === "click") clickListeners.push(listener);
+    },
   };
   iframe.ownerDocument = document;
+  const dataScript = { textContent: JSON.stringify(blockData) };
+  const form = {};
+  const originalQuerySelector = document.querySelector;
+  document.querySelector = (selector) =>
+    selector.includes("acf-block-fields") && serializedData ? form : originalQuerySelector(selector);
+  const clientId = editorKey.replace(/^block_/, "");
+  const root = {
+    getAttribute: (name) => name === "data-cloakwp-preview-key" ? editorKey : null,
+    closest: () => ({ getAttribute: () => clientId }),
+    querySelector: (selector) => selector.includes("iframe") ? iframe : dataScript,
+  };
+  const button = {
+    disabled: false,
+    title: "Refresh preview",
+    attributes: new Map(),
+    closest: (selector) => selector === ".decoupled-block-preview-ctnr" ? root : button,
+    classList: { contains: () => true },
+    setAttribute(name, value) { this.attributes.set(name, value); },
+    removeAttribute(name) { this.attributes.delete(name); },
+  };
+  const attributes = { name: blockData.name, data: { field_gallery: [1] }, _acf_context: { postId: 13 } };
+  const jquery = () => ({ length: 1, data: () => null, parent: () => ({ length: 0 }) });
+  jquery.ajax = (options) => {
+    const callbacks = {};
+    const request = {
+      options,
+      done(fn) { callbacks.done = fn; return this; },
+      fail(fn) { callbacks.fail = fn; return this; },
+      always(fn) { callbacks.always = fn; return this; },
+      complete(response) {
+        this.xhr.complete();
+        callbacks.done(response);
+        callbacks.always();
+      },
+      reject() { callbacks.fail(); callbacks.always(); },
+      xhr: new FakeXHR(),
+    };
+    request.xhr.open("POST", options.url);
+    request.xhr.send(new URLSearchParams(options.data).toString());
+    requests.push(request);
+    return request;
+  };
 
   const window = {
     document,
     innerHeight: 900,
     location: { href: "https://wp.test/wp-admin/post.php?post=13" },
+    jQuery: jquery,
+    wp: { data: { select: () => ({ getBlock: () => ({ attributes }) }) } },
     addEventListener(type, listener) {
       if (type === "message") messageListeners.push(listener);
     },
@@ -118,7 +177,10 @@ async function createBridgeHarness({
     addFilter(name, callback) {
       filters.set(name, callback);
     },
-    addAction() {},
+    addAction(name, callback) { actions.set(name, callback); },
+    get: () => "https://wp.test/wp-admin/admin-ajax.php",
+    prepareForAjax: (data) => data,
+    serialize: () => serializedData,
   };
 
   const source = await readFile(bridgePath, "utf8");
@@ -137,6 +199,7 @@ async function createBridgeHarness({
   const context = vm.createContext({
     URL,
     HTMLIFrameElement: FakeIframe,
+    XMLHttpRequest: FakeXHR,
     acf,
     atob(value) {
       return Buffer.from(value, "base64").toString("utf8");
@@ -186,6 +249,31 @@ async function createBridgeHarness({
       while (timers.length) timers.shift()();
     },
     iframe,
+    button,
+    dataScript,
+    attributes,
+    requests,
+    renderPreview,
+    refresh() {
+      clickListeners[0]({ target: button, preventDefault() {}, stopPropagation() {} });
+    },
+    setSerializedData(data) { serializedData = data; },
+    remountCachedShell() {
+      dataScript.textContent = JSON.stringify(blockData);
+      actions.get("render_block_preview")({ find: () => [root] }, attributes);
+    },
+    startServerRequest() {
+      const xhr = new FakeXHR();
+      xhr.open("POST", "https://wp.test/wp-admin/admin-ajax.php");
+      xhr.send("action=acf%2Fajax%2Ffetch-block");
+      return xhr;
+    },
+    ready(nextProtocolKey = protocolKey) {
+      messageListeners[0]({
+        data: { type: "cloakwp-preview-ready", previewKey: nextProtocolKey },
+        origin: "https://frontend.test", source: previewWindow,
+      });
+    },
     optimisticUpdate: context.__cloakwpPreviewTest.applyOptimisticPathUpdate,
     mergeStaleServerData: context.__cloakwpPreviewTest.mergeStaleServerData,
     previewMessages,
@@ -214,6 +302,112 @@ test("keeps optimistic text and takes server galleries when merging a stale prev
   assert.equal(merged.heading, "Gallery updated");
   assert.equal(merged.manual_images.length, 1);
   assert.equal(merged.manual_images[0].url, "https://cdn.test/a.jpg");
+});
+
+test("refresh sends uncached fetch-block with current form values and reloads the iframe", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_images", protocolKey: "block_images_signed",
+    blockData: { name: "acf/images", data: { images: [{ url: "https://cdn.test/removed.jpg" }] } },
+  });
+  harness.setSerializedData({ field_gallery: [2, 3] });
+  harness.refresh();
+  harness.refresh();
+  assert.equal(harness.requests.length, 1, "ignore clicks while refresh is running");
+  const request = harness.requests[0];
+  assert.equal(request.options.data.action, "acf/ajax/fetch-block");
+  assert.equal(request.options.data.clientId, "images");
+  assert.deepEqual(JSON.parse(request.options.data.block).data, { field_gallery: [2, 3] });
+  assert.deepEqual(JSON.parse(request.options.data.context), { postId: 13 });
+  assert.equal(request.options.cache, false);
+  assert.equal(harness.button.disabled, true);
+
+  request.complete({ data: { preview: previewHtml("block_images", "block_images_signed", {
+    name: "acf/images", data: { images: [{ url: "https://cdn.test/new.jpg" }] },
+  }) } });
+  assert.match(harness.iframe.src, /token=/);
+  assert.equal(harness.button.disabled, false);
+  harness.ready();
+  assert.equal(harness.previewMessages.at(-1).payload.blockData.data.images[0].url, "https://cdn.test/new.jpg");
+  assert.equal(JSON.parse(harness.dataScript.textContent).data.images[0].url, "https://cdn.test/new.jpg");
+  harness.remountCachedShell();
+  harness.ready();
+  assert.equal(harness.previewMessages.at(-1).payload.blockData.data.images[0].url, "https://cdn.test/new.jpg");
+});
+
+test("refresh accepts a cleared gallery without preserving removed images", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_images", protocolKey: "block_images_signed",
+    blockData: { name: "acf/images", data: { images: [{ url: "https://cdn.test/removed.jpg" }] } },
+  });
+  harness.refresh();
+  harness.requests[0].complete({ data: { preview: previewHtml("block_images", "block_images_signed", {
+    name: "acf/images", data: { images: [] },
+  }) } });
+  harness.ready();
+  assert.equal(harness.previewMessages.at(-1).payload.blockData.data.images.length, 0);
+});
+
+test("refresh drops the preload alias when the new token uses the editor key", async () => {
+  const editorKey = "block_images";
+  const harness = await createBridgeHarness({
+    editorKey, protocolKey: "block_preload_hash",
+    blockData: { name: "acf/images", data: { images: [] } },
+  });
+  harness.refresh();
+  harness.requests[0].complete({ data: { preview: previewHtml(editorKey, editorKey, {
+    name: "acf/images", data: { images: [{ url: "https://cdn.test/new.jpg" }] },
+  }) } });
+  harness.ready(editorKey);
+  assert.equal(harness.previewMessages.at(-1).payload.previewKey, editorKey);
+  assert.equal(harness.previewMessages.at(-1).payload.blockData.data.images[0].url, "https://cdn.test/new.jpg");
+});
+
+test("an older background response cannot overwrite a completed manual refresh", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_images", protocolKey: "block_images_signed",
+    blockData: { name: "acf/images", data: { images: [{ url: "https://cdn.test/removed.jpg" }] } },
+  });
+  const oldRequest = harness.startServerRequest();
+  harness.refresh();
+  harness.requests[0].complete({ data: { preview: previewHtml("block_images", "block_images_signed", {
+    name: "acf/images", data: { images: [{ url: "https://cdn.test/new.jpg" }] },
+  }) } });
+  harness.ready();
+  oldRequest.complete();
+  harness.renderPreview(previewHtml("block_images", "block_images_signed", {
+    name: "acf/images", data: { images: [{ url: "https://cdn.test/removed.jpg" }] },
+  }), false);
+  harness.ready();
+  assert.equal(harness.previewMessages.at(-1).payload.blockData.data.images[0].url, "https://cdn.test/new.jpg");
+});
+
+test("refresh retains text edited while its request was in flight", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_images", protocolKey: "block_images_signed",
+    blockData: { name: "acf/images", data: { heading: "Gallery", images: [] } },
+  });
+  harness.refresh();
+  harness.optimisticUpdate("block_images", ["heading"], "New heading", "test");
+  harness.requests[0].complete({ data: { preview: previewHtml("block_images", "block_images_signed", {
+    name: "acf/images", data: { heading: "Gallery", images: [{ url: "https://cdn.test/new.jpg" }] },
+  }) } });
+  harness.ready();
+  const data = harness.previewMessages.at(-1).payload.blockData.data;
+  assert.equal(data.heading, "New heading");
+  assert.equal(data.images[0].url, "https://cdn.test/new.jpg");
+});
+
+test("failed refresh leaves the button available to retry", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_images", protocolKey: "block_images_signed",
+    blockData: { name: "acf/images", data: { images: [] } },
+  });
+  harness.refresh();
+  harness.requests[0].reject();
+  assert.equal(harness.button.disabled, false);
+  assert.equal(harness.button.attributes.has("aria-busy"), false);
+  harness.refresh();
+  assert.equal(harness.requests.length, 2);
 });
 
 test("sends an optimistic ACF field update when the signed and editor preview keys differ", async () => {

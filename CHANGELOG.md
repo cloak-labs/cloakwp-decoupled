@@ -8,6 +8,9 @@
 - GitHub Actions workflow at `.github/workflows/test.yml` (globals contract + PHPUnit).
 
 ### Changed
+- ACF Page Link fields also emit relative internal URLs, including the shared theme's Link group preset and fields with multiple selections.
+- ACF Link fields now also recognize WordPress home URLs and normalize raw parsed block values, including nested groups, repeaters, and flexible content, while preserving titles and targets.
+- Internal `core/button` links in structured block data now use relative paths, matching known frontend/deployment URLs and the current WordPress home URL while preserving queries, fragments, and external links.
 - Globals contract tests and docs use generic slugs; field names are application-defined, not part of this package's API.
 - `?relative_images=1` now also rewrites ACF **file** field URLs (videos, PDFs, etc.) to path-only srcs, including nested Gutenberg-stored attachment arrays that skip `format_value`.
 

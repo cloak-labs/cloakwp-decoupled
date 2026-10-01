@@ -75,6 +75,11 @@ final class FrontendUrlTransformer
         return '/';
       }
 
+      // A homepage link can have a query or fragment without an explicit slash.
+      if (stripos($url, $base . '?') === 0 || stripos($url, $base . '#') === 0) {
+        return '/' . substr($url, strlen($base));
+      }
+
       // Compare origin case-insensitively; keep the original path casing.
       if (stripos($url, $base . '/') === 0) {
         return substr($url, strlen($base)) ?: '/';

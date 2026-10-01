@@ -83,6 +83,25 @@ Each `Frontend` has a stable key and public URL. Optional configuration includes
 Retrieve frontends with `getActiveFrontend()`, `getFrontend($key)`, or
 `getFrontends()`.
 
+Internal `core/button` URLs in Block Parser's structured `attrs.url` output
+become root-relative paths, including buttons nested in `core/buttons` or
+synced patterns. The active frontend URL, its configured `deployments()`, and
+the current WordPress `home_url()` are recognized as internal bases. Query
+strings and fragments are preserved; external URLs, `mailto:`, and `tel:`
+links keep their original values. Saved editor content is unchanged.
+
+ACF Link and Page Link fields use the same internal bases in REST responses (including globals)
+and parsed ACF block data. Both array and URL return formats are supported;
+link titles and targets are preserved. Nested groups, repeaters, and flexible
+content layouts are handled using registered field definitions, so image, file,
+and other URL fields are unaffected.
+
+This includes the `page_link` field inside the shared theme's Link group preset
+(`type`, `internal`, `custom`, `target`) and Page Link fields with multiple URLs.
+
+Use the `cloakwp/relative_frontend_urls` filter to add other internal bases,
+such as a production URL still stored in content copied to a local environment.
+
 ## REST resources
 
 The package registers:
