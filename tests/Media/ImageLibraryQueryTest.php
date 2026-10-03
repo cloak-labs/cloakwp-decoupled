@@ -34,6 +34,8 @@ final class ImageLibraryQueryTest extends TestCase
     $this->assertSame(2, $args['paged']);
     $this->assertArrayNotHasKey('post_parent', $args);
     $this->assertSame('ids', $args['fields']);
+    $this->assertFalse($args['cloakwp_virtual_fields']);
+    $this->assertArrayNotHasKey('suppress_filters', $args);
   }
 
   public function testBuildArgsKeepsPostObjectsWhenIncludingProject(): void
@@ -253,6 +255,10 @@ final class ImageLibraryQueryTest extends TestCase
     $this->assertArrayNotHasKey('related', $page2['items'][0]);
     $this->assertSame(6, $page1['total']);
     $this->assertSame(2, $page1['totalPages']);
+    $outside = $query->run(3, 3, [], [], true, ImageLibraryQuery::SCATTER_PROJECT);
+    $this->assertSame([], $outside['items']);
+    $this->assertSame(6, $outside['total']);
+    $this->assertSame(2, $outside['totalPages']);
   }
 
   public function testScatterGroupsDraftProjectImagesWithoutPublicLinks(): void

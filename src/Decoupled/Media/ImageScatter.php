@@ -32,13 +32,15 @@ final class ImageScatter
     int $window = self::VIEWPORT_WINDOW,
     int $maxPerGroup = self::MAX_PER_PROJECT_IN_VIEWPORT,
     int $priorityShare = 0,
+    ?int $limit = null,
   ): array {
     $window = max(1, $window);
     $maxPerGroup = max(1, $maxPerGroup);
     $priorityShare = max(0, min(100, $priorityShare));
     $count = count($entries);
-    if ($count < 2) {
-      return $entries;
+    $limit = $limit === null ? $count : min($count, max(0, $limit));
+    if ($count < 2 || $limit === 0) {
+      return array_slice($entries, 0, $limit);
     }
 
     $usePriority = $priorityShare > 0 && self::hasPriority($entries);
@@ -48,18 +50,38 @@ final class ImageScatter
     $windowGroups = [];
     $cursor = 0;
     $priorityPlaced = 0;
+    $priorityIndexes = [];
+    $priorityCursor = 0;
+    if ($usePriority) {
+      foreach ($entries as $index => $entry) {
+        if (array_key_exists('priority', $entry)) {
+          $priorityIndexes[] = $index;
+        }
+      }
+      // Rank first, then newest first, exactly as the original greedy scan.
+      usort($priorityIndexes, static fn(int $a, int $b): int =>
+        ((int) $entries[$a]['priority'] <=> (int) $entries[$b]['priority']) ?: ($a <=> $b)
+      );
+    }
 
-    for ($placed = 0; $placed < $count; $placed++) {
+    for ($placed = 0; $placed < $limit; $placed++) {
       $pick = null;
       if ($usePriority) {
         $wantPriority = ($priorityPlaced * 100) < ($priorityShare * ($placed + 1));
-        $pick = self::firstThatFits(
+        $pick = $wantPriority ? self::firstPriorityThatFits(
+          $entries,
+          $used,
+          $priorityIndexes,
+          $priorityCursor,
+          $counts,
+          $maxPerGroup,
+        ) : self::firstThatFits(
           $entries,
           $used,
           $cursor,
           $counts,
           $maxPerGroup,
-          $wantPriority ? 'priority' : 'rest',
+          'rest',
         );
       }
       if ($pick === null) {
@@ -94,6 +116,37 @@ final class ImageScatter
     }
 
     return $out;
+  }
+
+  /**
+   * The first eligible entry in rank/date order wins; no full-library rank scan.
+   * Blocked entries remain available when their project leaves the viewport.
+   *
+   * @param list<array{id: int, group: string, priority?: int}> $entries
+   * @param list<bool> $used
+   * @param list<int> $indexes
+   * @param array<string, int> $counts
+   */
+  private static function firstPriorityThatFits(
+    array $entries,
+    array $used,
+    array $indexes,
+    int &$cursor,
+    array $counts,
+    int $maxPerGroup,
+  ): ?int {
+    $count = count($indexes);
+    while ($cursor < $count && $used[$indexes[$cursor]]) {
+      $cursor++;
+    }
+    for ($position = $cursor; $position < $count; $position++) {
+      $index = $indexes[$position];
+      if (!$used[$index] && ($counts[$entries[$index]['group']] ?? 0) < $maxPerGroup) {
+        return $index;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -143,7 +196,7 @@ final class ImageScatter
    * @param list<array{id: int, group: string, priority?: int}> $entries
    * @param list<bool> $used
    * @param array<string, int> $counts
-   * @param 'any'|'priority'|'rest' $pool
+   * @param 'any'|'rest' $pool
    */
   private static function firstThatFits(
     array $entries,
@@ -154,16 +207,11 @@ final class ImageScatter
     string $pool = 'any',
   ): ?int {
     $count = count($entries);
-    $best = null;
-    $bestRank = PHP_INT_MAX;
     for ($index = $cursor; $index < $count; $index++) {
       if ($used[$index]) {
         continue;
       }
       $hasPriority = array_key_exists('priority', $entries[$index]);
-      if ($pool === 'priority' && !$hasPriority) {
-        continue;
-      }
       if ($pool === 'rest' && $hasPriority) {
         continue;
       }
@@ -171,17 +219,10 @@ final class ImageScatter
       if (($counts[$group] ?? 0) >= $maxPerGroup) {
         continue;
       }
-      if ($pool !== 'priority') {
-        return $index;
-      }
-      $rank = (int) $entries[$index]['priority'];
-      if ($best === null || $rank < $bestRank) {
-        $best = $index;
-        $bestRank = $rank;
-      }
+      return $index;
     }
 
-    return $best;
+    return null;
   }
 
   /**

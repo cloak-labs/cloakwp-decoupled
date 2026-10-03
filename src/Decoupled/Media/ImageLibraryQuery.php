@@ -105,6 +105,8 @@ final class ImageLibraryQuery
       'order' => 'DESC',
       'no_found_rows' => false,
       'ignore_sticky_posts' => true,
+      // Only native attachment fields are consumed; enrich the requested page below.
+      'cloakwp_virtual_fields' => false,
     ];
     if (!$includeProject) {
       $args['fields'] = 'ids';
@@ -117,7 +119,7 @@ final class ImageLibraryQuery
   }
 
   /**
-   * Load every matching image, scatter by project, then slice the requested page.
+   * Load matching image identities, scatter through the requested page, then slice.
    * Pagination has to be applied after the reorder so page 2 continues the same sequence.
    *
    * @param array<string, string> $include
@@ -146,6 +148,18 @@ final class ImageLibraryQuery
     $query = ($this->queryFactory)($args);
     [$ids, $parents] = $this->idsAndParents($query->posts ?? []);
 
+    $total = count($ids);
+    $totalPages = (int) ceil($total / $perPage);
+    if (($page - 1) * $perPage >= $total) {
+      return [
+        'items' => [],
+        'total' => $total,
+        'totalPages' => $totalPages,
+        'page' => $page,
+        'perPage' => $perPage,
+      ];
+    }
+
     $lookup = $this->projectLookup ?? new ProjectImageLookup();
     $projectIds = $lookup->projectIds($ids, $parents);
     $ranks = $this->ranksFor($ids, $priorityTerms, $priorityShare);
@@ -167,14 +181,13 @@ final class ImageLibraryQuery
       ImageScatter::VIEWPORT_WINDOW,
       ImageScatter::MAX_PER_PROJECT_IN_VIEWPORT,
       $priorityShare,
+      $page * $perPage,
     );
     $orderedIds = [];
     foreach ($scattered as $entry) {
       $orderedIds[] = $entry['id'];
     }
 
-    $total = count($orderedIds);
-    $totalPages = $perPage > 0 ? (int) ceil($total / $perPage) : 0;
     $pageIds = array_slice($orderedIds, ($page - 1) * $perPage, $perPage);
 
     return [
@@ -216,6 +229,9 @@ final class ImageLibraryQuery
    */
   private function formatItems(array $ids, array $parents, bool $includeProject): array
   {
+    if ($ids !== [] && function_exists('update_meta_cache')) {
+      update_meta_cache('post', $ids);
+    }
     $items = [];
     foreach ($ids as $id) {
       if ($id <= 0) {

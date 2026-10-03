@@ -128,6 +128,24 @@ final class ImageScatterTest extends TestCase
     $this->assertSame([2 => 0, 3 => 1], $ranks);
   }
 
+  public function testLimitedScatterIsExactlyThePrefixOfTheFullOrder(): void
+  {
+    $entries = [];
+    for ($id = 1; $id <= 80; $id++) {
+      $entry = ['id' => $id, 'group' => 'project:' . (int) floor(($id - 1) / 10)];
+      if ($id % 3 !== 0) {
+        $entry['priority'] = $id % 4;
+      }
+      $entries[] = $entry;
+    }
+    foreach ([0, 50, 70, 100] as $share) {
+      $full = ImageScatter::reorder($entries, 12, 2, $share);
+      foreach ([0, 1, 20, 40, 79, 80, 100] as $limit) {
+        $this->assertSame(array_slice($full, 0, $limit), ImageScatter::reorder($entries, 12, 2, $share, $limit));
+      }
+    }
+  }
+
   /**
    * @param list<int> $ids
    * @return list<int>

@@ -185,6 +185,14 @@ final class ProjectImageLookup
   private function buildIndex(): array
   {
     $projects = $this->projectPosts();
+    $projectIds = array_values(array_filter(array_map(
+      static fn(object $project): int => (int) ($project->ID ?? 0),
+      $projects,
+    )));
+    if ($projectIds !== [] && function_exists('update_meta_cache')) {
+      // Summary subtitles also read meta; prime before building summaries.
+      update_meta_cache('post', $projectIds);
+    }
     $summaries = [];
     $projectImageIds = [];
     $assignable = [];
@@ -212,9 +220,6 @@ final class ProjectImageLookup
     }
 
     $projectIds = array_keys($projectImageIds);
-    if (function_exists('update_meta_cache')) {
-      update_meta_cache('post', $projectIds);
-    }
 
     $metaKeys = self::imageMetaKeys();
     foreach ($projectIds as $projectId) {
@@ -272,6 +277,7 @@ final class ProjectImageLookup
       'ignore_sticky_posts' => true,
       'update_post_meta_cache' => false,
       'update_post_term_cache' => false,
+      'cloakwp_virtual_fields' => false,
     ]);
 
     return is_array($posts) ? array_values($posts) : [];
