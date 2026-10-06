@@ -22,8 +22,11 @@ final class AcfPostFiltersProvider implements ServiceProvider
       return;
     }
 
-    add_filter('acf/acf_get_posts/args', function ($args) {
-      return wp_parse_args($args, ['suppress_filters' => false]);
-    }, 10, 1);
+    add_filter('acf/acf_get_posts/args', [self::class, 'queryArgs'], 10, 1);
+  }
+
+  public static function queryArgs(array $args): array
+  {
+    return wp_parse_args($args, ['suppress_filters' => false]);
   }
 }

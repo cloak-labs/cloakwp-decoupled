@@ -14,6 +14,7 @@ use CloakWP\Decoupled\Contracts\ImageFormatter as ImageFormatterContract;
 use CloakWP\Decoupled\Contracts\MenuRepository;
 use CloakWP\Decoupled\Media\ImageFormatter;
 use CloakWP\Decoupled\Providers\AcfPostFiltersProvider;
+use CloakWP\Decoupled\Providers\AcfPerformanceProvider;
 use CloakWP\Decoupled\Providers\BlockParserProvider;
 use CloakWP\Decoupled\Providers\ConfiguredResourcesProvider;
 use CloakWP\Decoupled\Providers\CorsProvider;
@@ -649,6 +650,7 @@ final class CMS implements FrontendResolver
   private function defaultProviders(): array
   {
     return [
+      new AcfPerformanceProvider(),
       new ConfiguredResourcesProvider(),
       new EditorAssetsProvider(),
       new RestEndpointsProvider(),

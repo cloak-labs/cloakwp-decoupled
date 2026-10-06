@@ -122,6 +122,14 @@ The package registers:
 Menus use WordPress's native navigation APIs. Replace the implementation with
 `useMenuRepository()` when a project needs another source.
 
+When ACF is active, REST requests index its native local-field registry by parent
+before schema construction and field extraction. Field loaders, formatting
+callbacks, and value hooks still run normally. Registry edits invalidate the
+index; custom stores and unsupported queries use their original behavior. Opt
+out with `add_filter('cloakwp/acf/index_fields', '__return_false');` or remove
+`AcfPerformanceProvider` before boot. See [the integration checks](tests/Integration/README.md)
+for coverage and the separate BlockParser index setting.
+
 ## Globals
 
 **Globals** are site-wide values any page might need. They are not a

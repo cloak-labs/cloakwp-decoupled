@@ -7,6 +7,7 @@ namespace CloakWP\Decoupled\Providers;
 use CloakWP\Core\Utils;
 use CloakWP\Decoupled\CMS;
 use CloakWP\Decoupled\Support\Acf;
+use CloakWP\Decoupled\Support\PostTerms;
 use CloakWP\VirtualFields\VirtualField;
 
 final class VirtualFieldsProvider implements ServiceProvider
@@ -30,11 +31,13 @@ final class VirtualFieldsProvider implements ServiceProvider
 
       register_virtual_fields($publicPostTypes, [
         VirtualField::make('pathname')
+          ->discardableForMediaQueries()
           ->value(fn($post) => Utils::getPostPathname(is_array($post) ? $post['id'] : $post->ID)),
       ]);
 
       $postFields = [
         VirtualField::make('featured_image')
+          ->discardableForMediaQueries()
           ->value(function ($post) use ($formatter) {
             if ($post === null) {
               return;
@@ -43,6 +46,7 @@ final class VirtualFieldsProvider implements ServiceProvider
             return $formatter->format(get_post_thumbnail_id($postId));
           }),
         VirtualField::make('author')
+          ->discardableForMediaQueries()
           ->value(function ($post) {
             if ($post === null) {
               return;
@@ -54,6 +58,17 @@ final class VirtualFieldsProvider implements ServiceProvider
 
       if (Acf::isActive()) {
         $postFields[] = VirtualField::make('acf')
+          ->discardableForMediaQueries(static function ($post): bool {
+            // Attachments with ACF values can have relationships and formatting
+            // callbacks. Run those normally to retain their full recursion state.
+            foreach (get_post_meta($post->ID) as $name => $values) {
+              if (str_starts_with((string) $name, '_') && is_string($values[0] ?? null)
+                && str_starts_with($values[0], 'field_')) {
+                return false;
+              }
+            }
+            return true;
+          })
           ->value(function ($post, array $state = []) {
             if ($post === null) {
               return;
@@ -116,6 +131,7 @@ final class VirtualFieldsProvider implements ServiceProvider
       }
 
       $postFields[] = VirtualField::make('taxonomies')
+          ->discardableForMediaQueries()
           ->value(function ($post) {
             if ($post === null) {
               return;
@@ -126,7 +142,7 @@ final class VirtualFieldsProvider implements ServiceProvider
             $taxonomiesData = [];
 
             foreach ($taxonomies as $taxonomy) {
-              $terms = wp_get_post_terms($post->ID, $taxonomy);
+              $terms = PostTerms::get($post->ID, $taxonomy);
               $termsData = [];
               foreach ($terms as $term) {
                 $termsData[] = [

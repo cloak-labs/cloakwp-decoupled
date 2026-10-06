@@ -6,6 +6,7 @@ namespace CloakWP\Decoupled\Providers;
 
 use CloakWP\Decoupled\CMS;
 use CloakWP\Decoupled\Media\RelativeUploadUrl;
+use CloakWP\Decoupled\Media\AcfMediaValues;
 use CloakWP\Decoupled\Support\Acf;
 
 final class ImageFormattingProvider implements ServiceProvider
@@ -23,15 +24,16 @@ final class ImageFormattingProvider implements ServiceProvider
     $formatter = $cms->images();
 
     if (Acf::isActive()) {
-      add_filter('acf/format_value/type=image', function ($value) use ($formatter) {
+      $imageFormat = function ($value) use ($formatter) {
         if (is_array($value)) {
           return $formatter->format($value['ID']);
         }
 
         return $value;
-      }, 20, 3);
+      };
+      add_filter('acf/format_value/type=image', $imageFormat, 20, 3);
 
-      add_filter('acf/format_value/type=gallery', function ($value, $postId) use ($formatter) {
+      $galleryFormat = function ($value, $postId) use ($formatter) {
         if (!is_array($value)) {
           return $value;
         }
@@ -42,7 +44,17 @@ final class ImageFormattingProvider implements ServiceProvider
         }
 
         return $gallery;
-      }, 99, 3);
+      };
+      add_filter('acf/format_value/type=gallery', $galleryFormat, 99, 3);
+      $optimize = static function () use ($imageFormat, $galleryFormat): void {
+        AcfMediaValues::wrap('image', $imageFormat, 20);
+        AcfMediaValues::wrap('gallery', $galleryFormat, 99);
+      };
+      if (did_action('acf/init')) {
+        $optimize();
+      } else {
+        add_action('acf/init', $optimize, 20);
+      }
 
       add_filter('acf/format_value/type=file', static function ($value) {
         return RelativeUploadUrl::coerceFileToId($value);
