@@ -15,12 +15,15 @@ $compare = static function ($id, $taxonomy) use (&$checks): void {
     }
     $checks++;
 };
+$fixture = null;
 foreach ($ids as $id) {
-    foreach (get_object_taxonomies(get_post_type($id)) as $taxonomy) $compare($id, $taxonomy);
+    foreach (get_object_taxonomies(get_post_type($id)) as $taxonomy) {
+        $compare($id, $taxonomy);
+        $fixture ??= [$id, $taxonomy];
+    }
 }
-if (!$checks) throw new RuntimeException('No taxonomy fixtures found.');
-$id = $ids[0];
-$taxonomy = get_object_taxonomies(get_post_type($id))[0];
+if (!$fixture) throw new RuntimeException('No taxonomy fixtures found.');
+[$id, $taxonomy] = $fixture;
 $custom = static fn($terms) => array_reverse($terms);
 foreach (['get_object_terms', 'wp_get_object_terms', 'get_terms'] as $hook) {
     add_filter($hook, $custom, 99);

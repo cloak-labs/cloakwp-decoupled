@@ -46,8 +46,15 @@ foreach (['array', 'id', 'url'] as $format) {
     foreach ([$ids[0], 0, false, 'invalid', 999999999] as $value) $compare($value, 'image', $format);
     foreach ([$ids, array_reverse($ids), [$ids[0], $ids[0], 999999999, $ids[1]], [], [999999999]] as $value) $compare($value, 'gallery', $format);
 }
-$typeCallback = static function ($value) {
-    if (is_array($value)) return ['custom' => $value];
+$typeCallback = static function ($value) use ($ids) {
+    if (is_array($value)) {
+        // Keep valid ACF image/gallery shapes while changing the formatter input.
+        if (isset($value['ID'])) {
+            $value['ID'] = $ids[1];
+            return $value;
+        }
+        return array_reverse($value);
+    }
     return $value;
 };
 foreach (['image', 'gallery'] as $type) {
