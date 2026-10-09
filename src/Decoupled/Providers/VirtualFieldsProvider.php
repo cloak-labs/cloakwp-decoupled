@@ -168,7 +168,7 @@ final class VirtualFieldsProvider implements ServiceProvider
                 return [];
               }
               $parser = $cms->getBlockParser();
-              return $parser ? $parser->parseBlocksFromPost($post) : [];
+              return $parser ? $parser->parseBlocksFromPostCached($post) : [];
             })
             ->excludeFrom(['core', 'acf']),
         ]);
