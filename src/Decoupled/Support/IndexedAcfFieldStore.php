@@ -5,9 +5,23 @@ declare(strict_types=1);
 namespace CloakWP\Decoupled\Support;
 
 /**
- * Accelerates ACF's repeated parent queries without changing field loading.
- * Loaded only when ACF_Data is available. All public state is shared with the
- * original store, including writes made through a previously retained handle.
+ * Indexes ACF's local field definitions by parent to avoid repeated full scans.
+ *
+ * acf_get_local_fields($parent) uses ACF_Data::query(), which calls
+ * wp_list_filter() over every registered field. REST schema construction and
+ * nested field loading repeat these scans for groups, repeaters, flexible
+ * content and clones, making large registries expensive even without DB queries.
+ *
+ * This store lazily groups fields by parent and reuses that index while the
+ * underlying data is unchanged. Supported parent lookups then return only the
+ * matching children, preserving their keys and order, instead of scanning the
+ * entire registry again. The improvement reduces PHP CPU work; field loading,
+ * value formatting and their filters still run through ACF's normal pipeline.
+ *
+ * All public state is shared with the original store, including writes through
+ * retained handles and multisite switches. Data changes rebuild the index;
+ * unsupported queries or data that cannot be safely indexed use native matching.
+ * Loaded only when ACF_Data is available.
  *
  * @internal
  */
