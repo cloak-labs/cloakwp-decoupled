@@ -121,10 +121,12 @@ final class NativeMenuRepository implements MenuRepository
     $meta['object'] = (string) ($item->object ?? $meta['object'] ?? '');
     $meta['menu_item_parent'] = (string) ($item->menu_item_parent ?? 0);
     $meta['url'] = (string) ($item->url ?? $meta['url'] ?? '#');
-    $meta['title'] = (string) ($item->title ?? $meta['title'] ?? '');
+    // WP stores/filters "&" as &#038; (and similar entities); JSON consumers need
+    // plain text so React text nodes don't render the entity literally.
+    $meta['title'] = $this->decodeMenuText((string) ($item->title ?? $meta['title'] ?? ''));
     $meta['target'] = (string) ($item->target ?? $meta['target'] ?? '');
-    $meta['attr_title'] = (string) ($item->attr_title ?? $meta['attr_title'] ?? '');
-    $meta['description'] = (string) ($item->description ?? $meta['description'] ?? '');
+    $meta['attr_title'] = $this->decodeMenuText((string) ($item->attr_title ?? $meta['attr_title'] ?? ''));
+    $meta['description'] = $this->decodeMenuText((string) ($item->description ?? $meta['description'] ?? ''));
     $classes = $item->classes ?? $meta['classes'] ?? [];
     $meta['classes'] = is_array($classes) ? implode(' ', array_filter($classes)) : (string) $classes;
     $meta['id'] = (int) $item->ID;
@@ -139,6 +141,14 @@ final class NativeMenuRepository implements MenuRepository
     }
 
     return $meta;
+  }
+
+  /**
+   * Decode HTML entities WordPress leaves in menu labels (e.g. &#038; → &).
+   */
+  private function decodeMenuText(string $value): string
+  {
+    return html_entity_decode($value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
   }
 
   /**

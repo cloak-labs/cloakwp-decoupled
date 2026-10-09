@@ -8,6 +8,7 @@
 - GitHub Actions workflow at `.github/workflows/test.yml` (globals contract + PHPUnit).
 
 ### Changed
+- Menu item `title`, `attr_title`, and `description` decode HTML entities (e.g. `&#038;` → `&`) so decoupled frontends render ampersands as plain text.
 - ACF Page Link fields also emit relative internal URLs, including the shared theme's Link group preset and fields with multiple selections.
 - ACF Link fields now also recognize WordPress home URLs and normalize raw parsed block values, including nested groups, repeaters, and flexible content, while preserving titles and targets.
 - Internal `core/button` links in structured block data now use relative paths, matching known frontend/deployment URLs and the current WordPress home URL while preserving queries, fragments, and external links.

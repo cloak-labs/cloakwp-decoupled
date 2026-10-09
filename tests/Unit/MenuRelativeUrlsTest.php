@@ -79,6 +79,32 @@ final class MenuRelativeUrlsTest extends TestCase
     $this->assertSame('/team', $meta['url']);
   }
 
+  public function testRepositoryDecodesHtmlEntitiesInMenuItemLabels(): void
+  {
+    WpStubs::$navMenus[12] = (object) [
+      'term_id' => 12,
+      'name' => 'Header Menu',
+      'slug' => 'header-menu',
+      'term_group' => 0,
+      'term_taxonomy_id' => 12,
+      'count' => 1,
+    ];
+    WpStubs::$navMenuLocations = ['header_menu' => 12];
+    WpStubs::$navMenuItems[12] = [
+      $this->menuItem(1, '/services/', 'Design &#038; Build'),
+    ];
+    WpStubs::$navMenuItems[12][0]->attr_title = 'Design &amp; Build';
+    WpStubs::$navMenuItems[12][0]->description = 'Strategy &#038; execution';
+
+    $menu = (new NativeMenuRepository())->findBySlug('header-menu');
+
+    $this->assertNotNull($menu);
+    $item = $menu['menu_items'][0];
+    $this->assertSame('Design & Build', $item['title']);
+    $this->assertSame('Design & Build', $item['attr_title']);
+    $this->assertSame('Strategy & execution', $item['description']);
+  }
+
   private function menuItem(
     int $id,
     string $url,
