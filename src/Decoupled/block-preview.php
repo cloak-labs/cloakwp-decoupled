@@ -6,7 +6,7 @@ use CloakWP\Core\Utils;
 /**
  * ACF Block Decoupled Preview Template.
  *
- * Renders an iframe pointing at the frontend block-preview route, plus JSON
+ * Renders an iframe pointing at the frontend block-preview route, plus encoded JSON
  * block data for the editor. Companion script `js/block-preview.js` owns the
  * live update path:
  * - Keeps the iframe mounted across ACF `fetch-block` AJAX re-renders
@@ -195,6 +195,8 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
 
   $blockParser = new BlockParser();
   $blockData = $blockParser->transformBlock($formattedData, $post_id);
+  // ACF removes script attributes before jQuery inserts preview HTML, making
+  // application/json scripts executable. Keep payloads in an inert attribute.
   $json = wp_json_encode($blockData ?? null);
   $postPathname = Utils::getPostPathname($post_id);
   if (!is_string($postPathname) || $postPathname === '' || !str_starts_with($postPathname, '/')) {
@@ -253,6 +255,7 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
     data-cloakwp-preview-key="<?php echo esc_attr($previewKey); ?>"
     data-cloakwp-preview-origin="<?php echo esc_attr($iframeOrigin); ?>"
     data-cloakwp-preview-initial-height="<?php echo esc_attr($previewInitialHeight); ?>"
+    data-cloakwp-block-data="<?php echo esc_attr(base64_encode($json ?: 'null')); ?>"
     data-cloakwp-is-page-dark="<?php echo $isPageDark ? '1' : '0'; ?>"
   >
     <!-- Block selector icon overlay on hover (editor only) -->
@@ -301,10 +304,6 @@ if (isset($block['data']['cloakwp_block_inserter_preview_image'])) {
     </script>
     <?php endif; ?>
 
-    <script type="application/json" class="cloakwp-block-data"><?php echo $json; ?></script>
-    <script type="application/json" class="cloakwp-preview-meta"><?php echo wp_json_encode([
-      'isPageDark' => $isPageDark,
-    ]); ?></script>
   </div>
 <?php
 }

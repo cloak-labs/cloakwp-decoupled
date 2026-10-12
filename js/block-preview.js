@@ -1813,7 +1813,15 @@
       });
       const pending = pendingByKey.get(key);
       const script = root.querySelector(".cloakwp-block-data");
-      if (script && pending) script.textContent = JSON.stringify(pending.blockData);
+      if (pending) {
+        const json = JSON.stringify(pending.blockData);
+        if (script) script.textContent = json; // Older PHP preview shells.
+        // Match wp_json_encode: atob consumers expect ASCII JSON with Unicode escapes.
+        const asciiJson = json.replace(/[\u0080-\uFFFF]/g, function (character) {
+          return "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0");
+        });
+        root.setAttribute("data-cloakwp-block-data", btoa(asciiJson));
+      }
       const iframe = root.querySelector("iframe.block-preview-iframe");
       if (iframe) {
         // Reload only the iframe so ACF's React-owned shell remains intact.

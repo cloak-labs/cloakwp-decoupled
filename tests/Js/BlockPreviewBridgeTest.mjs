@@ -22,6 +22,7 @@ function previewHtml(
   return `
     <div
       class="decoupled-block-preview-ctnr"
+      data-cloakwp-block-data="${Buffer.from(JSON.stringify(blockData).replace(/[\u0080-\uFFFF]/g, character => "\\u" + character.charCodeAt(0).toString(16).padStart(4, "0"))).toString("base64")}"
       data-cloakwp-preview-key="${editorKey}"
       data-cloakwp-preview-origin="https://frontend.test"
       data-cloakwp-preview-initial-height="${previewInitialHeight}"
@@ -31,7 +32,6 @@ function previewHtml(
         data-cloakwp-preview-key="${editorKey}"
         src="https://frontend.test/preview-block?token=${tokenPayload}.signature"
       ></iframe>
-      <script type="application/json" class="cloakwp-block-data">${JSON.stringify(blockData)}</script>
     </div>
   `;
 }
@@ -123,8 +123,10 @@ async function createBridgeHarness({
   document.querySelector = (selector) =>
     selector.includes("acf-block-fields") && serializedData ? form : originalQuerySelector(selector);
   const clientId = editorKey.replace(/^block_/, "");
+  const rootAttributes = new Map();
   const root = {
-    getAttribute: (name) => name === "data-cloakwp-preview-key" ? editorKey : null,
+    setAttribute: (name, value) => rootAttributes.set(name, value),
+    getAttribute: (name) => name === "data-cloakwp-preview-key" ? editorKey : rootAttributes.get(name) ?? null,
     closest: () => ({ getAttribute: () => clientId }),
     querySelector: (selector) => selector.includes("iframe") ? iframe : dataScript,
   };
@@ -202,8 +204,9 @@ async function createBridgeHarness({
     XMLHttpRequest: FakeXHR,
     acf,
     atob(value) {
-      return Buffer.from(value, "base64").toString("utf8");
+      return Buffer.from(value, "base64").toString("binary");
     },
+    btoa(value) { return Buffer.from(value, "binary").toString("base64"); },
     clearInterval() {},
     clearTimeout() {},
     console,
@@ -251,6 +254,7 @@ async function createBridgeHarness({
     iframe,
     button,
     dataScript,
+    rootAttributes,
     attributes,
     requests,
     renderPreview,
@@ -495,4 +499,15 @@ test("requests height again when the initial observer report is missed", async (
       ({ payload }) => payload.previewKey === "block_delayed_signed",
     ),
   );
+});
+
+test("inert preview payloads preserve Unicode and script-like content through refresh", async () => {
+  const blockData = { name: "acf/eyebrow", data: { eyebrow_text: "Māori 😀 </script>" } };
+  const harness = await createBridgeHarness({ editorKey: "block_inert", protocolKey: "block_inert_signed", blockData });
+  assert.deepEqual(JSON.parse(JSON.stringify(harness.readyMessages.at(-1).payload.blockData)), blockData);
+  harness.refresh();
+  harness.requests[0].complete({ success: true, data: { preview: previewHtml("block_inert", "block_inert", blockData) } });
+  const encoded = harness.rootAttributes.get("data-cloakwp-block-data");
+  assert.deepEqual(JSON.parse(Buffer.from(encoded, "base64").toString("binary")), blockData);
+  assert.ok(!previewHtml("block_inert", "block_inert_signed", blockData).includes("<script"));
 });
