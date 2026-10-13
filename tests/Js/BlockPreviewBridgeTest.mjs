@@ -46,6 +46,7 @@ async function createBridgeHarness({
   const messageListeners = [];
   const filters = new Map();
   const actions = new Map();
+  const editorFilters = new Map();
   const clickListeners = [];
   const previewMessages = [];
   const requests = [];
@@ -105,7 +106,7 @@ async function createBridgeHarness({
         selector.includes("decoupled-block-preview-ctnr") &&
         selector.includes(editorKey)
       ) {
-        return null;
+        return root;
       }
       if (selector.includes("iframe") && selector.includes(editorKey)) {
         return iframe;
@@ -139,21 +140,41 @@ async function createBridgeHarness({
     setAttribute(name, value) { this.attributes.set(name, value); },
     removeAttribute(name) { this.attributes.delete(name); },
   };
-  const attributes = { name: blockData.name, data: { field_gallery: [1] }, _acf_context: { postId: 13 } };
-  const jquery = () => ({ length: 1, data: () => null, parent: () => ({ length: 0 }) });
+  const attributes = {
+    name: blockData.name,
+    data: { field_gallery: [1] },
+    _acf_context: { postId: 13 },
+  };
+  const jquery = () => ({
+    length: 1,
+    data: () => null,
+    parent: () => ({ length: 0 }),
+  });
   jquery.ajax = (options) => {
     const callbacks = {};
     const request = {
       options,
-      done(fn) { callbacks.done = fn; return this; },
-      fail(fn) { callbacks.fail = fn; return this; },
-      always(fn) { callbacks.always = fn; return this; },
+      done(fn) {
+        callbacks.done = fn;
+        return this;
+      },
+      fail(fn) {
+        callbacks.fail = fn;
+        return this;
+      },
+      always(fn) {
+        (callbacks.always ||= []).push(fn);
+        return this;
+      },
       complete(response) {
         this.xhr.complete();
         callbacks.done(response);
-        callbacks.always();
+        callbacks.always.forEach((fn) => fn());
       },
-      reject() { callbacks.fail(); callbacks.always(); },
+      reject() {
+        callbacks.fail();
+        callbacks.always.forEach((fn) => fn());
+      },
       xhr: new FakeXHR(),
     };
     request.xhr.open("POST", options.url);
@@ -167,7 +188,24 @@ async function createBridgeHarness({
     innerHeight: 900,
     location: { href: "https://wp.test/wp-admin/post.php?post=13" },
     jQuery: jquery,
-    wp: { data: { select: () => ({ getBlock: () => ({ attributes }) }) } },
+    wp: {
+      data: { select: () => ({ getBlock: () => ({ attributes }) }) },
+      hooks: {
+        addFilter: (name, namespace, callback) =>
+          editorFilters.set(name, callback),
+      },
+      element: {
+        createElement: (type, props, ...children) => ({
+          type,
+          props,
+          children,
+        }),
+        Fragment: "Fragment",
+        useState: () => [false, () => {}],
+      },
+      blockEditor: { InspectorControls: "InspectorControls" },
+      components: { PanelBody: "PanelBody", Button: "Button" },
+    },
     addEventListener(type, listener) {
       if (type === "message") messageListeners.push(listener);
     },
@@ -196,7 +234,11 @@ async function createBridgeHarness({
     })();
     `,
   );
-  assert.notEqual(instrumentedSource, source, "bridge test instrumentation failed");
+  assert.notEqual(
+    instrumentedSource,
+    source,
+    "bridge test instrumentation failed",
+  );
 
   const context = vm.createContext({
     URL,
@@ -247,6 +289,21 @@ async function createBridgeHarness({
   const readyMessages = previewMessages.slice();
   previewMessages.length = 0;
 
+  const withInspector = editorFilters.get("editor.BlockEdit");
+  assert.ok(withInspector, "sidebar filter was not registered");
+  const BlockEdit = () => null;
+  function inspector(props = {}) {
+    const tree = withInspector(BlockEdit)({
+      name: blockData.name,
+      isSelected: true,
+      clientId,
+      ...props,
+    });
+    assert.equal(tree.children[0].type, BlockEdit);
+    const control = tree.children[1];
+    return control ? control.type(control.props) : null;
+  }
+
   return {
     flushTimers() {
       while (timers.length) timers.shift()();
@@ -258,8 +315,11 @@ async function createBridgeHarness({
     attributes,
     requests,
     renderPreview,
-    refresh() {
-      clickListeners[0]({ target: button, preventDefault() {}, stopPropagation() {} });
+    inspector,
+    refresh(selectedClientId = clientId) {
+      const control = inspector({ clientId: selectedClientId });
+      control.children[0].children.find((child) => child.type === "Button")
+        .props.onClick({ currentTarget: button });
     },
     setSerializedData(data) { serializedData = data; },
     remountCachedShell() {
@@ -306,6 +366,31 @@ test("keeps optimistic text and takes server galleries when merging a stale prev
   assert.equal(merged.heading, "Gallery updated");
   assert.equal(merged.manual_images.length, 1);
   assert.equal(merged.manual_images[0].url, "https://cdn.test/a.jpg");
+});
+
+test("refresh lives in the selected ACF block inspector and targets only its preview", async () => {
+  const harness = await createBridgeHarness({
+    editorKey: "block_images",
+    protocolKey: "block_images_signed",
+    blockData: { name: "acf/images", data: {} },
+  });
+  assert.equal(harness.inspector({ isSelected: false }), null);
+  assert.equal(harness.inspector({ name: "core/paragraph" }), null);
+  const inspector = harness.inspector();
+  assert.equal(inspector.type, "InspectorControls");
+  assert.equal(inspector.children[0].props.title, "Preview");
+  assert.equal(
+    inspector.children[0].children.find((child) => child.type === "Button").children[0],
+    "Refresh preview",
+  );
+  harness.refresh("missing-block");
+  assert.equal(
+    harness.requests.length,
+    0,
+    "do not fall back to another live preview",
+  );
+  harness.remountCachedShell();
+  assert.equal(harness.requests.length, 0);
 });
 
 test("refresh sends uncached fetch-block with current form values and reloads the iframe", async () => {
@@ -500,6 +585,7 @@ test("requests height again when the initial observer report is missed", async (
     ),
   );
 });
+
 
 test("inert preview payloads preserve Unicode and script-like content through refresh", async () => {
   const blockData = { name: "acf/eyebrow", data: { eyebrow_text: "Māori 😀 </script>" } };

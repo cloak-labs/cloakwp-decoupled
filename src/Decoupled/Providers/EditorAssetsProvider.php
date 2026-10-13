@@ -31,7 +31,7 @@ final class EditorAssetsProvider implements ServiceProvider
       Stylesheet::make('cloakwp_gutenberg_styles')
         ->hooks(['enqueue_block_editor_assets'])
         ->src($assets->url('css/editor.css'))
-        ->version($isDevelopment && is_readable($editorCss) ? (string) filemtime($editorCss) : '2.0.0'),
+        ->version($isDevelopment && is_readable($editorCss) ? (string) filemtime($editorCss) : '2.0.1'),
     ];
 
     if (Acf::isActive()) {
@@ -39,11 +39,19 @@ final class EditorAssetsProvider implements ServiceProvider
         ->hooks(['enqueue_block_editor_assets'])
         ->priority(100)
         ->src($assets->url('js/block-preview.js'))
-        ->deps(['acf-input', 'acf-blocks'])
+        ->deps([
+          'acf-input',
+          'acf-blocks',
+          'wp-hooks',
+          'wp-element',
+          'wp-block-editor',
+          'wp-components',
+          'wp-data',
+        ])
         ->version(
           ($isDevelopment && is_readable($blockPreviewJs))
             ? (string) filemtime($blockPreviewJs)
-            : '2.3.1'
+            : '2.3.3'
         )
         ->inFooter();
     }

@@ -208,10 +208,7 @@
     "content:'';position:absolute;inset:0;z-index:40;cursor:pointer}" +
     ".cloakwp-block-selector{display:none!important;position:absolute;width:24px;height:24px;max-width:32px;max-height:32px;padding:6px;z-index:50;color:#fff;cursor:pointer;pointer-events:auto;background-color:var(--wp-admin-theme-color,#007cba);border-bottom-right-radius:3px;box-shadow:0 1px 3px rgba(0,0,0,.3)}" +
     ".cloakwp-block-selector:hover{background-color:var(--wp-admin-theme-color-darker-10,#006ba1)}" +
-    ".block-editor-block-list__block:not(.is-selected)>.decoupled-block-preview-ctnr:hover .cloakwp-block-selector{display:block!important}" +
-    ".cloakwp-block-preview-refresh{display:none;position:absolute;top:8px;right:8px;z-index:60;width:28px;height:28px;padding:0;border:0;border-radius:3px;color:#fff;background:var(--wp-admin-theme-color,#007cba);box-shadow:0 1px 3px rgba(0,0,0,.3);cursor:pointer;pointer-events:auto;align-items:center;justify-content:center}" +
-    ".cloakwp-block-preview-refresh:hover{background:var(--wp-admin-theme-color-darker-10,#006ba1)}" +
-    ".block-editor-block-list__block.is-selected .cloakwp-block-preview-refresh,.decoupled-block-preview-ctnr:hover .cloakwp-block-preview-refresh{display:flex}";
+    ".block-editor-block-list__block:not(.is-selected)>.decoupled-block-preview-ctnr:hover .cloakwp-block-selector{display:block!important}";
 
   function ensureCanvasPreviewStyles() {
     var docs = collectEditorDocuments();
@@ -1677,27 +1674,12 @@
   }
 
   const REFRESH_BUTTON_SELECTOR = [
-    ".cloakwp-block-preview-refresh",
     ".acf-block-preview-refresh",
     ".acf-block-preview-refresh-button",
     ".acfe-block-preview-refresh",
     "[data-name='refresh-preview']",
     "[data-acf-block-preview-refresh]",
   ].join(", ");
-
-  /**
-   * Plugin refresh controls already drawn inside this preview.
-   * @param {Element} root
-   * @returns {boolean}
-   */
-  function hasExternalRefreshButton(root) {
-    const preview = root.closest(".acf-block-preview") || root.parentElement;
-    if (!preview) return false;
-    const found = preview.querySelector(
-      ".acf-block-preview-refresh, .acf-block-preview-refresh-button, .acfe-block-preview-refresh, [data-name='refresh-preview'], [data-acf-block-preview-refresh], .dashicons-update",
-    );
-    return !!found && !found.closest(".cloakwp-block-preview-refresh");
-  }
 
   function ensureRefreshClickListener(doc) {
     if (!doc || doc.__cloakwpRefreshListener) return;
@@ -1709,35 +1691,88 @@
     }
   }
 
-  /**
-   * @param {Element} root
-   */
-  function ensureRefreshButton(root) {
-    if (!root) return;
-    ensureRefreshClickListener(root.ownerDocument || document);
-    if (root.querySelector(".cloakwp-block-preview-refresh")) return;
-    if (hasExternalRefreshButton(root)) return;
-    const doc = root.ownerDocument || document;
-    const button = doc.createElement("button");
-    button.type = "button";
-    button.className = "cloakwp-block-preview-refresh";
-    button.setAttribute("aria-label", "Refresh preview");
-    button.title = "Refresh preview";
-    button.innerHTML =
-      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>';
-    root.appendChild(button);
+  function registerPreviewInspector() {
+    const wp = window.wp;
+    if (!wp?.hooks || !wp.element || !wp.blockEditor || !wp.components) return;
+    const { createElement: el, Fragment, useState } = wp.element;
+    const { InspectorControls } = wp.blockEditor;
+    const { PanelBody, Button } = wp.components;
+
+    function PreviewRefreshControl({ clientId }) {
+      const [isRefreshing, setIsRefreshing] = useState(false);
+      return el(
+        InspectorControls,
+        null,
+        el(
+          PanelBody,
+          { title: "Preview", initialOpen: true },
+          el(
+            "p",
+            { style: { fontSize: "12px", marginTop: 0, marginBottom: "10px" } },
+            "Frozen preview? Force a refresh:",
+          ),
+          el(
+            Button,
+            {
+              variant: "secondary",
+              icon: "update",
+              isBusy: isRefreshing,
+              disabled: isRefreshing,
+              onClick: function (event) {
+                const request = requestFullPreviewRender(
+                  event.currentTarget,
+                  clientId,
+                );
+                if (!request) return;
+                setIsRefreshing(true);
+                request.always(function () {
+                  setIsRefreshing(false);
+                });
+              },
+            },
+            "Refresh preview",
+          ),
+        ),
+      );
+    }
+
+    wp.hooks.addFilter(
+      "editor.BlockEdit",
+      "cloakwp/preview-refresh-inspector",
+      function (BlockEdit) {
+        return function BlockEditWithPreviewRefresh(props) {
+          return el(
+            Fragment,
+            null,
+            el(BlockEdit, props),
+            props.isSelected && props.name?.indexOf("acf/") === 0
+              ? el(PreviewRefreshControl, {
+                  key: props.clientId,
+                  clientId: props.clientId,
+                })
+              : null,
+          );
+        };
+      },
+    );
   }
 
   /**
+   * Sidebar controls identify their block explicitly; canvas/plugin controls
+   * can still resolve it from the surrounding preview markup.
    * @param {Element} fromEl
+   * @param {string} [selectedClientId]
+   * @returns {JQuery.jqXHR | undefined}
    */
-  function requestFullPreviewRender(fromEl) {
-    const root =
-      fromEl.closest(".decoupled-block-preview-ctnr") ||
-      (fromEl.closest(".acf-block-preview") &&
-        fromEl.closest(".acf-block-preview").querySelector(
-          ".decoupled-block-preview-ctnr",
-        ));
+  function requestFullPreviewRender(fromEl, selectedClientId) {
+    const root = selectedClientId
+      ? findPreviewRootByKey(selectedClientId) ||
+        findPreviewRootByKey("block_" + selectedClientId)
+      : fromEl.closest(".decoupled-block-preview-ctnr") ||
+        (fromEl.closest(".acf-block-preview") &&
+          fromEl
+            .closest(".acf-block-preview")
+            .querySelector(".decoupled-block-preview-ctnr"));
     const key = root && root.getAttribute("data-cloakwp-preview-key");
     const $ = window.jQuery;
     if (!key || !$ || typeof acf === "undefined" || !window.wp?.data) return;
@@ -1842,6 +1877,7 @@
       fromEl.disabled = false;
       fromEl.removeAttribute("aria-busy");
     });
+    return request;
   }
 
   /**
@@ -1861,11 +1897,6 @@
       if (!icon || !host) return;
       requestFullPreviewRender(icon);
       return;
-    }
-    const ours = button.classList.contains("cloakwp-block-preview-refresh");
-    if (ours) {
-      event.preventDefault();
-      event.stopPropagation();
     }
     requestFullPreviewRender(button);
   }
@@ -2332,8 +2363,6 @@
         if (key && pending) {
           storeAndFlush(key, pending.blockData, pending.isPageDark);
         }
-
-        ensureRefreshButton(root);
       }
 
       ensureCanvasPreviewStyles();
@@ -2379,6 +2408,8 @@
 
     return true;
   }
+
+  registerPreviewInspector();
 
   if (!registerAcfHooks()) {
     const started = Date.now();
