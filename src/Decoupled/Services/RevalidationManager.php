@@ -40,6 +40,7 @@ final class RevalidationManager
           || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)
           || (defined('DOING_AJAX') && DOING_AJAX)
           || (($post->post_status ?? null) === 'auto-draft')
+          || !apply_filters('cloakwp/decoupled/revalidate_on_save', true, $frontend, (int) $postId)
         ) {
           return;
         }

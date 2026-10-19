@@ -155,6 +155,19 @@ final class RevalidationManagerTest extends TestCase
     $this->assertSame([], WpStubs::$remoteRequests);
   }
 
+  public function testPublicationCoordinatorCanDeferAutomaticSaveRevalidation(): void
+  {
+    $frontend = Frontend::make('web', 'https://web.test')->authSecret('secret')->revalidateEntriesOnSave();
+    $manager = $this->manager($frontend);
+    $manager->boot();
+    add_filter('cloakwp/decoupled/revalidate_on_save', static fn() => false);
+    WpStubs::runAction('save_post', 100, (object) ['post_status' => 'publish'], true);
+    $this->assertSame([], WpStubs::$remoteRequests);
+    // Explicit, post-publication invalidation remains possible.
+    $manager->revalidate($frontend, ['/']);
+    $this->assertCount(1, WpStubs::$remoteRequests);
+  }
+
   private function manager(
     Frontend $frontend,
     ?MaintenanceState $maintenance = null,
