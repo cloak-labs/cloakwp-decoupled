@@ -168,6 +168,60 @@ final class RevalidationManagerTest extends TestCase
     $this->assertCount(1, WpStubs::$remoteRequests);
   }
 
+  public function testLegacyChallengeRevalidatesEachPathAndVerifiesAcknowledgements(): void
+  {
+    $frontend = Frontend::make('web', 'https://web.test')->authSecret('a&secret?');
+    WpStubs::$remoteResponses = [
+      ['response' => ['code' => 401], 'body' => json_encode('Access denied: a secret token was not provided.')],
+      ['response' => ['code' => 200], 'body' => '{"page":"/one","revalidated":true}'],
+      ['response' => ['code' => 200], 'body' => '{"page":"/two","revalidated":true}'],
+    ];
+    $this->manager($frontend)->revalidate($frontend, ['/one', '/two']);
+    $this->assertCount(3, WpStubs::$remoteRequests);
+    foreach (array_slice(WpStubs::$remoteRequests, 1) as $i => $request) {
+      parse_str(parse_url($request['url'], PHP_URL_QUERY), $query);
+      $this->assertSame(['secret' => 'a&secret?', 'pathname' => ['/one', '/two'][$i]], $query);
+      $this->assertSame(0, $request['args']['redirection']);
+      $this->assertTrue($request['args']['blocking']);
+    }
+    $this->assertArrayNotHasKey('cloakwp_decoupled_revalidation_queue', WpStubs::$optionsBySite[1] ?? []);
+  }
+
+  public function testGenericAuthFailureNeverSendsQuerySecret(): void
+  {
+    $frontend = Frontend::make('web', 'https://web.test')->authSecret('secret');
+    WpStubs::$remoteResponses[] = ['response' => ['code' => 401], 'body' => '{"error":"Invalid signature"}'];
+    $this->manager($frontend)->revalidate($frontend, ['/one']);
+    $this->assertCount(1, WpStubs::$remoteRequests);
+    $this->assertStringNotContainsString('secret', WpStubs::$remoteRequests[0]['url']);
+    $this->assertCount(1, WpStubs::$optionsBySite[1]['cloakwp_decoupled_revalidation_queue']);
+  }
+
+  public function testLegacyPartialFailureQueuesPathsAndRetriesSuccessfully(): void
+  {
+    $now = 1000;
+    $frontend = Frontend::make('web', 'https://web.test')->authSecret('secret');
+    $manager = $this->manager($frontend, null, $now);
+    $challenge = ['response' => ['code' => 401], 'body' => json_encode('Access denied: a secret token was not provided.')];
+    WpStubs::$remoteResponses = [
+      $challenge,
+      ['response' => ['code' => 200], 'body' => '{"page":"/wrong","revalidated":true}'],
+      ['response' => ['code' => 200], 'body' => '{"page":"/two","revalidated":true}'],
+    ];
+    $manager->revalidate($frontend, ['/one', '/two']);
+    $this->assertCount(3, WpStubs::$remoteRequests);
+    $this->assertSame(['/one', '/two'], array_values(WpStubs::$optionsBySite[1]['cloakwp_decoupled_revalidation_queue'])[0]['paths']);
+    WpStubs::$remoteResponses = [
+      $challenge,
+      ['response' => ['code' => 200], 'body' => '{"page":"/one","revalidated":true}'],
+      ['response' => ['code' => 200], 'body' => '{"page":"/two","revalidated":true}'],
+    ];
+    $now = 1061;
+    $manager->processRetryQueue();
+    $this->assertCount(6, WpStubs::$remoteRequests);
+    $this->assertArrayNotHasKey('cloakwp_decoupled_revalidation_queue', WpStubs::$optionsBySite[1]);
+  }
+
   private function manager(
     Frontend $frontend,
     ?MaintenanceState $maintenance = null,

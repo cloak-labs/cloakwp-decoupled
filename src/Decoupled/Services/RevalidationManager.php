@@ -183,6 +183,12 @@ final class RevalidationManager
 
     $status = wp_remote_retrieve_response_code($response);
     $responseBody = wp_remote_retrieve_body($response);
+    // Pre-2.0 frontends authenticate query parameters and accept one pathname.
+    // Only this exact legacy challenge permits sending the shared secret.
+    if ($status === 401 && json_decode($responseBody, true) === 'Access denied: a secret token was not provided.') {
+      return $this->sendLegacyPayload($frontend, $target, $paths, $secret);
+    }
+
     if ($status < 200 || $status >= 300 || $responseBody === '') {
       error_log("CloakWP revalidation returned HTTP {$status}.");
       return false;
@@ -195,6 +201,46 @@ final class RevalidationManager
     }
 
     return $valid;
+  }
+
+  /** @param list<string> $paths */
+  private function sendLegacyPayload(Frontend $frontend, string $target, array $paths, string $secret): bool
+  {
+    $succeeded = true;
+    foreach ($paths as $path) {
+      $url = rtrim($frontend->getApiRouterUrl($target), '/') . '/revalidate?' . http_build_query(
+        ['secret' => $secret, 'pathname' => $path],
+        '',
+        '&',
+        PHP_QUERY_RFC3986,
+      );
+      $response = ($this->httpPost)($url, [
+        'blocking' => true,
+        'timeout' => (int) $frontend->getSettings('revalidationTimeout'),
+        // Never forward a query secret to a redirect destination.
+        'redirection' => 0,
+      ]);
+      if (is_wp_error($response)) {
+        // Transport errors can contain the URL, so do not log their message.
+        error_log('CloakWP legacy revalidation request failed.');
+        $succeeded = false;
+        continue;
+      }
+
+      $status = wp_remote_retrieve_response_code($response);
+      $decoded = json_decode(wp_remote_retrieve_body($response), true);
+      if (
+        $status < 200 || $status >= 300
+        || !is_array($decoded)
+        || ($decoded['revalidated'] ?? null) !== true
+        || ($decoded['page'] ?? null) !== $path
+      ) {
+        error_log('CloakWP legacy revalidation returned an invalid response.');
+        $succeeded = false;
+      }
+    }
+
+    return $succeeded;
   }
 
   /**
