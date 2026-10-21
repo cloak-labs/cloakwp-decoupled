@@ -276,6 +276,8 @@ The frontend returns `{"ok":true,"results":[...]}` only when every path
 revalidates. Failed requests are stored in a per-site WordPress option and
 retried through WP-Cron with bounded exponential backoff.
 
+Pre-2.0 frontends that return the exact missing-secret authentication challenge receive a compatibility request per pathname using their existing query-secret protocol. Each response must confirm the same page and `revalidated: true`; redirects are disabled and failures remain queued. Other authentication failures never trigger this fallback.
+
 The package does not infer behavior from an environment name. Applications can
 pause outbound requests explicitly without blocking REST:
 
