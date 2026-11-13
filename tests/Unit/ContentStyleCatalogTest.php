@@ -38,10 +38,10 @@ final class ContentStyleCatalogTest extends TestCase
     $catalog = ContentStyleCatalog::make()->workerUrl('http://worker.test/rebuild')->token('secret');
     $catalog->changed(100);
     $GLOBALS['wpdb']->beforeDelete = static function (): void {
-      update_option('cloakwp_style_catalog_pending', 'newer-save', false);
+      update_option('crosswind_catalog_pending', 'newer-save', false);
     };
     $catalog->notify();
-    $this->assertSame('newer-save', get_option('cloakwp_style_catalog_pending'));
+    $this->assertSame('newer-save', get_option('crosswind_catalog_pending'));
   }
 
   public function testConfigurationIsOptInAndRegistrationIsIdempotent(): void
@@ -52,7 +52,7 @@ final class ContentStyleCatalogTest extends TestCase
     $registered = WpStubs::$actions;
     $catalog->register();
     $this->assertSame($registered, WpStubs::$actions);
-    $this->assertSame(['rest_api_init', 'wp_after_insert_post', 'deleted_post', 'acf/save_post', 'shutdown', 'cloakwp_style_catalog_retry'], array_column($registered, 'hook'));
+    $this->assertSame(['rest_api_init', 'wp_after_insert_post', 'deleted_post', 'acf/save_post', 'shutdown', 'crosswind_catalog_retry'], array_column($registered, 'hook'));
   }
 
   public function testRegistrationRequiresBothWorkerAndToken(): void
@@ -72,6 +72,7 @@ final class ContentStyleCatalogTest extends TestCase
     $this->assertFalse(ContentStyleCatalog::make()->authorized(''));
     $catalog = ContentStyleCatalog::make()->token('test-secret');
     $this->assertFalse($catalog->authorized(''));
+    $this->assertFalse($catalog->authorized(null));
     $this->assertFalse($catalog->authorized('wrong-secret'));
     $this->assertTrue($catalog->authorized('test-secret'));
   }
@@ -103,7 +104,7 @@ final class ContentStyleCatalogTest extends TestCase
     $this->assertCount(1, WpStubs::$remoteRequests);
     $request = WpStubs::$remoteRequests[0];
     $this->assertSame('http://worker.test/rebuild', $request['url']);
-    $this->assertSame('test-secret', $request['args']['headers']['X-Class-Catalog-Token']);
+    $this->assertSame('test-secret', $request['args']['headers']['X-Crosswind-Token']);
     $this->assertSame(['version' => 1, 'siteId' => 38, 'event' => 'content-changed'], json_decode($request['args']['body'], true));
   }
 
@@ -121,11 +122,11 @@ final class ContentStyleCatalogTest extends TestCase
     WpStubs::$remoteResponses = [['response' => ['code' => 503], 'body' => '{}']];
     $catalog->changed(100);
     $catalog->notify();
-    $this->assertNotFalse(get_option('cloakwp_style_catalog_pending', false));
-    $this->assertNotFalse(wp_next_scheduled('cloakwp_style_catalog_retry'));
+    $this->assertNotFalse(get_option('crosswind_catalog_pending', false));
+    $this->assertNotFalse(wp_next_scheduled('crosswind_catalog_retry'));
     $this->assertSame(5, WpStubs::$remoteRequests[0]['args']['timeout']);
     $catalog->retry();
-    $this->assertFalse(get_option('cloakwp_style_catalog_pending', false));
+    $this->assertFalse(get_option('crosswind_catalog_pending', false));
     $this->assertCount(2, WpStubs::$remoteRequests);
     $catalog->retry();
     $this->assertCount(2, WpStubs::$remoteRequests);
@@ -136,9 +137,9 @@ final class ContentStyleCatalogTest extends TestCase
     $catalog = ContentStyleCatalog::make()->workerUrl('http://worker.test/events')->token('secret');
     WpStubs::$remoteResponses = [['response' => ['code' => 200], 'body' => '{}'], ['response' => ['code' => 202], 'body' => '{"ok":true}']];
     $catalog->changed(100); $catalog->notify();
-    $this->assertNotFalse(get_option('cloakwp_style_catalog_pending', false));
+    $this->assertNotFalse(get_option('crosswind_catalog_pending', false));
     $catalog->retry();
-    $this->assertFalse(get_option('cloakwp_style_catalog_pending', false));
+    $this->assertFalse(get_option('crosswind_catalog_pending', false));
   }
 
   public function testRegisteredConfigurationCannotChange(): void
@@ -179,7 +180,7 @@ final class ContentStyleCatalogTest extends TestCase
     $catalog->changed(100);
     $newer = $catalog->invalidate($input)->data;
     $this->assertNotSame($first['contentRevision'], $newer['contentRevision']);
-    $this->assertSame(get_option('cloakwp_style_content_revision'), $newer['contentRevision']);
+    $this->assertSame(get_option('crosswind_content_revision'), $newer['contentRevision']);
     $this->assertSame('invalid_publication', $catalog->invalidate([...$input, 'siteId' => 2])->code);
     $this->assertSame('invalid_publication', $catalog->invalidate([...$input, 'site' => 'other'])->code);
     $this->assertSame('invalid_publication', ContentStyleCatalog::make()->site('example')->invalidate($input)->code);

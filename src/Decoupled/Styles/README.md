@@ -20,14 +20,14 @@ types with blocks are used, excluding attachments. Published inventories expand
 referenced patterns; the authenticated `include_unpublished=1` development feed
 also includes drafts and unreferenced patterns.
 
-The `X-Class-Catalog-Token` header authenticates:
+The `X-Crosswind-Token` header authenticates:
 
-- `GET /wp-json/cloakwp/class-catalog`: versioned inventory, site ID, content
+- `GET /wp-json/crosswind/catalog`: versioned inventory, site ID, content
   revision and upload metadata. A worker fetches this after notifications so block
   formatting runs in the same REST context as frontend content.
-- With publishing enabled, `GET /wp-json/cloakwp/class-catalog/manifest?release=...`
+- With publishing enabled, `GET /wp-json/crosswind/catalog/manifest?release=...`
   reads the manifest for this WordPress blog and frontend release.
-- With publishing enabled, `POST /wp-json/cloakwp/class-catalog/manifest` commits
+- With publishing enabled, `POST /wp-json/crosswind/catalog/manifest` commits
   a manifest after the worker has published and verified the immutable CSS file.
   Manifests contain version, site, release, SHA-256 hash, CSS URL, byte counts and
   `contentRevision`. An outdated revision returns 409 and leaves the pointer intact.
