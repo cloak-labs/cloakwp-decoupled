@@ -33,7 +33,8 @@ final class RevalidationManager
         continue;
       }
 
-      add_action('save_post', function ($postId, $post, $update) use ($frontend): void {
+      // The REST editor persists meta and additional fields after save_post.
+      add_action('wp_after_insert_post', function ($postId, $post) use ($frontend): void {
         if (
           wp_is_post_revision($postId)
           || wp_is_post_autosave($postId)
@@ -46,7 +47,7 @@ final class RevalidationManager
         }
 
         $this->revalidate($frontend, [(int) $postId]);
-      }, 10, 3);
+      }, 10, 2);
     }
 
     add_action(self::CRON_HOOK, [$this, 'processRetryQueue']);

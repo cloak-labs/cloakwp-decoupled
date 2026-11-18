@@ -139,6 +139,23 @@ final class RevalidationManagerTest extends TestCase
     );
   }
 
+  public function testEditorSaveRevalidatesOnceAfterMetadataIsStored(): void
+  {
+    $frontend = Frontend::make('web', 'https://web.test')->authSecret('secret')->revalidateEntriesOnSave();
+    $this->manager($frontend)->boot();
+    $post = WpStubs::$posts[100] = (object) [
+      'ID' => 100,
+      'post_status' => 'publish',
+      'permalink' => 'https://web.test/contact/',
+    ];
+
+    WpStubs::runAction('save_post', 100, $post, true);
+    $this->assertSame([], WpStubs::$remoteRequests);
+    WpStubs::runAction('wp_after_insert_post', 100, $post, true);
+    $this->assertCount(1, WpStubs::$remoteRequests);
+    $this->assertSame(['/contact'], json_decode(WpStubs::$remoteRequests[0]['args']['body'], true)['paths']);
+  }
+
   public function testDefaultSaveHookGuardsRevisionsAndAutosaves(): void
   {
     $frontend = Frontend::make('web', 'https://web.test')
@@ -149,8 +166,8 @@ final class RevalidationManagerTest extends TestCase
     WpStubs::$revisionIds = [10];
     WpStubs::$autosaveIds = [11];
 
-    WpStubs::runAction('save_post', 10, (object) ['post_status' => 'publish'], true);
-    WpStubs::runAction('save_post', 11, (object) ['post_status' => 'publish'], true);
+    WpStubs::runAction('wp_after_insert_post', 10, (object) ['post_status' => 'publish'], true);
+    WpStubs::runAction('wp_after_insert_post', 11, (object) ['post_status' => 'publish'], true);
 
     $this->assertSame([], WpStubs::$remoteRequests);
   }
@@ -161,7 +178,7 @@ final class RevalidationManagerTest extends TestCase
     $manager = $this->manager($frontend);
     $manager->boot();
     add_filter('cloakwp/decoupled/revalidate_on_save', static fn() => false);
-    WpStubs::runAction('save_post', 100, (object) ['post_status' => 'publish'], true);
+    WpStubs::runAction('wp_after_insert_post', 100, (object) ['post_status' => 'publish'], true);
     $this->assertSame([], WpStubs::$remoteRequests);
     // Explicit, post-publication invalidation remains possible.
     $manager->revalidate($frontend, ['/']);
